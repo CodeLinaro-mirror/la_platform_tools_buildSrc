@@ -37,7 +37,7 @@ class OfflineRepoPlugin implements Plugin<Project> {
             project.ext.offlineRepo.mkdirs()
         }
 
-        List<String> entryProjectPaths = [':base:gradle', ':base:gradle-experimental', ':dataBinding:compiler', ':base:java-lib-model-builder']
+        List<String> entryProjectPaths = [':base:gradle', ':dataBinding:compiler', ':base:java-lib-model-builder']
         /*
          * Identify all project and subprojects output artifacts and copy .jar and .pom
          * files into the repoDir local maven repository
