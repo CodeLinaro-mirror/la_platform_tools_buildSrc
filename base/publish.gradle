@@ -62,6 +62,7 @@ publishLocal {
 
 // custom tasks for creating source/javadoc jars
 task sourcesJar(type: Jar, dependsOn:classes) {
+    duplicatesStrategy 'exclude' // To work around issuetracker.google.com/65217116
     classifier = 'sources'
     from sourceSets.main.allSource
 }
