@@ -17,6 +17,12 @@ package com.android.tools.internal.license;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.provider.PropertyState;
+
+import java.io.File;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * Plugin setting up the licenseReport task.
@@ -25,7 +31,41 @@ public class LicenseReportPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
 
-        ReportTask licenseReport = project.getTasks().create("licenseReport", ReportTask.class);
-        licenseReport.dependsOn(project.getConfigurations().getByName("runtime"));
+        File outputFile = new File(
+                (File) project.getRootProject().getExtensions().getExtraProperties().get("androidHostDist"),
+                "license-" + project.getName() + ".txt");
+
+        //noinspection unchecked
+        PropertyState<List<String>> whiteListedDependencies = project.property((Class<List<String>>)(Class<?>)List.class);
+
+        project.getTasks().create("licenseReport", ReportTask.class, task -> {
+            task.setRuntimeDependencies(project.getConfigurations().getByName("runtimeClasspath"));
+            task.setWhiteListedDependencies(whiteListedDependencies);
+            task.setOutputFile(outputFile);
+        });
+
+        project.getExtensions().create("licenseReport", LicenseReportExtension.class, whiteListedDependencies);
+    }
+
+    public static class LicenseReportExtension {
+        private final PropertyState<List<String>> whiteListedDependencies;
+
+        public LicenseReportExtension(PropertyState<List<String>> whiteListedDependencies) {
+            this.whiteListedDependencies = whiteListedDependencies;
+            this.whiteListedDependencies.set((List<String>)Collections.EMPTY_LIST);
+        }
+
+        public void setWhiteList(String value) {
+            setWhiteList(Collections.singletonList(value));
+
+        }
+
+        public void setWhiteListe(String... values) {
+            setWhiteList(Arrays.asList(values));
+        }
+
+        public void setWhiteList(List<String> values) {
+            whiteListedDependencies.set(values);
+        }
     }
 }

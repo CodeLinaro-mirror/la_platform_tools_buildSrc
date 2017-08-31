@@ -29,6 +29,10 @@ import org.gradle.api.artifacts.component.ProjectComponentIdentifier;
 import org.gradle.api.artifacts.result.DependencyResult;
 import org.gradle.api.artifacts.result.ResolvedComponentResult;
 import org.gradle.api.artifacts.result.ResolvedDependencyResult;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.provider.PropertyState;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
@@ -47,11 +51,38 @@ import java.util.*;
  */
 public class ReportTask extends DefaultTask {
 
+    private FileCollection runtimeDependencies;
+    private PropertyState<List<String>> whiteListedDependencies;
+    private File outputFile;
+
+    public void setRuntimeDependencies(FileCollection runtimeDependencies) {
+        this.runtimeDependencies = runtimeDependencies;
+    }
+
+    public void setWhiteListedDependencies(PropertyState<List<String>> whiteListedDependencies) {
+        this.whiteListedDependencies = whiteListedDependencies;
+    }
+
+    @SuppressWarnings("unused")
+    @InputFiles
+    public FileCollection getRuntimeDependencies() {
+        return runtimeDependencies;
+    }
+
+    @SuppressWarnings("unused")
+    @Input
+    public List<String> getWhiteListedDependencies() {
+        return whiteListedDependencies.get();
+    }
+
+    public void setOutputFile(File outputFile) {
+        this.outputFile = outputFile;
+    }
+
+    @SuppressWarnings("unused")
     @OutputFile
     public File getOutputFile() {
-        return new File(
-                (File) getProject().getRootProject().getExtensions().getExtraProperties().get("androidHostDist"),
-                "license-" + getProject().getName() + ".txt");
+        return outputFile;
     }
 
     @TaskAction
@@ -67,6 +98,8 @@ public class ReportTask extends DefaultTask {
 
         Set<File> pomFiles = new HashSet<File>();
 
+        List<String> whiteListedNames = whiteListedDependencies.get();
+
         for (DependencyResult dependencyResult : dependencyResultSet) {
             if (dependencyResult instanceof ResolvedDependencyResult) {
                 processConfig(
@@ -76,12 +109,14 @@ public class ReportTask extends DefaultTask {
             }
         }
 
+        List<License> whiteListedLicenses = Collections.singletonList(new License("__WHITE_LISTED__", "<no url>", "<Manually white-listed in build.gradle>"));
+
         Map<String, List<License>> map = new HashMap<String, List<License>>(pomFiles.size());
 
         for (File pomFile : pomFiles) {
             PomHandler pomHandler = new PomHandler(pomFile);
 
-            ModuleVersionIdentifier artifactName = pomHandler.getArtifactId();
+            ModuleVersionIdentifier artifactId = pomHandler.getArtifactId();
 
             List<License> licenses = pomHandler.getLicenses();
 
@@ -97,19 +132,23 @@ public class ReportTask extends DefaultTask {
                 licenses = parentPomHandler.getLicenses();
             }
 
+            final String artifactName = artifactId.toString();
+
             if (!licenses.isEmpty()) {
-                map.put(artifactName.toString(), licenses);
+                map.put(artifactName, licenses);
             } else {
-                throw new RuntimeException("unable to find license info for " + artifactName);
+                if (!whiteListedNames.contains(artifactName)) {
+                    throw new RuntimeException("unable to find license info for " + artifactName);
+                } else {
+                    map.put(artifactName, whiteListedLicenses);
+                }
             }
         }
 
         List<String> keys = new ArrayList<String>(map.keySet());
         Collections.sort(keys);
 
-        File outputFile = getOutputFile();
-        FileWriter writer = new FileWriter(outputFile);
-        try {
+        try(FileWriter writer = new FileWriter(outputFile)) {
             for (String key : keys) {
                 writer.write(key);
                 writer.write("\n");
@@ -126,8 +165,6 @@ public class ReportTask extends DefaultTask {
                     }
                 }
             }
-        } finally {
-            writer.close();
         }
     }
 
