@@ -49,7 +49,7 @@ fi
 
 cd "$PROG_DIR"
 
-GRADLE_FLAGS="--no-daemon --info"
+GRADLE_FLAGS="--no-daemon --info --max-workers=1"
 
 ( set -x ; OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS :sdk:eclipse:copydeps ) || exit $?
 ( set -x ; OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS buildEclipse ) || exit $?
