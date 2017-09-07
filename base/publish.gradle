@@ -1,5 +1,6 @@
 jar {
     from 'NOTICE'
+    from 'LICENSE'
 }
 
 project.ext.sonatypeUsername = hasProperty('sonatypeUsername') ? sonatypeUsername : ""
@@ -65,6 +66,8 @@ task sourcesJar(type: Jar, dependsOn:classes) {
     duplicatesStrategy 'exclude' // To work around issuetracker.google.com/65217116
     classifier = 'sources'
     from sourceSets.main.allSource
+    from 'NOTICE'
+    from 'LICENSE'
 }
 
 // add source jar tasks as artifacts
