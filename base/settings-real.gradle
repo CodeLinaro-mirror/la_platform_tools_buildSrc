@@ -111,9 +111,6 @@ include ':external:desugar:optionsLib'
 project(':external:desugar:optionsLib').projectDir =
         new File(project(':external:desugar').projectDir, "java/com/google/devtools/common/options/")
 
-include ':external:r8'
-project(':external:r8').buildFileName = 'tools_build.gradle'
-
 include ':dataBinding'
 project(':dataBinding').projectDir = new File(rootDir, "data-binding")
 include ':dataBinding:baseLibrary'
