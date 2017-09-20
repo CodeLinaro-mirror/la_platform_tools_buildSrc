@@ -4,8 +4,6 @@ apply plugin: 'maven'
 
 repositories {
     maven { url = uri(rootProject.cloneArtifacts.repository) }
-    maven { url = "$rootDir/../tools/data-binding/maven-repo"}
-    maven { url = "$rootDir/../tools/data-binding/internal-prebuilts"}
 }
 
 test {
