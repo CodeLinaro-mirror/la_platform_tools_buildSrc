@@ -35,7 +35,6 @@ import org.gradle.build.docs.dsl.source.model.ClassMetaData
 import org.gradle.build.docs.dsl.source.model.TypeMetaData
 import org.gradle.build.docs.model.ClassMetaDataRepository
 import org.gradle.build.docs.model.SimpleClassMetaDataRepository
-import org.gradle.util.Clock
 import org.gradle.build.docs.DocGenerationException
 import org.gradle.api.Transformer
 
@@ -49,8 +48,6 @@ class ExtractDslMetaDataTask extends SourceTask {
 
     @TaskAction
     def extract() {
-        Clock clock = new Clock()
-
         //parsing all input files into metadata
         //and placing them in the repository object
         SimpleClassMetaDataRepository<ClassMetaData> repository = new SimpleClassMetaDataRepository<ClassMetaData>()
@@ -67,8 +64,6 @@ class ExtractDslMetaDataTask extends SourceTask {
             fullyQualifyAllTypeNames(metaData, resolver)
         }
         repository.store(destFile)
-
-        println "Parsed $counter classes in ${clock.time}"
     }
 
     def parse(File sourceFile, ClassMetaDataRepository<ClassMetaData> repository) {
