@@ -24,7 +24,6 @@ import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.ModuleVersionIdentifier
 import org.gradle.api.artifacts.ResolvedArtifact
 import org.gradle.api.tasks.bundling.Jar
-import org.gradle.internal.reflect.Instantiator
 
 import javax.inject.Inject
 
@@ -36,11 +35,6 @@ public class SdkJavaLibPlugin extends SdkFilesPlugin {
 
     private Jar buildTask
     private CopyDependenciesTask copyDepTask
-
-    @Inject
-    public SdkJavaLibPlugin(Instantiator instantiator) {
-        super(instantiator)
-    }
 
     @Override
     void apply(Project project) {

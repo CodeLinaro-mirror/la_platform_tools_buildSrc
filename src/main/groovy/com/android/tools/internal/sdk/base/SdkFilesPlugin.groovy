@@ -15,30 +15,21 @@
  */
 
 package com.android.tools.internal.sdk.base
+
 import org.gradle.api.Plugin
 import org.gradle.api.Project
-import org.gradle.internal.reflect.Instantiator
-
-import javax.inject.Inject
 
 /**
  */
 class SdkFilesPlugin extends BaseSdkPlugin implements Plugin<Project> {
 
-    private final Instantiator instantiator
-
     BaseExtension extension
-
-    @Inject
-    public SdkFilesPlugin(Instantiator instantiator) {
-        this.instantiator = instantiator
-    }
 
     @Override
     void apply(Project project) {
         super.apply(project)
 
-        extension = project.extensions.create('sdk', BaseExtension, instantiator)
+        extension = project.extensions.create('sdk', BaseExtension, project.getObjects())
 
         project.afterEvaluate {
             createCopyTask()
