@@ -56,4 +56,9 @@ GRADLE_FLAGS="--no-daemon --info --max-workers=1"
 
 # temp disable --parallel builds
 #OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" ../../gradlew -b ../../build.gradle --parallel-threads="${NUM_THREADS:-47}" $GRADLE_FLAGS makeSdk
+
+# Temporary workaround: the copy tasks seem to be missing some dependencies such that not all jar files
+# from libraries are ready for copying yet; work around this.
+( set -x ; OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS  :base:kotlin-compiler:jar ) || exit $?
+
 ( set -x ; OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS $TARGET ) || exit $?
