@@ -7,7 +7,14 @@
 
 set -e
 
-PROG_DIR=$(dirname "$0")
+# Normalize to absolute paths.
+# Current working directory plus the directory name of the command used to run this script give the
+# directory containing this script. Three levels up is the workspace root.
+# Use pushd to the directory to get an absolute path.
+pushd $(dirname "$0")/../../../
+REPO_ROOT=$(pwd)
+popd
+
 CURRENT_OS=$(uname | tr A-Z a-z)
 
 function die() {
@@ -37,9 +44,7 @@ if [[ -z "$BNUM"     ]]; then die "## Error: Missing build number"; fi
 
 if [[ "$OUT_DIR" != /* ]]
 then
-    pushd "$PROG_DIR"/../../..
-    OUT_DIR="$PWD/$OUT_DIR"
-    popd
+    OUT_DIR="$REPO_ROOT/$OUT_DIR"
 fi
 
 TARGET="makeSdk"
@@ -47,7 +52,6 @@ if [[ $CURRENT_OS == "linux" ]]; then
     TARGET="$TARGET makeWinSdk"
 fi
 
-cd "$PROG_DIR"
 
 # Use the studio prebuilt JDK rather than the ambient one.
 # This means that local developers and build servers use the same JDK, avoiding incidents of
@@ -68,20 +72,17 @@ case `uname -s` in
         ;;
 esac
 
-pushd "$PROG_DIR"/../../../
-JAVA_HOME="$PWD"/prebuilts/studio/jdk/${PREBUILT_JDK_RELATIVE_PATH}
-popd
+JAVA_HOME="$REPO_ROOT"/prebuilts/studio/jdk/${PREBUILT_JDK_RELATIVE_PATH}
 
-GRADLE_FLAGS="--no-daemon --info --max-workers=1"
+GRADLEW="${REPO_ROOT}/tools/gradlew -p ${REPO_ROOT}/tools --no-daemon --info --max-workers=1"
 
-( set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS :sdk:eclipse:copydeps ) || exit $?
-( set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS buildEclipse ) || exit $?
+function gradle {
+    (set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ${GRADLEW} $1 ) || exit $?
+}
 
-# temp disable --parallel builds
-#OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" ../../gradlew -b ../../build.gradle --parallel-threads="${NUM_THREADS:-47}" $GRADLE_FLAGS makeSdk
-
+gradle :sdk:eclipse:copydeps
+gradle buildEclipse
 # Temporary workaround: the copy tasks seem to be missing some dependencies such that not all jar files
 # from libraries are ready for copying yet; work around this.
-( set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS  :base:kotlin-compiler:jar ) || exit $?
-
-( set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS $TARGET ) || exit $?
+gradle  :base:kotlin-compiler:jar
+gradle ${TARGET}
