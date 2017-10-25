@@ -49,16 +49,39 @@ fi
 
 cd "$PROG_DIR"
 
+# Use the studio prebuilt JDK rather than the ambient one.
+# This means that local developers and build servers use the same JDK, avoiding incidents of
+# continuous builds being broken due to the ambient java not matching the prebuilt one.
+# Similar to tools/idea/build_studio.sh
+case `uname -s` in
+    MINGW64_NT-10.0)
+        PREBUILT_JDK_RELATIVE_PATH=win64
+        ;;
+    CYGWIN_NT-10.0)
+        PREBUILT_JDK_RELATIVE_PATH=win64
+        ;;
+    Darwin)
+        PREBUILT_JDK_RELATIVE_PATH=mac/Contents/Home
+        ;;
+    *)
+        PREBUILT_JDK_RELATIVE_PATH=linux
+        ;;
+esac
+
+pushd "$PROG_DIR"/../../../
+JAVA_HOME="$PWD"/prebuilts/studio/jdk/${PREBUILT_JDK_RELATIVE_PATH}
+popd
+
 GRADLE_FLAGS="--no-daemon --info --max-workers=1"
 
-( set -x ; OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS :sdk:eclipse:copydeps ) || exit $?
-( set -x ; OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS buildEclipse ) || exit $?
+( set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS :sdk:eclipse:copydeps ) || exit $?
+( set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS buildEclipse ) || exit $?
 
 # temp disable --parallel builds
 #OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" ../../gradlew -b ../../build.gradle --parallel-threads="${NUM_THREADS:-47}" $GRADLE_FLAGS makeSdk
 
 # Temporary workaround: the copy tasks seem to be missing some dependencies such that not all jar files
 # from libraries are ready for copying yet; work around this.
-( set -x ; OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS  :base:kotlin-compiler:jar ) || exit $?
+( set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS  :base:kotlin-compiler:jar ) || exit $?
 
-( set -x ; OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS $TARGET ) || exit $?
+( set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ../../gradlew -p ../.. $GRADLE_FLAGS $TARGET ) || exit $?
