@@ -17,6 +17,7 @@
 package com.android.tools.internal.sdk.base
 import com.google.common.collect.Lists
 import org.gradle.api.Action
+import javax.inject.Inject
 
 /**
  * A Config to build the SDK tools for a given platform.
@@ -28,6 +29,7 @@ class PlatformConfig {
     private final String name
     private final List<ToolItem> items = Lists.newArrayList()
 
+    @Inject
     PlatformConfig(String name) {
         this.name = name
     }

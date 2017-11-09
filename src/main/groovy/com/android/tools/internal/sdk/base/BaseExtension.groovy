@@ -15,8 +15,11 @@
  */
 
 package com.android.tools.internal.sdk.base
+
 import org.gradle.api.Action
-import org.gradle.internal.reflect.Instantiator
+import org.gradle.api.model.ObjectFactory;
+
+
 /**
  * Base extension for project publishing to the SDK Tools.
  */
@@ -26,10 +29,10 @@ public class BaseExtension {
     private PlatformConfig macConfig
     private PlatformConfig winConfig
 
-    public BaseExtension(Instantiator instantiator) {
-        linuxConfig = instantiator.newInstance(PlatformConfig.class, "linux")
-        macConfig = instantiator.newInstance(PlatformConfig.class, "mac")
-        winConfig = instantiator.newInstance(PlatformConfig.class, "win")
+    public BaseExtension(ObjectFactory objectFactory) {
+        linuxConfig = objectFactory.newInstance(PlatformConfig.class, "linux")
+        macConfig = objectFactory.newInstance(PlatformConfig.class, "mac")
+        winConfig = objectFactory.newInstance(PlatformConfig.class, "win")
     }
 
     void linux(Action<PlatformConfig> action) {
