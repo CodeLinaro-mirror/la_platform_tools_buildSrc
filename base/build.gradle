@@ -42,12 +42,15 @@ if (System.env.USE_EXTERNAL_REPO != null) {
  *
  * The build server will copy the contents of DIST_DIR to somewhere and make it available.
  */
-if (System.env.DIST_DIR != null && System.env.OUT_DIR != null) {
+// ext.androidHostOut is shared by all tools/{base,build,swt} gradle projects
+if (System.env.OUT_DIR != null) {
     ext.androidHostOut = file(System.env.OUT_DIR)
+} else {
+    ext.androidHostOut = file("$rootDir/../out")
+}
+if (System.env.DIST_DIR != null) {
     ext.androidHostDist = file(System.env.DIST_DIR)
 } else {
-    // ext.androidHostOut is shared by all tools/{base,build,swt} gradle projects/
-    ext.androidHostOut = file("$rootDir/../out")
     ext.androidHostDist = new File(ext.androidHostOut, "dist")
 }
 
