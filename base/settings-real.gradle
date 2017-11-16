@@ -43,7 +43,8 @@ include ':base:gradle-api'
 include ':base:gradle-core'
 include ':base:instant-run-instrumentation'
 include ':base:gradle'
-include ':base:integration-test'
+include ':base:build-system:integration-test'
+include ':base:build-system:integration-test:framework'
 include ':base:project-test-lib'
 include ':base:project-test'
 
@@ -83,7 +84,6 @@ project(':base:gradle-core'        ).projectDir = new File(rootDir, 'base/build-
 project(':base:instant-run-instrumentation'        ).projectDir = new File(rootDir, 'base/build-system/instant-run-instrumentation')
 project(':base:gradle-api'      ).projectDir = new File(rootDir, 'base/build-system/gradle-api')
 project(':base:gradle'             ).projectDir = new File(rootDir, 'base/build-system/gradle')
-project(':base:integration-test'   ).projectDir = new File(rootDir, 'base/build-system/integration-test')
 project(':base:project-test-lib'   ).projectDir = new File(rootDir, 'base/build-system/project-test-lib')
 project(':base:project-test'       ).projectDir = new File(rootDir, 'base/build-system/project-test')
 
