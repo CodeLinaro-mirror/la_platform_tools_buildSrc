@@ -45,6 +45,7 @@ include ':base:instant-run-instrumentation'
 include ':base:gradle'
 include ':base:build-system:integration-test'
 include ':base:build-system:integration-test:framework'
+include ':base:build-system:integration-test:application'
 include ':base:project-test-lib'
 include ':base:project-test'
 
