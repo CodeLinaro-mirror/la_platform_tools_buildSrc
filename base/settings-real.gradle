@@ -43,7 +43,9 @@ include ':base:gradle-api'
 include ':base:gradle-core'
 include ':base:instant-run-instrumentation'
 include ':base:gradle'
-include ':base:integration-test'
+include ':base:build-system:integration-test'
+include ':base:build-system:integration-test:framework'
+include ':base:build-system:integration-test:application'
 include ':base:project-test-lib'
 include ':base:project-test'
 
@@ -83,7 +85,6 @@ project(':base:gradle-core'        ).projectDir = new File(rootDir, 'base/build-
 project(':base:instant-run-instrumentation'        ).projectDir = new File(rootDir, 'base/build-system/instant-run-instrumentation')
 project(':base:gradle-api'      ).projectDir = new File(rootDir, 'base/build-system/gradle-api')
 project(':base:gradle'             ).projectDir = new File(rootDir, 'base/build-system/gradle')
-project(':base:integration-test'   ).projectDir = new File(rootDir, 'base/build-system/integration-test')
 project(':base:project-test-lib'   ).projectDir = new File(rootDir, 'base/build-system/project-test-lib')
 project(':base:project-test'       ).projectDir = new File(rootDir, 'base/build-system/project-test')
 
@@ -115,9 +116,9 @@ project(':sdk:find-java').projectDir = new File(rootDir.getParentFile(), "sdk/fi
 
 include ':external:fat32lib'
 include ':external:desugar'
-include ':external:desugar:optionsLib'
-project(':external:desugar:optionsLib').projectDir =
-        new File(project(':external:desugar').projectDir, "java/com/google/devtools/common/options/")
+include ':external:desugar:tryWithResourcesRuntime'
+project(':external:desugar:tryWithResourcesRuntime').projectDir =
+        new File(project(':external:desugar').projectDir, "java/com/google/devtools/build/android/desugar/runtime")
 
 include ':dataBinding'
 project(':dataBinding').projectDir = new File(rootDir, "data-binding")

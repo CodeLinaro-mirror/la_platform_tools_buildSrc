@@ -42,12 +42,15 @@ if (System.env.USE_EXTERNAL_REPO != null) {
  *
  * The build server will copy the contents of DIST_DIR to somewhere and make it available.
  */
-if (System.env.DIST_DIR != null && System.env.OUT_DIR != null) {
+// ext.androidHostOut is shared by all tools/{base,build,swt} gradle projects
+if (System.env.OUT_DIR != null) {
     ext.androidHostOut = file(System.env.OUT_DIR)
+} else {
+    ext.androidHostOut = file("$rootDir/../out")
+}
+if (System.env.DIST_DIR != null) {
     ext.androidHostDist = file(System.env.DIST_DIR)
 } else {
-    // ext.androidHostOut is shared by all tools/{base,build,swt} gradle projects/
-    ext.androidHostOut = file("$rootDir/../out")
     ext.androidHostDist = new File(ext.androidHostOut, "dist")
 }
 
@@ -103,14 +106,33 @@ task("copyGradleProperty").doLast {
     }
 }
 
-tasks.create(name: 'publishLocal')
+def publishLocalTask = tasks.create(name: 'publishLocal')
+// publishLocalPluginTask that publishes just the plugin dependencies, not any of the runtime
+// artifacts like data binding
+def publishLocalPluginTask = tasks.create(name: 'publishAndroidGradleLocal')
+publishLocalPluginTask.description = """Publishes artifacts that are direct dependencies of the
+    plugin without the runtime artifacts (e.g. data binding runtime lib)."""
+publishLocalTask.dependsOn publishLocalPluginTask
+
 subprojects { project ->
     if (project.tasks.findByName('publishLocal') != null) {
-        rootProject.publishLocal.dependsOn project.publishLocal
+        rootProject.publishAndroidGradleLocal.dependsOn project.publishLocal
         // if we are in release mode, only publish modules that have the
         // signing plugin applied (found in bintray.gradle)
         if (project.hasProperty("release")) {
           project.tasks.publishLocal.enabled=project.plugins.findPlugin('signing') != null
+        }
+    }
+}
+
+subprojects { project ->
+    if (project.hasProperty("runtimeArtifactTasks")) {
+        project.getProperty("runtimeArtifactTasks").each { runtimeArtifactTask ->
+            rootProject.publishLocal.dependsOn runtimeArtifactTask
+            runtimeArtifactTask.dependsOn publishLocalPluginTask
+            def disableRuntimeArtifact = rootProject.hasProperty("disableRuntimeArtifacts") ||
+                    project.hasProperty("disableRuntimeArtifacts")
+            runtimeArtifactTask.enabled = !disableRuntimeArtifact
         }
     }
 }
@@ -129,11 +151,12 @@ task('clean').doLast {
     }
   }
 }
+
 apply plugin: 'presubmit-runner'
 // Task for initializing a fresh repo.
 task init {
   dependsOn prepareRepo
   dependsOn copyGradleProperty
   dependsOn tasks.findByPath(':base:gradle-core:generateGrammarSource')
-  dependsOn tasks.findByPath(':base:integration-test:generateProto')
+  dependsOn tasks.findByPath(':base:build-system:integration-test:framework:generateProto')
 }

@@ -1,0 +1,10 @@
+/**
+ * Shared code for projects that needs to run tasks after the local gradle plugin is compiled.
+ **/
+def registerRuntimeArtifactTask(Task task) {
+    if (!project.hasProperty("runtimeArtifactTasks")) {
+        project.ext."runtimeArtifactTasks" = []
+    }
+    project.ext.runtimeArtifactTasks.add(task)
+}
+project.ext.registerRuntimeArtifactTask = this.&registerRuntimeArtifactTask
