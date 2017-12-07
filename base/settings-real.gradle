@@ -46,6 +46,7 @@ include ':base:gradle'
 include ':base:build-system:integration-test'
 include ':base:build-system:integration-test:framework'
 include ':base:build-system:integration-test:application'
+include ':base:build-system:integration-test:databinding'
 include ':base:project-test-lib'
 include ':base:project-test'
 
