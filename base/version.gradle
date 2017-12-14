@@ -30,4 +30,6 @@ def libs = [:].withDefault { key -> throw new IllegalArgumentException('"' + key
 for (name in dependencies.stringPropertyNames()) {
     libs[name] = dependencies.getProperty(name)
 }
+// Use the proto compiler that matches the protobuf java runtime.
+libs['proto_compiler'] = libs['protobuf'].replace('protobuf-java', 'protoc')
 rootProject.ext['libs'] = libs
