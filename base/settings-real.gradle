@@ -1,4 +1,3 @@
-include ':base:aaptjlib'
 include ':base:annotations'
 include ':base:api-generator'
 include ':base:apkzlib'
