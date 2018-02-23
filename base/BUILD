@@ -16,10 +16,3 @@ maven_pom(
     version_property = "buildVersion",
     visibility = ["//visibility:public"],
 )
-
-maven_pom(
-    name = "experimental_version",
-    properties = "version.properties",
-    version_property = "experimentalVersion",
-    visibility = ["//visibility:public"],
-)
