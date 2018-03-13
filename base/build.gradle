@@ -115,6 +115,9 @@ publishLocalPluginTask.description = """Publishes artifacts that are direct depe
 publishLocalTask.dependsOn publishLocalPluginTask
 
 subprojects { project ->
+    if (project.path == ':base:build-system:debug:model') {
+        return
+    }
     if (project.tasks.findByName('publishLocal') != null) {
         rootProject.publishAndroidGradleLocal.dependsOn project.publishLocal
         // if we are in release mode, only publish modules that have the
