@@ -68,14 +68,8 @@ JAVA_HOME="$REPO_ROOT"/prebuilts/studio/jdk/${PREBUILT_JDK_RELATIVE_PATH}
 GRADLEW="${REPO_ROOT}/tools/gradlew -p ${REPO_ROOT}/tools --no-daemon --info --max-workers=1"
 
 function gradle {
-    (set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" ${GRADLEW} $1 ) || exit $?
+    (set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" BUILD_NUMBER="$BNUM" ${GRADLEW} $1 ) || exit $?
 }
 
-# Inject the latest tools/base commit in to the performance test jar. This is
-# crucial to the operation of the performance tests, because we use the
-# timestamp on the commit as a key to group performance tests by in Perfgate.
-COMMIT_JSON_PATH=${OUT_DIR}/commit.json
-git --git-dir="${REPO_ROOT}/tools/base/.git" log -n1 --pretty=format:'{%n  "commit": "%H",%n  "abbreviated_commit": "%h",%n  "subject": "%s",%n  "author": {%n    "name": "%aN",%n    "email": "%aE",%n    "date": "%aD"%n  }%n}' > ${COMMIT_JSON_PATH}
-
-COMMIT_JSON=${COMMIT_JSON_PATH} gradle :base:build-system:integration-test:application:performanceTestJar
+gradle :base:build-system:integration-test:application:performanceTestJar
 mv ${OUT_DIR}/build/base/build-system/integration-test/application/build/libs/performance-test.jar ${DIST_DIR}/performance-test-${BNUM}.jar
