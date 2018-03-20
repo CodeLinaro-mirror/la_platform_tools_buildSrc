@@ -18,6 +18,7 @@ package com.android.tools.internal;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.testing.jacoco.plugins.JacocoPluginExtension;
 
 public class JacocoPlugin implements Plugin<Project> {
 
@@ -25,6 +26,8 @@ public class JacocoPlugin implements Plugin<Project> {
     public void apply(Project project) {
         if (!System.getProperty("os.name").toLowerCase().contains("windows")) {
             project.getPluginManager().apply("jacoco");
+            project.getExtensions().getByType(JacocoPluginExtension.class)
+                    .setToolVersion("0.7.9");
         }
     }
 }
