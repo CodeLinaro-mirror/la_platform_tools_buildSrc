@@ -123,6 +123,8 @@ include ':dataBinding'
 project(':dataBinding').projectDir = new File(rootDir, "data-binding")
 include ':dataBinding:baseLibrary'
 project(':dataBinding:baseLibrary').projectDir = new File(rootDir, "data-binding/baseLibrary")
+include ':dataBinding:baseLibrarySupport'
+project(':dataBinding:baseLibrarySupport').projectDir = new File(rootDir, "data-binding/baseLibrarySupport")
 include ':dataBinding:compiler'
 project(':dataBinding:compiler').projectDir = new File(rootDir, "data-binding/compiler")
 include ':dataBinding:compilerCommon'
