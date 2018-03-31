@@ -37,8 +37,12 @@ class OfflineRepoPlugin implements Plugin<Project> {
             project.ext.offlineRepo.mkdirs()
         }
 
-        List<String> entryProjectPaths = [':base:gradle', ':dataBinding:compiler',
-                                          ':base:java-lib-model-builder', ':base:lint-gradle']
+        List<String> entryProjectPaths = [
+                ':base:gradle',
+                ':base:build-system:aapt2',
+                ':dataBinding:compiler',
+                ':base:java-lib-model-builder',
+                ':base:lint-gradle']
         /*
          * Identify all project and subprojects output artifacts and copy .jar and .pom
          * files into the repoDir local maven repository
@@ -56,7 +60,7 @@ class OfflineRepoPlugin implements Plugin<Project> {
             // for each projects, check its output artifact and copy it only with the associated pom file to our
             // local maven repo.
             projectsToConsider.each { someProject ->
-                someProject.configurations.runtime.artifacts.files.each { file ->
+                someProject.configurations.archives.artifacts.files.each { file ->
                     String relativePath = "${someProject.group.replace('.' as char, File.separatorChar)}${File.separatorChar}${someProject.name}${File.separatorChar}${someProject.version}"
                     File outDir = new File(project.ext.offlineRepo, relativePath)
                     File sourceDir = new File(new File(project.ext.localRepo), relativePath)
