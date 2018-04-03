@@ -183,10 +183,7 @@
           <fileset dir="./data-binding/developmentPlugins/localizeMavenPlugin/src/main/groovy/android/databinding"/>
           <fileset dir="./data-binding/exec/src/main/java/android/databinding"/>
           <fileset dir="./data-binding/exec/src/main/java/android/databinding/cli"/>
-          <fileset dir="./data-binding/extensions/baseAdapters/src/main/java/android/databinding/adapters"/>
-          <fileset dir="./data-binding/extensions/library/src/androidTest/java/android/databinding"/>
           <fileset dir="./data-binding/extensions/library/src/doc/java"/>
-          <fileset dir="./data-binding/extensions/library/src/main/java/android/databinding"/>
           <fileset dir="./data-binding/gradlePlugin/src/main/java/android/databinding/tool"/>
           <fileset dir="./data-binding/samples/BindingDemo/app/src/main/java"/>
           <fileset dir="./dx/dalvik/dexgen/src"/>
