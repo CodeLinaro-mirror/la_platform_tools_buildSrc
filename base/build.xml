@@ -80,7 +80,6 @@
           <fileset dir="./base/build-system/gradle-core/src/main/antlr"/>
           <fileset dir="./base/build-system/gradle-core/src/main/java"/>
           <fileset dir="./base/build-system/gradle-experimental/src/main/java"/>
-          <fileset dir="./base/build-system/gradle/src/main/java"/>
           <fileset dir="./base/build-system/instant-run-instrumentation/src/instrumenter/java"/>
           <fileset dir="./base/build-system/instant-run-instrumentation/src/main/java"/>
           <fileset dir="./base/build-system/integration-test/framework/src/main/java"/>
