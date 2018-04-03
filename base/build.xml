@@ -157,7 +157,7 @@
           <fileset dir="./buildSrc/src/fromGradle/groovy/org/gradle/plugins/pegdown"/>
           <fileset dir="./buildSrc/src/main/groovy"/>
           <fileset dir="./buildSrc/src/main/java"/>
-          <fileset dir="./data-binding/baseLibrary/src/main/java/android/databinding"/>
+          <fileset dir="./data-binding/baseLibrary/src/main/java/androidx/databinding"/>
           <fileset dir="./data-binding/compilerCommon/src/main/grammar-gen/android/databinding/parser"/>
           <fileset dir="./data-binding/compilerCommon/src/main/java/android/databinding/tool"/>
           <fileset dir="./data-binding/compilerCommon/src/main/java/android/databinding/tool/expr"/>
