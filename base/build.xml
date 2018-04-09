@@ -80,7 +80,6 @@
           <fileset dir="./base/build-system/gradle-core/src/main/antlr"/>
           <fileset dir="./base/build-system/gradle-core/src/main/java"/>
           <fileset dir="./base/build-system/gradle-experimental/src/main/java"/>
-          <fileset dir="./base/build-system/gradle/src/main/java"/>
           <fileset dir="./base/build-system/instant-run-instrumentation/src/instrumenter/java"/>
           <fileset dir="./base/build-system/instant-run-instrumentation/src/main/java"/>
           <fileset dir="./base/build-system/integration-test/framework/src/main/java"/>
@@ -158,7 +157,7 @@
           <fileset dir="./buildSrc/src/fromGradle/groovy/org/gradle/plugins/pegdown"/>
           <fileset dir="./buildSrc/src/main/groovy"/>
           <fileset dir="./buildSrc/src/main/java"/>
-          <fileset dir="./data-binding/baseLibrary/src/main/java/android/databinding"/>
+          <fileset dir="./data-binding/baseLibrary/src/main/java/androidx/databinding"/>
           <fileset dir="./data-binding/compilerCommon/src/main/grammar-gen/android/databinding/parser"/>
           <fileset dir="./data-binding/compilerCommon/src/main/java/android/databinding/tool"/>
           <fileset dir="./data-binding/compilerCommon/src/main/java/android/databinding/tool/expr"/>
@@ -184,10 +183,7 @@
           <fileset dir="./data-binding/developmentPlugins/localizeMavenPlugin/src/main/groovy/android/databinding"/>
           <fileset dir="./data-binding/exec/src/main/java/android/databinding"/>
           <fileset dir="./data-binding/exec/src/main/java/android/databinding/cli"/>
-          <fileset dir="./data-binding/extensions/baseAdapters/src/main/java/android/databinding/adapters"/>
-          <fileset dir="./data-binding/extensions/library/src/androidTest/java/android/databinding"/>
           <fileset dir="./data-binding/extensions/library/src/doc/java"/>
-          <fileset dir="./data-binding/extensions/library/src/main/java/android/databinding"/>
           <fileset dir="./data-binding/gradlePlugin/src/main/java/android/databinding/tool"/>
           <fileset dir="./data-binding/samples/BindingDemo/app/src/main/java"/>
           <fileset dir="./dx/dalvik/dexgen/src"/>

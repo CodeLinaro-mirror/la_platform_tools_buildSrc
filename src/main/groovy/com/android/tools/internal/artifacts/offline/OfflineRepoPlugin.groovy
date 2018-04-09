@@ -33,12 +33,12 @@ class OfflineRepoPlugin implements Plugin<Project> {
 
         Task prepareOfflineRepo = project.tasks.create('prepareOfflineRepo')
         prepareOfflineRepo.doFirst {
-            project.ext.offlineRepo.delete()
+            project.ext.offlineRepo.deleteDir()
             project.ext.offlineRepo.mkdirs()
         }
 
         List<String> entryProjectPaths = [
-                ':base:gradle',
+                ':base:gradle-core',
                 ':base:build-system:aapt2',
                 ':dataBinding:compiler',
                 ':base:java-lib-model-builder',
@@ -61,7 +61,7 @@ class OfflineRepoPlugin implements Plugin<Project> {
             // local maven repo.
             projectsToConsider.each { someProject ->
                 someProject.configurations.archives.artifacts.files.each { file ->
-                    String relativePath = "${someProject.group.replace('.' as char, File.separatorChar)}${File.separatorChar}${someProject.name}${File.separatorChar}${someProject.version}"
+                    String relativePath = "${someProject.group.replace('.' as char, File.separatorChar)}${File.separatorChar}${someProject.archivesBaseName}${File.separatorChar}${someProject.version}"
                     File outDir = new File(project.ext.offlineRepo, relativePath)
                     File sourceDir = new File(new File(project.ext.localRepo), relativePath)
                     outDir.mkdirs()
