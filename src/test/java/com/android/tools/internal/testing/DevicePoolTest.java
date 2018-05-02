@@ -3,68 +3,57 @@ package com.android.tools.internal.testing;
 import static org.junit.Assert.assertEquals;
 
 import com.google.common.collect.ImmutableList;
-import com.google.common.collect.Lists;
-
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.Semaphore;
 import org.junit.Test;
-
-import java.util.List;
 
 public class DevicePoolTest {
 
-    @Test(timeout = 5000)
+    @Test(timeout = 45000)
     public void checkDevicePoolSanity() throws Exception {
         final DevicePool devicePool = new DevicePool();
 
         checkState(devicePool);
+        int count = 20;
 
-        List<Thread> getters = Lists.newArrayList();
-
-        for (int i = 0; i < 20; i++) {
-            final String testName = "test " + i;
-            getters.add(new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        devicePool.getAllDevices("All devices " + testName);
-                        try {
-                            Thread.sleep(2);
-                            Thread.yield();
-                        } finally {
-                            devicePool.returnAllDevices("All devices" + testName);
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new AssertionError(e);
-                    }
-                }
-            }));
-            getters.add(new Thread(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        String device = devicePool
-                                .getDevice(ImmutableList.of("A", "B", "C"), "Single device " + testName);
-                        try {
-                            Thread.sleep(2);
-                            Thread.yield();
-                        } finally {
-                            devicePool.returnDevice(device, "Single device " + testName);
-                        }
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new AssertionError(e);
-                    }
-                }
-            }));
-        }
-
-
-        for (Thread getter : getters) {
-            getter.start();
-        }
-
-        for (Thread getter : getters) {
-            getter.join();
+        ForkJoinPool requests = new ForkJoinPool(2);
+        ForkJoinPool releases = new ForkJoinPool(1);
+        try {
+            // Test should wait for all count*2 operations to finish, hence -(2 * count)
+            // Add one permit so that the test can call acquire() to block until all the devices are
+            // released.
+            Semaphore completion = new Semaphore(1 - (2 * count));
+            for (int i = 0; i < count; i++) {
+                final String testName = "test " + i;
+                requests.submit(
+                        () -> {
+                            devicePool.getAllDevices("All devices " + testName);
+                            releases.submit(
+                                    () -> {
+                                        devicePool.returnAllDevices("All devices" + testName);
+                                        completion.release();
+                                    });
+                            return null;
+                        });
+                requests.submit(
+                        () -> {
+                            String device =
+                                    devicePool.getDevice(
+                                            ImmutableList.of("A", "B", "C"),
+                                            "Single device " + testName);
+                            releases.submit(
+                                    () -> {
+                                        devicePool.returnDevice(
+                                                device, "Single device " + testName);
+                                        completion.release();
+                                    });
+                            return null;
+                        });
+            }
+            completion.acquire();
+        } finally {
+            requests.shutdownNow();
+            releases.shutdownNow();
         }
 
         checkState(devicePool);
@@ -79,6 +68,4 @@ public class DevicePoolTest {
         devicePool.returnDevice("A", "Checkstate A");
         devicePool.returnDevice("C", "Checkstate ABC");
     }
-
-
 }
