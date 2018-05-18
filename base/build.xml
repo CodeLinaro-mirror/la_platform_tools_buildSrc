@@ -55,7 +55,6 @@
           <fileset dir="./adt/idea/wizard-model/src"/>
           <fileset dir="./adt/idea/wizard/src"/>
           <fileset dir="./analytics-library/inspector/src/main/java"/>
-          <fileset dir="./analytics-library/protos/src/main/java"/>
           <fileset dir="./analytics-library/publisher/src/main/java"/>
           <fileset dir="./analytics-library/shared/src/main/java"/>
           <fileset dir="./analytics-library/testing/src/main/java"/>
