@@ -55,7 +55,6 @@
           <fileset dir="./adt/idea/wizard-model/src"/>
           <fileset dir="./adt/idea/wizard/src"/>
           <fileset dir="./analytics-library/inspector/src/main/java"/>
-          <fileset dir="./analytics-library/protos/src/main/java"/>
           <fileset dir="./analytics-library/publisher/src/main/java"/>
           <fileset dir="./analytics-library/shared/src/main/java"/>
           <fileset dir="./analytics-library/testing/src/main/java"/>
@@ -104,8 +103,6 @@
           <fileset dir="./base/instant-run/instant-run-common/src/main/java"/>
           <fileset dir="./base/instant-run/instant-run-runtime/src/main/java"/>
           <fileset dir="./base/instant-run/instant-run-server/src/main/java"/>
-          <fileset dir="./base/jack/jack-api/src/main/java"/>
-          <fileset dir="./base/jack/jill-api/src/main/java"/>
           <fileset dir="./base/jaxb-inheritance-plugin/src/main/java"/>
           <fileset dir="./base/jobb/src/main/java"/>
           <fileset dir="./base/jobb/src/main/java/Twofish"/>
