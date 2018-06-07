@@ -24,6 +24,9 @@ class LocalUpload extends Upload {
     }
 }
 
+// Don't put the test dependencies in the pom.
+conf2ScopeMappings.mappings.remove(configurations.testCompile)
+
 task publishLocal(type: LocalUpload) {
     configuration = configurations.archives
     repositories {
