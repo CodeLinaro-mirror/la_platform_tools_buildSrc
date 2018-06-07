@@ -27,8 +27,6 @@ import org.gradle.api.tasks.bundling.Jar
 
 import javax.inject.Inject
 
-import static com.android.tools.internal.BaseTask.isAndroidArtifact
-import static com.android.tools.internal.BaseTask.isAndroidExternalArtifact
 import static com.android.tools.internal.BaseTask.isLocalArtifact
 
 public class SdkJavaLibPlugin extends SdkFilesPlugin {
@@ -106,8 +104,8 @@ public class SdkJavaLibPlugin extends SdkFilesPlugin {
         Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
         for (ResolvedArtifact artifact : artifacts) {
             ModuleVersionIdentifier id = artifact.moduleVersion.id
-            if ((isAndroidArtifact(id) && !isAndroidExternalArtifact(id)) || isLocalArtifact(id)) {
-                // add the shorter name for the android dependencies
+            if (isLocalArtifact(id)) {
+                // add the shorter name for the local dependencies
                 sb.append(' ').append(artifact.moduleVersion.id.name + ".jar")
             } else {
                 // add the full name
