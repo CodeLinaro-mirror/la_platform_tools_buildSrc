@@ -152,6 +152,5 @@ apply plugin: 'presubmit-runner'
 task init {
   dependsOn prepareRepo
   dependsOn copyGradleProperty
-  dependsOn tasks.findByPath(':base:gradle-core:generateGrammarSource')
   dependsOn tasks.findByPath(':base:build-system:integration-test:framework:generateProto')
 }
