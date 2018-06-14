@@ -76,7 +76,6 @@
           <fileset dir="./base/build-system/debug/model/src/main/java"/>
           <fileset dir="./base/build-system/gradle-api/src/main/java"/>
           <fileset dir="./base/build-system/gradle-core/src/fromGradle/java"/>
-          <fileset dir="./base/build-system/gradle-core/src/main/antlr"/>
           <fileset dir="./base/build-system/gradle-core/src/main/java"/>
           <fileset dir="./base/build-system/gradle-experimental/src/main/java"/>
           <fileset dir="./base/build-system/instant-run-instrumentation/src/instrumenter/java"/>
