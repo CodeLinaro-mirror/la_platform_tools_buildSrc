@@ -33,7 +33,7 @@ task publishLocal(type: LocalUpload) {
         mavenDeployer {
             repository(url: uri("$rootProject.ext.localRepo"))
             pom.project {
-                url 'http://tools.android.com'
+                url 'https://developer.android.com/studio'
                 inceptionYear '2007'
 
                 licenses {
