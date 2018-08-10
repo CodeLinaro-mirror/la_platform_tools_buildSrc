@@ -86,3 +86,7 @@ gradle buildEclipse
 # from libraries are ready for copying yet; work around this.
 gradle  :base:kotlin-compiler:jar
 gradle ${TARGET}
+
+# follow conventions to use gradle-testlog-forwarding on ATP
+mkdir "${DIST_DIR}"/host-test-reports
+zip -j "${DIST_DIR}"/host-test-reports/buildSrc.zip "${OUT_DIR}"/build/buildSrc/build/test-results/test/*.xml
