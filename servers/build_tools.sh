@@ -80,8 +80,6 @@ function gradle {
     (set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ${GRADLEW} $1 ) || exit $?
 }
 
-gradle :sdk:eclipse:copydeps
-gradle buildEclipse
 # Temporary workaround: the copy tasks seem to be missing some dependencies such that not all jar files
 # from libraries are ready for copying yet; work around this.
 gradle  :base:kotlin-compiler:jar
