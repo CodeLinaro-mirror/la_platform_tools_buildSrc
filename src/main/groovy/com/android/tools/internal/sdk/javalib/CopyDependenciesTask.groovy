@@ -40,8 +40,8 @@ class CopyDependenciesTask extends BaseTask {
     File outputDir
 
     @InputFiles
-    Collection<File> getInputFiles() {
-        return project.configurations.compile.files
+    Configuration getInputFiles() {
+        return project.configurations.runtime
     }
 
     @OutputDirectory
@@ -60,7 +60,7 @@ class CopyDependenciesTask extends BaseTask {
         noticeOutDir.deleteDir()
         noticeOutDir.mkdirs()
 
-        Configuration configuration = project.configurations.compile
+        Configuration configuration = project.configurations.runtime
         Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
 
         StringBuilder sb = new StringBuilder()
