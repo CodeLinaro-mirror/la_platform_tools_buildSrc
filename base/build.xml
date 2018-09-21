@@ -115,7 +115,6 @@
           <fileset dir="./base/lint/libs/lint-checks/src/main/java"/>
           <fileset dir="./base/lint/libs/lint-gradle-api/src/main/java"/>
           <fileset dir="./base/lint/libs/lint-gradle/src/main/java"/>
-          <fileset dir="./base/lint/libs/lint-kotlin/src/main/java"/>
           <fileset dir="./base/lint/libs/lint-tests/src/main/java"/>
           <fileset dir="./base/lint/libs/uast/src/main/java"/>
           <fileset dir="./base/misc/api-generator/src/main/java"/>
