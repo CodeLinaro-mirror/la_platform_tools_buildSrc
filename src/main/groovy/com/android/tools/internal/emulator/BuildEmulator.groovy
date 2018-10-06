@@ -33,11 +33,13 @@ class BuildEmulator extends DefaultTask {
     static class LoggerWriter extends ByteArrayOutputStream {
         private Logger logger;
         private LogLevel level;
+        private String prefix;
 
-        public LoggerWriter ( final Logger logger, final LogLevel level ) {
+        public LoggerWriter ( final Logger logger, final LogLevel level , final String prefix) {
             super();
             this.logger = logger;
             this.level = level;
+            this.prefix = prefix;
         }
 
         @Override
@@ -63,7 +65,7 @@ class BuildEmulator extends DefaultTask {
 
         @Override
         public void flush() {
-            this.logger.log(this.level, this.toString());
+            this.logger.log(this.level, this.prefix + this.toString());
             this.reset();
             super.flush();
         }
@@ -95,20 +97,26 @@ class BuildEmulator extends DefaultTask {
     void build() {
 
         String command = "$project.projectDir/android/rebuild.sh --verbose --out-dir=$output --sdk-revision=$revision --sdk-build-number=$build_number"
+        String prefix = "["
 
 
         if (windows) {
             command = command + " --mingw"
+            prefix = prefix + "win-"
+
         }
 
         if (debug) {
             command = command + " --debug"
+            prefix = prefix + "dbg"
         } else {
             command = command + " --symbols --crash-prod"
+            prefix = prefix + "rel"
         }
+        prefix = prefix + "] "
 
-        LoggerWriter stdout = new LoggerWriter(logger, LogLevel.INFO)
-        LoggerWriter stderr = new LoggerWriter(logger, LogLevel.ERROR)
+        LoggerWriter stdout = new LoggerWriter(logger, LogLevel.INFO, prefix)
+        LoggerWriter stderr = new LoggerWriter(logger, LogLevel.ERROR, prefix)
 
         Process p = command.execute()
         p.consumeProcessOutput(stdout, stderr)
@@ -131,7 +139,7 @@ class BuildEmulator extends DefaultTask {
         /**
          * Upload the symbols
          */
-        String command = "$project.projectDir/android/scripts/upload-symbols.sh --crash-prod --symbol-dir=$output/build/symbols"
+        String command = "$project.projectDir/android/scripts/upload-symbols.sh --crash-prod --symbol-dir=$output/build/symbols --verbose --verbose"
 
         Process p = command.execute()
         p.consumeProcessOutput(stdout, stderr)
