@@ -21,18 +21,20 @@ signing {
     sign configurations.archives
 }
 
+task javadocsJar(type: Jar) {
+   classifier "javadoc"
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {
             from components.java
 
             artifact sourcesJar {
-                classifier "sources"
-            }
+		classifier "sources"
+	    }
 
-            artifact javadocJar {
-                classifier "javadoc"
-            }
+            artifact javadocsJar
 
             pom.withXml {
                 asNode().appendNode('description', project.ext.pomDesc)

@@ -147,10 +147,5 @@ task('clean').doLast {
   }
 }
 
+
 apply plugin: 'presubmit-runner'
-// Task for initializing a fresh repo.
-task init {
-  dependsOn prepareRepo
-  dependsOn copyGradleProperty
-  dependsOn tasks.findByPath(':base:build-system:integration-test:framework:generateProto')
-}

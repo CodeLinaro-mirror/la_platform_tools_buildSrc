@@ -19,6 +19,7 @@ package com.android.tools.internal.artifacts
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.UnknownTaskException
 
 class CloneArtifactsPlugin implements Plugin<Project> {
@@ -37,9 +38,11 @@ class CloneArtifactsPlugin implements Plugin<Project> {
             def extension = project.extensions.create('cloneArtifacts', CloneArtifactsExtension)
 
             DownloadArtifactsTask downloadArtifactsTask = project.tasks.create("downloadArtifacts",
-                    DownloadArtifactsTask)
-            downloadArtifactsTask.project = project
-            downloadArtifactsTask.conventionMapping.repository =  { project.file(extension.repository) }
+                    DownloadArtifactsTask) {
+                it.repository = project.layout.directoryProperty(
+                        project.layout.projectDirectory.dir(
+                        extension.repository))
+            }
 
             cloneArtifacts.dependsOn downloadArtifactsTask
 

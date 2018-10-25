@@ -16,19 +16,19 @@
 
 package com.android.tools.internal.artifacts
 import com.android.tools.internal.BaseTask
-import org.gradle.api.Project
+import org.gradle.api.provider.Provider
+import org.gradle.api.file.Directory
 import org.gradle.api.tasks.TaskAction
 
 class DownloadArtifactsTask extends BaseTask {
 
-    Project project
-    File repository
+    Provider<Directory> repository
 
     @TaskAction
     public void downloadArtifacts() {
         if (System.getenv("USE_EXTERNAL_REPO") == null) {
           throw new RuntimeException("Set USE_EXTERNAL_REPO=true to add external repositories")
         }
-        new ArtifactDownloader(getProject(), getRepository()).downloadArtifacts()
+        new ArtifactDownloader(getProject(), repository.get().getAsFile()).downloadArtifacts()
     }
 }

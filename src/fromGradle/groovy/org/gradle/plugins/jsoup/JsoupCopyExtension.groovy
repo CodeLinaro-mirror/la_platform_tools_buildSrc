@@ -21,7 +21,6 @@ import org.gradle.api.tasks.TaskInputs
 import org.gradle.api.Action
 import org.gradle.api.Project
 import org.gradle.api.file.FileCopyDetails
-import org.gradle.api.internal.ClosureBackedAction
 import org.jsoup.nodes.Document
 
 class JsoupCopyExtension {
@@ -46,7 +45,12 @@ class JsoupCopyExtension {
     }
 
     void transform(String[] extensions, Closure action) {
-        transform(extensions, new ClosureBackedAction(action))
+        transform(extensions, new Action<JsoupTransformTarget>() {
+            @Override
+            void execute(JsoupTransformTarget jsoupTransformTarget) {
+                action.call(jsoupTransformTarget);
+            }
+        })
     }
 
     void transform(String[] extensions, Action<JsoupTransformTarget> action) {
@@ -62,7 +66,12 @@ class JsoupCopyExtension {
     }
 
     void transformDocument(String[] extensions, Closure action) {
-        transformDocument(extensions, new ClosureBackedAction(action))
+        transformDocument(extensions, new Action<JsoupTransformTarget>() {
+            @Override
+            void execute(JsoupTransformTarget jsoupTransformTarget) {
+                action.call(jsoupTransformTarget);
+            }
+        })
     }
 
     void transformDocument(String[] extensions, Action<Document> action) {
