@@ -22,6 +22,11 @@ class LocalUpload extends Upload {
                 "${project.version}"
         return new File(artifactLocation)
     }
+
+    @InputFiles
+    FileCollection getDependencies() {
+        return project.sourceSets.main.runtimeClasspath
+    }
 }
 
 // Don't put the test dependencies in the pom.
