@@ -85,6 +85,6 @@ function gradle {
 gradle  :base:kotlin-compiler:jar
 gradle ${TARGET}
 
-# follow conventions to use gradle-testlog-forwarding on ATP
+# on AB/ATP, put JUnit XML in place for junit-xml-forwarding
 mkdir "${DIST_DIR}"/host-test-reports
 zip -j "${DIST_DIR}"/host-test-reports/buildSrc.zip "${OUT_DIR}"/build/buildSrc/build/test-results/test/*.xml
