@@ -11,6 +11,16 @@ test {
     reports.html.enabled = true
 }
 
+afterEvaluate {
+    compileJava.options.annotationProcessorGeneratedSourcesDirectory project.layout.buildDirectory.
+            dir("generated/src/main/annotationProcessor").get().asFile
+}
+
+sourceSets {
+    main.resources.exclude '**/*.kt'
+    test.resources.exclude '**/*.kt'
+}
+
 apply from: "$rootDir/buildSrc/base/base.gradle"
 
 // Custom Upload task with an @OutputDirectory to allow up-to-date check.
