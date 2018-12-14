@@ -153,6 +153,6 @@ class CopyDependenciesTask extends BaseTask {
         ]);
         noticeLines.addAll(lines);
 
-        Files.write(Joiner.on("\n").join(noticeLines.iterator()), to, Charsets.UTF_8)
+        Files.asCharSink(to, Charsets.UTF_8).write(Joiner.on("\n").join(noticeLines.iterator()))
     }
 }
