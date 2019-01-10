@@ -1,7 +1,9 @@
 // Versions that we are building.
 Properties properties = new Properties()
 File versionRootDir = rootDir
-String relativeVersionPath = "buildSrc/base/version.properties"
+String relativeVersionPath = project.hasProperty("release")
+  ? "buildSrc/base/version.properties"
+  : "buildSrc/base/dev-version.properties"
 File versionProperties = new File(versionRootDir, relativeVersionPath)
 
 
@@ -16,12 +18,7 @@ while (!versionProperties.exists() && versionRootDir.parentFile != null &&
 versionProperties.withReader { properties.load(it) }
 
 for (name in properties.stringPropertyNames()) {
-    String version = properties.getProperty(name)
-    // For development versions, replace '26.5.0-alpha01' to '26.5.0-dev'
-    if (!project.hasProperty("release") && version.contains('-')) {
-        version = version.substring(0, version.indexOf('-')) + "-dev"
-    }
-    project.ext[name] = version
+    project.ext[name] = properties.getProperty(name)
 }
 
 // Add ext.libs for library versions
