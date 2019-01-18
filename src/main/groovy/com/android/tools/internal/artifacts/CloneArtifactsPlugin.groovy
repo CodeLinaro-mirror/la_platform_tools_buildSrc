@@ -39,7 +39,12 @@ class CloneArtifactsPlugin implements Plugin<Project> {
 
             DownloadArtifactsTask downloadArtifactsTask = project.tasks.create("downloadArtifacts",
                     DownloadArtifactsTask) {
-                it.repository = project.layout.directoryProperty(
+
+                /* TODO (b/123248224): if it.repository is immutable, just set it as a reference to dir.
+                 * it.repository = project.layout.projectDirectory.dir(...)
+                 */
+                it.repository = project.objects.directoryProperty()
+                it.repository.set(
                         project.layout.projectDirectory.dir(
                         extension.repository))
             }
