@@ -41,7 +41,6 @@ include ':base:builder-test-api'
 include ':base:builder'
 include ':base:gradle-api'
 include ':base:gradle-core'
-include ':base:instant-run-instrumentation'
 include ':base:build-system:aapt2'
 include ':base:build-system:integration-test'
 include ':base:build-system:integration-test:framework'
@@ -84,7 +83,6 @@ project(':base:builder'            ).projectDir = new File(rootDir, 'base/build-
 project(':base:docs'               ).projectDir = new File(rootDir, 'base/build-system/docs')
 project(':base:manifest-merger'    ).projectDir = new File(rootDir, 'base/build-system/manifest-merger')
 project(':base:gradle-core'        ).projectDir = new File(rootDir, 'base/build-system/gradle-core')
-project(':base:instant-run-instrumentation'        ).projectDir = new File(rootDir, 'base/build-system/instant-run-instrumentation')
 project(':base:gradle-api'      ).projectDir = new File(rootDir, 'base/build-system/gradle-api')
 project(':base:project-test-lib'   ).projectDir = new File(rootDir, 'base/build-system/project-test-lib')
 project(':base:project-test'       ).projectDir = new File(rootDir, 'base/build-system/project-test')

@@ -78,8 +78,6 @@
           <fileset dir="./base/build-system/gradle-core/src/fromGradle/java"/>
           <fileset dir="./base/build-system/gradle-core/src/main/java"/>
           <fileset dir="./base/build-system/gradle-experimental/src/main/java"/>
-          <fileset dir="./base/build-system/instant-run-instrumentation/src/instrumenter/java"/>
-          <fileset dir="./base/build-system/instant-run-instrumentation/src/main/java"/>
           <fileset dir="./base/build-system/integration-test/framework/src/main/java"/>
           <fileset dir="./base/build-system/java-lib-plugin/java-lib-model-builder/src/main/java"/>
           <fileset dir="./base/build-system/java-lib-plugin/java-lib-model/src/main/java"/>
