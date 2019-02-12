@@ -35,7 +35,6 @@
     </orderEntry>
     <orderEntry type="library" scope="TEST" name="JUnit4" level="project" />
     <orderEntry type="library" name="gradle-api" level="project" />
-    <orderEntry type="library" name="KotlinJavaRuntime" level="project" />
     <orderEntry type="library" name="groovy" level="project" />
   </component>
 </module>
