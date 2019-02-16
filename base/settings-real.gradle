@@ -53,12 +53,6 @@ include ':base:build-system:debug:model'
 
 include ':base:templates'
 
-include ':base:instant-run:instant-run-annotations'
-include ':base:instant-run:instant-run-common'
-include ':base:instant-run:instant-run-client'
-include ':base:instant-run:instant-run-runtime'
-include ':base:instant-run:instant-run-server'
-
 include ':base:testing-infrastructure:device-pool:device-provider'
 
 project(':base:api-generator'      ).projectDir = new File(rootDir, 'base/misc/api-generator')

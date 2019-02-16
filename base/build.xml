@@ -95,11 +95,6 @@
           <fileset dir="./base/draw9patch/src/main/java"/>
           <fileset dir="./base/fakeadbserver/src/main/java"/>
           <fileset dir="./base/flags/src/main/java"/>
-          <fileset dir="./base/instant-run/instant-run-annotations/src/main/java"/>
-          <fileset dir="./base/instant-run/instant-run-client/src/main/java"/>
-          <fileset dir="./base/instant-run/instant-run-common/src/main/java"/>
-          <fileset dir="./base/instant-run/instant-run-runtime/src/main/java"/>
-          <fileset dir="./base/instant-run/instant-run-server/src/main/java"/>
           <fileset dir="./base/jaxb-inheritance-plugin/src/main/java"/>
           <fileset dir="./base/jobb/src/main/java"/>
           <fileset dir="./base/jobb/src/main/java/Twofish"/>
