@@ -47,12 +47,6 @@ then
     OUT_DIR="$REPO_ROOT/$OUT_DIR"
 fi
 
-TARGET="makeSdk"
-if [[ $CURRENT_OS == "linux" ]]; then
-    TARGET="$TARGET makeWinSdk"
-fi
-
-
 # Use the studio prebuilt JDK rather than the ambient one.
 # This means that local developers and build servers use the same JDK, avoiding incidents of
 # continuous builds being broken due to the ambient java not matching the prebuilt one.
@@ -76,18 +70,14 @@ case `uname -s` in
 esac
 
 JAVA_HOME="$REPO_ROOT"/prebuilts/studio/jdk/${PREBUILT_JDK_RELATIVE_PATH}
+BAZEL="${REPO_ROOT}/tools/base/bazel/bazel --output_base $OUT_DIR"
 
-GRADLEW="${REPO_ROOT}/tools/gradlew -p ${REPO_ROOT}/tools --no-daemon --info --max-workers=1"
-
-function gradle {
-    (set -x ; JAVA_HOME="$JAVA_HOME" OUT_DIR="$OUT_DIR" DIST_DIR="$DIST_DIR" BUILD_NUMBER="$BNUM" ${GRADLEW} $1 ) || exit $?
+function bazel {
+    (set -x ; JAVA_HOME="$JAVA_HOME" BUILD_NUMBER="$BNUM" ${BAZEL} $@) || exit $?
 }
 
-# Temporary workaround: the copy tasks seem to be missing some dependencies such that not all jar files
-# from libraries are ready for copying yet; work around this.
-gradle  :base:kotlin-compiler:jar
-gradle ${TARGET}
+mkdir -p ${DIST_DIR}
 
-# on AB/ATP, put JUnit XML in place for junit-xml-forwarding
-mkdir "${DIST_DIR}"/host-test-reports
-zip -j "${DIST_DIR}"/host-test-reports/buildSrc.zip "${OUT_DIR}"/build/buildSrc/build/test-results/test/*.xml
+bazel test //tools/base/sdklib:commandlinetoolstest
+BAZEL_BIN=`${BAZEL} info bazel-bin`
+cp ${BAZEL_BIN}/tools/base/sdklib/commandlinetools_*.zip ${DIST_DIR}
