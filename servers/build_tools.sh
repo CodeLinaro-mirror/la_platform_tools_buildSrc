@@ -58,6 +58,9 @@ fi
 # continuous builds being broken due to the ambient java not matching the prebuilt one.
 # Similar to tools/idea/build_studio.sh
 case `uname -s` in
+    MSYS_NT-10.0)
+        PREBUILT_JDK_RELATIVE_PATH=win64
+        ;;
     MINGW64_NT-10.0)
         PREBUILT_JDK_RELATIVE_PATH=win64
         ;;
