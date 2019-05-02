@@ -20,6 +20,7 @@ import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Zip
 
 /**
@@ -96,6 +97,8 @@ class OfflineRepoPlugin implements Plugin<Project> {
         copySubProjectsArtifacts.mustRunAfter 'publishLocal'
         makeOfflineRepo.dependsOn copySubProjectsArtifacts
 
+        TaskProvider<ReadmeExtractorTask> extractReadme = ReadmeExtractorTask.create(project)
+
         /**
          * Zip the maven style repository into a zip file.
          */
@@ -103,7 +106,13 @@ class OfflineRepoPlugin implements Plugin<Project> {
             inputs.files makeOfflineRepo.outputs.files
             File outputFile = new File(project.ext.androidHostDist, 'offline_repo.zip')
             outputs.file outputFile
-            from makeOfflineRepo.outputs.files
+            from(makeOfflineRepo.outputs.files) {
+                into OfflineRepoUtils.getSubDirName(project.rootProject.ext.buildVersion)
+            }
+            from project.zipTree(extractReadme.get().outputZip)
+            dependsOn extractReadme // zipTree doesn't preserve the dependency information
+            preserveFileTimestamps = false
+            reproducibleFileOrder = true
             archiveName outputFile.name
             destinationDir outputFile.parentFile
         }
