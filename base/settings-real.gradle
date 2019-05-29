@@ -138,3 +138,5 @@ include ':base:java-lib-model'
 project(':base:java-lib-model'        ).projectDir = new File(rootDir, 'base/build-system/java-lib-plugin/java-lib-model')
 include ':base:java-lib-model-builder'
 project(':base:java-lib-model-builder').projectDir = new File(rootDir, 'base/build-system/java-lib-plugin/java-lib-model-builder')
+
+include ':base:zipflinger'
