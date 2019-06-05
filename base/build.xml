@@ -183,15 +183,6 @@
           <fileset dir="./external/fat32lib/src/main/java/de/waldheinz/fs/util"/>
           <fileset dir="./idea/jps/antUiTest/src"/>
           <fileset dir="./idea/studio/src/main/java"/>
-          <fileset dir="./swt/chimpchat/src/main/java"/>
-          <fileset dir="./swt/ddms/ddmuilib/src/main/java"/>
-          <fileset dir="./swt/hierarchyviewer2/app/src/main/java"/>
-          <fileset dir="./swt/hierarchyviewer2/hierarchyviewer2lib/src/main/java"/>
-          <fileset dir="./swt/monkeyrunner/src/main/java"/>
-          <fileset dir="./swt/swtmenubar/src/main-darwin/java"/>
-          <fileset dir="./swt/swtmenubar/src/main/java"/>
-          <fileset dir="./swt/traceview/src/main/java"/>
-          <fileset dir="./swt/uiautomatorviewer/src/main/java"/>
           <fileset dir="./vendor/google/android-apk/src"/>
           <fileset dir="./vendor/google/android-ndk/src"/>
           <fileset dir="./vendor/google/dogfood/plugin/src"/>

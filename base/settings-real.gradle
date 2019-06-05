@@ -83,20 +83,6 @@ project(':base:gradle-api'      ).projectDir = new File(rootDir, 'base/build-sys
 project(':base:project-test-lib'   ).projectDir = new File(rootDir, 'base/build-system/project-test-lib')
 project(':base:project-test'       ).projectDir = new File(rootDir, 'base/build-system/project-test')
 
-include ':swt:chimpchat'
-include ':swt:ddms'
-include ':swt:ddmuilib'
-include ':swt:hierarchyviewer2lib'
-include ':swt:monkeyrunner'
-include ':swt:swtmenubar'
-include ':swt:traceview'
-include ':swt:uiautomatorviewer'
-
-project(':swt:ddms'               ).projectDir = new File(rootDir, 'swt/ddms/app')
-project(':swt:ddmuilib'           ).projectDir = new File(rootDir, 'swt/ddms/ddmuilib')
-
-project(':swt:hierarchyviewer2lib').projectDir = new File(rootDir, 'swt/hierarchyviewer2/hierarchyviewer2lib')
-
 include ':external:fat32lib'
 include ':external:desugar'
 include ':external:desugar:tryWithResourcesRuntime'
