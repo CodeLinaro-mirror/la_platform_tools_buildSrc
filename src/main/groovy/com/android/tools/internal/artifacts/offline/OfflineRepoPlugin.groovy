@@ -39,7 +39,7 @@ class OfflineRepoPlugin implements Plugin<Project> {
         }
 
         List<String> entryProjectPaths = [
-                ':base:gradle-core',
+                ':base:build-system:gradle-core',
                 ':base:build-system:aapt2',
                 ':dataBinding:compiler',
                 ':base:java-lib-model-builder',

@@ -40,7 +40,7 @@ include ':base:builder-model'
 include ':base:builder-test-api'
 include ':base:builder'
 include ':base:gradle-api'
-include ':base:gradle-core'
+include ':base:build-system:gradle-core'
 include ':base:build-system:aapt2'
 include ':base:build-system:aapt2-proto'
 include ':base:build-system:aaptcompiler'
@@ -78,7 +78,6 @@ project(':base:builder-test-api'   ).projectDir = new File(rootDir, 'base/build-
 project(':base:builder'            ).projectDir = new File(rootDir, 'base/build-system/builder')
 project(':base:docs'               ).projectDir = new File(rootDir, 'base/build-system/docs')
 project(':base:manifest-merger'    ).projectDir = new File(rootDir, 'base/build-system/manifest-merger')
-project(':base:gradle-core'        ).projectDir = new File(rootDir, 'base/build-system/gradle-core')
 project(':base:gradle-api'      ).projectDir = new File(rootDir, 'base/build-system/gradle-api')
 project(':base:project-test-lib'   ).projectDir = new File(rootDir, 'base/build-system/project-test-lib')
 project(':base:project-test'       ).projectDir = new File(rootDir, 'base/build-system/project-test')
