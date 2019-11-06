@@ -17,7 +17,7 @@ package com.android.tools.internal.license;
 
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.provider.Property;
+import org.gradle.api.provider.ListProperty;
 
 import java.io.File;
 import java.util.Arrays;
@@ -36,7 +36,7 @@ public class LicenseReportPlugin implements Plugin<Project> {
                 "license-" + project.getName() + ".txt");
 
         //noinspection unchecked
-        Property<List<String>> whiteListedDependencies = project.getObjects().property((Class<List<String>>)(Class<?>)List.class);
+        ListProperty<String> whiteListedDependencies = project.getObjects().listProperty(String.class);
 
         project.getTasks().create("licenseReport", ReportTask.class, task -> {
             task.setRuntimeDependencies(project.getConfigurations().getByName("runtimeClasspath"));
@@ -48,9 +48,9 @@ public class LicenseReportPlugin implements Plugin<Project> {
     }
 
     public static class LicenseReportExtension {
-        private final Property<List<String>> whiteListedDependencies;
+        private final ListProperty<String> whiteListedDependencies;
 
-        public LicenseReportExtension(Property<List<String>> whiteListedDependencies) {
+        public LicenseReportExtension(ListProperty<String> whiteListedDependencies) {
             this.whiteListedDependencies = whiteListedDependencies;
             this.whiteListedDependencies.set((List<String>)Collections.EMPTY_LIST);
         }
