@@ -30,7 +30,7 @@ import org.gradle.api.artifacts.result.DependencyResult;
 import org.gradle.api.artifacts.result.ResolvedComponentResult;
 import org.gradle.api.artifacts.result.ResolvedDependencyResult;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.provider.Property;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
@@ -52,14 +52,14 @@ import java.util.*;
 public class ReportTask extends DefaultTask {
 
     private FileCollection runtimeDependencies;
-    private Property<List<String>> whiteListedDependencies;
+    private ListProperty<String> whiteListedDependencies;
     private File outputFile;
 
     public void setRuntimeDependencies(FileCollection runtimeDependencies) {
         this.runtimeDependencies = runtimeDependencies;
     }
 
-    public void setWhiteListedDependencies(Property<List<String>> whiteListedDependencies) {
+    public void setWhiteListedDependencies(ListProperty<String> whiteListedDependencies) {
         this.whiteListedDependencies = whiteListedDependencies;
     }
 
