@@ -1,5 +1,3 @@
-apply plugin: 'clone-artifacts'
-
 buildscript {
     apply from: "$rootDir/buildSrc/base/version.gradle"
 
@@ -19,22 +17,11 @@ allprojects { subproject ->
         // Prevent forked processes from stealing focus (on MacOS at least)
         jvmArgs '-Djava.awt.headless=true'
     }
-}
 
-// artifact cloning destinations
-cloneArtifacts {
-    repository = "$rootDir/../prebuilts/tools/common/m2/repository"
-}
-
-if (System.env.USE_EXTERNAL_REPO != null) {
-  allprojects {
-    repositories {
-        maven { url = uri(rootProject.cloneArtifacts.repository) }
-        jcenter()
-        maven { url 'https://repo.gradle.org/gradle/libs-snapshots-local' }
-        maven { url 'https://repo.gradle.org/gradle/libs-releases-local' }
-    }
+  repositories {
+      maven { url = "$rootProject.rootDir/../prebuilts/tools/common/m2/repository" }
   }
+
 }
 
 // ext.androidHostOut is shared by all tools/{base,build} gradle projects
@@ -44,11 +31,6 @@ ext.androidHostDist = new File(ext.androidHostOut, "dist")
 
 // rootProject.buildDir is specific to this gradle build.
 buildDir = new File(ext.androidHostOut, "build/root")
-
-
-// apply this after the buildDir has been changed.
-apply plugin: 'sdk-tools'
-
 
 ext.localRepo = project.hasProperty('localRepo') ? localRepo : "$ext.androidHostOut/repo"
 
@@ -122,8 +104,6 @@ subprojects { project ->
 // basic task for custom distribution of project should the build server.
 task('dist').doLast {}
 
-apply plugin: 'offline-repo'
-
 task('clean').doLast {
   delete 'build'
 
@@ -133,6 +113,3 @@ task('clean').doLast {
     }
   }
 }
-
-
-apply plugin: 'presubmit-runner'
