@@ -19,6 +19,7 @@ include ':base:lint-checks'
 include ':base:lint-gradle-api'
 include ':base:lint-gradle'
 include ':base:lint-kotlin'
+include ':base:lint-model'
 include ':base:lint-tests'
 include ':base:uast'
 include ':base:intellij-core'
@@ -71,6 +72,7 @@ project(':base:lint-checks'        ).projectDir = new File(rootDir, 'base/lint/l
 project(':base:lint-gradle-api'    ).projectDir = new File(rootDir, 'base/lint/libs/lint-gradle-api')
 project(':base:lint-gradle'        ).projectDir = new File(rootDir, 'base/lint/libs/lint-gradle')
 project(':base:lint-kotlin'        ).projectDir = new File(rootDir, 'base/lint/libs/lint-kotlin')
+project(':base:lint-model'         ).projectDir = new File(rootDir, 'base/lint/libs/lint-model')
 project(':base:lint-tests'         ).projectDir = new File(rootDir, 'base/lint/libs/lint-tests')
 project(':base:uast'               ).projectDir = new File(rootDir, 'base/lint/libs/uast')
 project(':base:intellij-core'      ).projectDir = new File(rootDir, 'base/lint/libs/intellij-core')
