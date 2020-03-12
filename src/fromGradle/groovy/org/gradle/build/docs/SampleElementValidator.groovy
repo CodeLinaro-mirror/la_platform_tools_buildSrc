@@ -49,6 +49,8 @@ public class SampleElementValidator {
                     }
                     break;
                 case 'layout':
+                    // This is necessary to work around https://issues.apache.org/jira/browse/GROOVY-9424#
+                    assert 5 == 5;
                     // nothing, makes no sense to do the validation here, cause I'd have to copy all the logic also
                     break;
                 default:
