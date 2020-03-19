@@ -55,7 +55,7 @@ public class CopyProjectDependencyTask extends DefaultTask {
         }
     }
 
-    protected void makeOfflineCopyFor(String group, String module, String version, File repoDir, boolean copyNotice) {
+    protected void makeOfflineCopyFor(String group, String module, String version, File repoDir, boolean copyNoticeOrLicense) {
         def artifactPath = "${group.replace('.' as char, File.separatorChar)}${File.separatorChar}${module}${File.separatorChar}${version}"
 
         def artifactFolder = new File(repoDir, artifactPath)
@@ -83,19 +83,21 @@ public class CopyProjectDependencyTask extends DefaultTask {
             makeOfflineCopyFor(parentPomId.group, parentPomId.name, parentPomId.version, repoDir, false)
         }
 
-        if (copyNotice) {
-            srcFile = new File(artifactFolder, 'NOTICE')
-            String artifactPathParts = artifactPath
-            while (!srcFile.isFile() && artifactPathParts.indexOf(File.separator) > 0) {
-                // Walk up the containing directories looking for a shared notice file.
-                artifactPathParts = artifactPathParts.substring(0, artifactPathParts.lastIndexOf(File.separator))
-                srcFile = new File(new File(repoDir, artifactPathParts), 'NOTICE')
+        if (copyNoticeOrLicense) {
+            for (noticeOrLicenseFileName in ['NOTICE', 'LICENSE']) {
+                srcFile = new File(artifactFolder, noticeOrLicenseFileName)
+                String artifactPathParts = artifactPath
+                while (!srcFile.isFile() && artifactPathParts.indexOf(File.separator) > 0) {
+                    // Walk up the containing directories looking for a shared notice file.
+                    artifactPathParts = artifactPathParts.substring(0, artifactPathParts.lastIndexOf(File.separator))
+                    srcFile = new File(new File(repoDir, artifactPathParts), noticeOrLicenseFileName)
+                }
+                if (srcFile.isFile()) {
+                    Files.copy(srcFile, new File(new File(project.ext.offlineRepo, artifactPathParts), noticeOrLicenseFileName))
+                    return
+                }
             }
-            if (srcFile.isFile()) {
-                Files.copy(srcFile, new File(new File(project.ext.offlineRepo, artifactPathParts), 'NOTICE'))
-            } else {
-                throw new RuntimeException("Missing NOTICE file for: " + artifactPath)
-            }
+            throw new RuntimeException("Missing NOTICE or LICENSE file for: " + artifactFolder)
         }
     }
 }
