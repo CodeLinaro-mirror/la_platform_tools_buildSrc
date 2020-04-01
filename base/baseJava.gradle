@@ -1,5 +1,10 @@
 apply plugin: 'java'
+apply plugin: 'clone-artifacts'
 apply plugin: 'maven'
+
+repositories {
+    maven { url = uri(rootProject.cloneArtifacts.repository) }
+}
 
 test {
     // todo: disable this for CI since we'll use the CI UI to do the report.
