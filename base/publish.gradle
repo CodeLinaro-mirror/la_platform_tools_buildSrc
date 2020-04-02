@@ -84,3 +84,50 @@ task uploadlLocal(type: Upload) {
         }
     }
 }
+
+// --------
+
+apply plugin: 'maven-publish'
+apply plugin: 'signing'
+
+signing {
+    required { project.hasProperty("release") && gradle.taskGraph.hasTask("uploadArchives") }
+    sign configurations.archives
+}
+
+task javadocsJar(type: Jar) {
+   classifier "javadoc"
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+            from components.java
+
+            artifact sourcesJar {
+		classifier "sources"
+	    }
+
+            artifact javadocsJar
+
+            pom.withXml {
+                asNode().appendNode('description', project.ext.pomDesc)
+                asNode().appendNode('url', 'http://tools.android.com/')
+                asNode().appendNode('name', project.group + '.' + project.archivesBaseName)
+
+                Node license = asNode().appendNode('licenses').appendNode('license')
+                license.appendNode('name', 'The Apache Software License, Version 2.0')
+                license.appendNode('url', 'http://www.apache.org/licenses/LICENSE-2.0.txt')
+                license.appendNode('distribution', 'repo')
+
+                asNode().appendNode('developers')
+                    .appendNode('developer')
+                        .appendNode('name', 'The Android Open Source Project')
+
+                Node scm = asNode().appendNode('scm')
+                scm.appendNode('connection', 'git://android.googlesource.com/platform/tools/base.git')
+                scm.appendNode('url', 'https://android.googlesource.com/platform/tools/base')
+            }
+        }
+    }
+}
