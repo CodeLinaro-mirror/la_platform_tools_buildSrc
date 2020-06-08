@@ -36,36 +36,35 @@ public class LicenseReportPlugin implements Plugin<Project> {
                 "license-" + project.getName() + ".txt");
 
         //noinspection unchecked
-        ListProperty<String> whiteListedDependencies = project.getObjects().listProperty(String.class);
+        ListProperty<String> ignoredDependencies = project.getObjects().listProperty(String.class);
 
         project.getTasks().create("licenseReport", ReportTask.class, task -> {
             task.setRuntimeDependencies(project.getConfigurations().getByName("runtimeClasspath"));
-            task.setWhiteListedDependencies(whiteListedDependencies);
+            task.setIgnoredDependencies(ignoredDependencies);
             task.setOutputFile(outputFile);
         });
 
-        project.getExtensions().create("licenseReport", LicenseReportExtension.class, whiteListedDependencies);
+        project.getExtensions().create("licenseReport", LicenseReportExtension.class, ignoredDependencies);
     }
 
     public static class LicenseReportExtension {
-        private final ListProperty<String> whiteListedDependencies;
+        private final ListProperty<String> ignoredDependencies;
 
-        public LicenseReportExtension(ListProperty<String> whiteListedDependencies) {
-            this.whiteListedDependencies = whiteListedDependencies;
-            this.whiteListedDependencies.set((List<String>)Collections.EMPTY_LIST);
+        public LicenseReportExtension(ListProperty<String> ignoredDependencies) {
+            this.ignoredDependencies = ignoredDependencies;
+            this.ignoredDependencies.set((List<String>)Collections.EMPTY_LIST);
         }
 
-        public void setWhiteList(String value) {
-            setWhiteList(Collections.singletonList(value));
-
+        public void setIgnored(String value) {
+            setIgnored(Collections.singletonList(value));
         }
 
-        public void setWhiteListe(String... values) {
-            setWhiteList(Arrays.asList(values));
+        public void setIgnored(String... values) {
+            setIgnored(Arrays.asList(values));
         }
 
-        public void setWhiteList(List<String> values) {
-            whiteListedDependencies.set(values);
+        public void setIgnored(List<String> values) {
+            ignoredDependencies.set(values);
         }
     }
 }
