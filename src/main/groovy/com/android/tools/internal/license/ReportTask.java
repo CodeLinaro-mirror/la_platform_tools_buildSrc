@@ -52,15 +52,15 @@ import java.util.*;
 public class ReportTask extends DefaultTask {
 
     private FileCollection runtimeDependencies;
-    private ListProperty<String> whiteListedDependencies;
+    private ListProperty<String> ignoredDependencies;
     private File outputFile;
 
     public void setRuntimeDependencies(FileCollection runtimeDependencies) {
         this.runtimeDependencies = runtimeDependencies;
     }
 
-    public void setWhiteListedDependencies(ListProperty<String> whiteListedDependencies) {
-        this.whiteListedDependencies = whiteListedDependencies;
+    public void setIgnoredDependencies(ListProperty<String> ignoredDependencies) {
+        this.ignoredDependencies = ignoredDependencies;
     }
 
     @SuppressWarnings("unused")
@@ -71,8 +71,8 @@ public class ReportTask extends DefaultTask {
 
     @SuppressWarnings("unused")
     @Input
-    public List<String> getWhiteListedDependencies() {
-        return whiteListedDependencies.get();
+    public List<String> getIgnoredDependencies() {
+        return ignoredDependencies.get();
     }
 
     public void setOutputFile(File outputFile) {
@@ -98,7 +98,7 @@ public class ReportTask extends DefaultTask {
 
         Set<File> pomFiles = new HashSet<File>();
 
-        List<String> whiteListedNames = whiteListedDependencies.get();
+        List<String> ignoredNames = ignoredDependencies.get();
 
         for (DependencyResult dependencyResult : dependencyResultSet) {
             if (dependencyResult instanceof ResolvedDependencyResult) {
@@ -109,7 +109,7 @@ public class ReportTask extends DefaultTask {
             }
         }
 
-        List<License> whiteListedLicenses = Collections.singletonList(new License("__WHITE_LISTED__", "<no url>", "<Manually white-listed in build.gradle>"));
+        List<License> ignoredLicenses = Collections.singletonList(new License("__IGNORED__", "<no url>", "<Manually ignored in build.gradle>"));
 
         Map<String, List<License>> map = new HashMap<String, List<License>>(pomFiles.size());
 
@@ -137,10 +137,10 @@ public class ReportTask extends DefaultTask {
             if (!licenses.isEmpty()) {
                 map.put(artifactName, licenses);
             } else {
-                if (!whiteListedNames.contains(artifactName)) {
+                if (!ignoredNames.contains(artifactName)) {
                     throw new RuntimeException("unable to find license info for " + artifactName);
                 } else {
-                    map.put(artifactName, whiteListedLicenses);
+                    map.put(artifactName, ignoredLicenses);
                 }
             }
         }
