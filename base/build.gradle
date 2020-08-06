@@ -11,8 +11,11 @@ buildscript {
         classpath libs.kotlin_gradle_plugin
         classpath libs.dokka
         classpath libs.kotlin_reflect
+        classpath "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.8.1"
     }
 }
+
+apply from: "$rootDir/buildSrc/base/idea.gradle"
 
 allprojects { subproject ->
     tasks.withType(JavaForkOptions) {
