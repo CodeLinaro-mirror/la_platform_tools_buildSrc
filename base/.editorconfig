@@ -7,13 +7,18 @@ root = true
 [*]
 indent_style = space
 indent_size = 4
-
 end_of_line = lf
 charset = utf-8
 trim_trailing_whitespace = true
 insert_final_newline = true
 max_line_length = 100
-
+tab_width = 4
+ij_continuation_indent_size = 8
+ij_formatter_off_tag = @formatter:off
+ij_formatter_on_tag = @formatter:on
+ij_formatter_tags_enabled = false
+ij_smart_tabs = false
+ij_wrap_on_typing = false
 ij_any_blank_lines_after_class_header = 1
 ij_any_keep_control_statement_in_one_line = true
 ij_any_keep_blank_lines_in_code = 1
@@ -40,22 +45,32 @@ ij_any_do_while_brace_force = if_multiline
 ij_any_while_brace_force = if_multiline
 ij_any_for_brace_force = if_multiline
 
+[*.groovy]
 ij_groovy_use_fq_class_names_in_javadoc = false
-ij_groovy_class_count_to_use_import_on_demand = 99
-ij_groovy_names_count_to_use_import_on_demand = 99
+ij_groovy_class_count_to_use_import_on_demand = 2147483647
+ij_groovy_names_count_to_use_import_on_demand = 2147483647
 
-ij_java_class_count_to_use_import_on_demand = 99
-ij_java_names_count_to_use_import_on_demand = 99
+[*.java]
+ij_java_class_count_to_use_import_on_demand = 2147483647
+ij_java_names_count_to_use_import_on_demand = 2147483647
 ij_java_doc_add_p_tag_on_empty_lines = false
 ij_java_doc_do_not_wrap_if_one_line = true
 ij_java_doc_keep_empty_parameter_tag = false
 ij_java_doc_keep_empty_throws_tag = false
 ij_java_doc_keep_empty_return_tag = false
+ij_java_use_single_class_imports = true
+ij_java_insert_inner_class_imports = false
+ij_java_imports_layout = *, |, javax.**, java.**, |, $*
+ij_java_layout_static_imports_separately = true
 
+[{*.kt, *.kts}]
 ij_kotlin_code_style_defaults = kotlin_official
 ij_kotlin_keep_blank_lines_in_declarations = 1
 ij_kotlin_keep_blank_lines_in_code = 1
+ij_kotlin_name_count_to_use_star_import = 2147483647
+ij_kotlin_name_count_to_use_star_import_for_members = 2147483647
 ij_kotlin_align_multiline_parameters = false
+ij_kotlin_import_nested_classes = false
 
 [*.md]
 max_line_length = 72
