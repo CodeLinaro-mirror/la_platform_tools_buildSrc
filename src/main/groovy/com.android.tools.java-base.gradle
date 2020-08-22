@@ -1,0 +1,58 @@
+plugins {
+    id 'clone-artifacts'
+}
+
+java {
+    withJavadocJar()
+    withSourcesJar()
+}
+
+jar {
+    from 'NOTICE'
+    from 'LICENSE'
+}
+
+sourcesJar {
+    from 'NOTICE'
+    from 'LICENSE'
+}
+
+repositories {
+    maven { url = uri(rootProject.cloneArtifacts.repository) }
+}
+
+test {
+    // todo: disable this for CI since we'll use the CI UI to do the report.
+    reports.html.enabled = true
+}
+
+afterEvaluate {
+    compileJava.options.annotationProcessorGeneratedSourcesDirectory project.
+            layout.
+            buildDirectory.
+            dir("generated/src/main/annotationProcessor").
+            get().
+            asFile
+}
+
+sourceSets {
+    main.resources.exclude '**/*.kt'
+    test.resources.exclude '**/*.kt'
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+task disableTestFailures {
+    doLast {
+        tasks.withType(Test) {
+            ignoreFailures = true
+        }
+    }
+}
+
+tasks.withType(JavaForkOptions) {
+    // Prevent forked processes from stealing focus (on MacOS at least)
+    jvmArgs '-Djava.awt.headless=true'
+}

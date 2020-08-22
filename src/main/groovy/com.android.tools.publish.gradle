@@ -1,0 +1,62 @@
+plugins {
+    id 'com.android.tools.javadoc'
+    id 'maven-publish'
+    id 'signing'
+}
+
+// Disable test-fixtures publishing to Maven
+project.plugins.withId('java-test-fixtures') {
+    components.java.withVariantsFromConfiguration(configurations.testFixturesRuntimeElements) {
+        skip()
+    }
+    components.java.withVariantsFromConfiguration(configurations.testFixturesApiElements) {
+        skip()
+    }
+}
+
+project.ext.publishJavaComponent = true
+// When java-gradle-plugin is applied, it publishes both markers and the plugin, so we don't
+// need to do anything.
+project.plugins.withId('java-gradle-plugin') {
+    project.ext.publishJavaComponent = false
+}
+
+afterEvaluate {
+    publishing {
+        repositories {
+            maven {
+                name = "local"
+                url = uri("$rootProject.ext.localRepo")
+            }
+        }
+        publications {
+            withType(MavenPublication) {
+                pom.withXml {
+                    asNode().appendNode('description', project.ext.pomDesc)
+                    asNode().appendNode('url', 'http://tools.android.com/')
+                    asNode().appendNode('name', groupId + '.' + artifactId)
+
+                    Node license = asNode().appendNode('licenses').appendNode('license')
+                    license.appendNode('name', 'The Apache Software License, Version 2.0')
+                    license.appendNode('url', 'http://www.apache.org/licenses/LICENSE-2.0.txt')
+                    license.appendNode('distribution', 'repo')
+
+                    asNode().appendNode('developers')
+                            .appendNode('developer')
+                            .appendNode('name', 'The Android Open Source Project')
+
+                    Node scm = asNode().appendNode('scm')
+                    scm.appendNode('connection',
+                            'git://android.googlesource.com/platform/tools/base.git')
+                    scm.appendNode('url', 'https://android.googlesource.com/platform/tools/base')
+                }
+            }
+
+            if (project.ext.publishJavaComponent) {
+                mavenJava(MavenPublication) {
+                    from components.java
+                }
+            }
+        }
+    }
+}

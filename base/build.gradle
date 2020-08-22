@@ -17,25 +17,6 @@ buildscript {
 
 apply from: "$rootDir/buildSrc/base/idea.gradle"
 
-import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
-allprojects { subproject ->
-    tasks.withType(JavaForkOptions) {
-        // Prevent forked processes from stealing focus (on MacOS at least)
-        jvmArgs '-Djava.awt.headless=true'
-    }
-    tasks.withType(KotlinCompile).configureEach {
-        kotlinOptions {
-            freeCompilerArgs = ((freeCompilerArgs + [
-                        "-Xjvm-default=enable",
-                        // workaround for https://youtrack.jetbrains.com/issue/KT-37435
-                        "-Xno-optimized-callable-references",
-                        // workaround for https://github.com/Kotlin/dokka/issues/1272
-                        "-Xno-kotlin-nothing-value-exception"
-                    ]) as Set) as List
-        }
-    }
-}
-
 // artifact cloning destinations
 cloneArtifacts {
     repository = "$rootDir/../prebuilts/tools/common/m2/repository"
@@ -117,8 +98,10 @@ publishLocalPluginTask.description = """Publishes artifacts that are direct depe
 publishLocalTask.dependsOn publishLocalPluginTask
 
 subprojects { project ->
-    if (project.plugins.findPlugin('signing') != null && project.tasks.findByName('publishLocal') != null) {
-        rootProject.publishAndroidGradleLocal.dependsOn project.publishLocal
+    project.plugins.withId('maven-publish') {
+        project.plugins.withId('signing') {
+            rootProject.publishAndroidGradleLocal.dependsOn project.tasks.findByName('publish')
+        }
     }
 }
 

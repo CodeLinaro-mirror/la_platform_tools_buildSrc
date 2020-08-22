@@ -1,0 +1,18 @@
+plugins {
+    id "kotlin"
+}
+
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+tasks.withType(KotlinCompile).configureEach {
+    kotlinOptions {
+        jvmTarget = "1.8"
+        freeCompilerArgs = ((freeCompilerArgs + [
+                "-Xjvm-default=enable",
+                // workaround for https://youtrack.jetbrains.com/issue/KT-37435
+                "-Xno-optimized-callable-references",
+                // workaround for https://github.com/Kotlin/dokka/issues/1272
+                "-Xno-kotlin-nothing-value-exception"
+        ]) as Set) as List
+    }
+}
