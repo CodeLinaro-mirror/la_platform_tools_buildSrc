@@ -42,7 +42,6 @@ class OfflineRepoPlugin implements Plugin<Project> {
                 ':base:build-system:gradle-core',
                 ':base:build-system:aapt2',
                 ':dataBinding:compiler',
-                ':base:java-lib-model-builder',
                 ':base:lint-gradle']
         /*
          * Identify all project and subprojects output artifacts and copy .jar and .pom

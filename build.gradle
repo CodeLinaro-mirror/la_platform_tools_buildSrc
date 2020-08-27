@@ -1,6 +1,6 @@
-apply plugin: 'groovy'
+apply plugin: 'groovy-gradle-plugin'
 apply plugin: 'idea'
-apply plugin: 'maven'
+apply plugin: 'maven-publish'
 
 repositories {
     maven { url = "$rootDir/../../prebuilts/tools/common/m2/repository" }
@@ -9,21 +9,28 @@ repositories {
 
 buildDir = "../../out/build/buildSrc/build"
 
+apply from: 'base/version.gradle'
+
 dependencies {
     compile gradleApi()
     compile localGroovy()
 
     compile "com.googlecode.jarjar:jarjar:1.3"
-    compile "commons-io:commons-io:1.3.2"
-    compile "com.google.guava:guava:15.0"
+    compile libs.apache_commons_io
+    compile libs.guava
     compile ('com.google.protobuf:protobuf-gradle-plugin:0.8.10') {
         exclude group: 'org.apache.maven', module: 'maven-plugin-api'
     }
-    compile 'commons-lang:commons-lang:2.6@jar'
+    compile libs.apache_commons_lang
     compile "org.pegdown:pegdown:1.1.0"
-    compile "org.jsoup:jsoup:1.6.3"
+    compile libs.jsoup
+    compile libs.kotlin_gradle_plugin
 
-    testCompile "junit:junit:4.12"
+    testCompile libs.junit
+}
+
+validatePlugins {
+    getFailOnWarning().set(false)
 }
 
 // See README.
