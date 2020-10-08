@@ -14,6 +14,9 @@ idea {
             }
         }
     }
+    module {
+        excludeDirs += [file("idea"), file("adt/idea")]
+    }
 }
 
 class AndroidCopyright {
