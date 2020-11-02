@@ -1,3 +1,4 @@
+rootProject.name = 'tools-gradle-4.2'
 include ':base:annotations'
 include ':base:api-generator'
 include ':apkzlib'
