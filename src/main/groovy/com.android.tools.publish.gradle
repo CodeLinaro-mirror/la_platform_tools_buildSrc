@@ -21,6 +21,23 @@ project.plugins.withId('java-gradle-plugin') {
     project.ext.publishJavaComponent = false
 }
 
+// replace the arbitrarily generated buildId in module metadata to the one from the busytown
+// Workaround for https://github.com/gradle/gradle/issues/11717
+project.tasks.withType(GenerateModuleMetadata).configureEach {
+    doLast {
+        def metadata = outputFile.asFile.get()
+        def text = metadata.getText()
+        def pattern = java.util.regex.Pattern.compile("\"buildId\":.*")
+        def m = pattern.matcher(text)
+        def buildId = "0"
+        if (System.getenv("BUILD_NUMBER") != null)
+            buildId = System.getenv("BUILD_NUMBER")
+        if(m.find()) {
+            metadata.write(text.replace(m.group(0), "\"buildId\": \"${buildId}\""))
+        }
+    }
+}
+
 afterEvaluate {
     publishing {
         repositories {
