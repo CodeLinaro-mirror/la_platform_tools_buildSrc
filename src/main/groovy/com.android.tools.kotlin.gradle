@@ -12,7 +12,7 @@ if (OperatingSystem.current().isWindows()) {
 } else if (OperatingSystem.current().isLinux()) {
     folder = "linux"
 } else if (OperatingSystem.current().isMacOsX()) {
-    folder = "darwin"
+    folder = "mac/Contents/Home"
 } else {
     throw new IllegalStateException("Unsupported operating system: " + OperatingSystem.current())
 }
