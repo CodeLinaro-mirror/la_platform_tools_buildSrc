@@ -50,7 +50,7 @@ sourceSets {
 // 'JAVA_FOR_TESTS' environment variable (to, e.g., '1.6')
 task('checkJavaVersion').doLast {
 
-    def requiredJdkVersion = JavaVersion.VERSION_1_8
+    def requiredJdkVersion = JavaVersion.VERSION_11
     def javaForTests = System.getenv('JAVA_FOR_TESTS')
     if (javaForTests != null) {
         requiredJdkVersion = JavaVersion.toVersion(javaForTests)
