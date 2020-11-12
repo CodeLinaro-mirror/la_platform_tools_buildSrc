@@ -6,18 +6,18 @@ import org.gradle.internal.jvm.Jvm
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.gradle.internal.os.OperatingSystem
 
-String folder
+String jdk8Folder
 if (OperatingSystem.current().isWindows()) {
-    folder = "windows"
+    jdk8Folder = "win64"
 } else if (OperatingSystem.current().isLinux()) {
-    folder = "linux"
+    jdk8Folder = "linux"
 } else if (OperatingSystem.current().isMacOsX()) {
-    folder = "mac/Contents/Home"
+    jdk8Folder = "mac/Contents/Home"
 } else {
     throw new IllegalStateException("Unsupported operating system: " + OperatingSystem.current())
 }
 
-String jdk8Home = "$rootDir/../prebuilts/studio/jdk/$folder"
+String jdk8Home = "$rootDir/../prebuilts/studio/jdk/$jdk8Folder"
 
 tasks.withType(KotlinCompile).configureEach {
     kotlinOptions {
