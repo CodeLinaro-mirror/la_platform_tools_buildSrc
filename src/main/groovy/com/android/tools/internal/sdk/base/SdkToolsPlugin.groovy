@@ -77,7 +77,7 @@ public class SdkToolsPlugin extends BaseSdkPlugin implements Plugin<Project> {
 
         Zip zipFiles = project.tasks.create("zip${platformName.capitalize()}Sdk", Zip)
         zipFiles.from(root).include("tools/**")
-        zipFiles.destinationDir = project.ext.androidHostDist
+        zipFiles.destinationDirectory.set(project.ext.androidHostDist)
 
         String buildNumber = System.getenv("BUILD_NUMBER")
         String zipName
@@ -87,7 +87,7 @@ public class SdkToolsPlugin extends BaseSdkPlugin implements Plugin<Project> {
             zipName = "sdk-repo-$plaformPkgName-tools-${buildNumber}.zip"
         }
 
-        zipFiles.setArchiveName(zipName)
+        zipFiles.archiveFileName.set(zipName)
         zipFiles.mustRunAfter copyFiles
 
         makeTask.description = "Packages the ${platformName.capitalize()} SDK Tools"

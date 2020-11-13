@@ -112,8 +112,8 @@ class OfflineRepoPlugin implements Plugin<Project> {
             dependsOn extractReadme // zipTree doesn't preserve the dependency information
             preserveFileTimestamps = false
             reproducibleFileOrder = true
-            archiveName outputFile.name
-            destinationDir outputFile.parentFile
+            archiveFileName.set(outputFile.name)
+            destinationDirectory.set(outputFile.parentFile)
         }
         zipOfflineRepo.dependsOn makeOfflineRepo
     }
