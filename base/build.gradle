@@ -22,6 +22,10 @@ cloneArtifacts {
     repository = "$rootDir/../prebuilts/tools/common/m2/repository"
 }
 
+repositories {
+    maven { url "$rootDir/../prebuilts/tools/common/m2/repository" }
+}
+
 if (System.env.USE_EXTERNAL_REPO != null) {
   allprojects {
     repositories {
