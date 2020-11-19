@@ -16,26 +16,42 @@
 package com.android.tools.internal.artifacts.offline
 
 import com.android.tools.internal.artifacts.PomHandler
-import com.google.common.base.Splitter
 import com.google.common.collect.Lists
 import com.google.common.io.Files
 import org.gradle.api.DefaultTask
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.component.ModuleComponentIdentifier
+import org.gradle.api.attributes.Usage
+import org.gradle.api.tasks.InputFiles
 import org.gradle.api.tasks.TaskAction
 
 /**
  */
 public class CopyProjectDependencyTask extends DefaultTask {
 
-    public List<String> entryProjectPaths;
+    private List<Configuration> entryProjects;
+
+    void setEntryProjectPaths(List<String> entryProjectPaths) {
+        entryProjects = new ArrayList<>()
+        for (String entryProject: entryProjectPaths) {
+            Configuration projectConfiguration = project.configurations.detachedConfiguration()
+            // Set runtime usage
+            projectConfiguration.attributes.attribute(Usage.USAGE_ATTRIBUTE, project.objects.named(Usage, Usage.JAVA_RUNTIME))
+            projectConfiguration.dependencies.add(project.dependencies.project(Collections.singletonMap("path", entryProject)))
+            entryProjects.add(projectConfiguration)
+        }
+    }
+
+    @InputFiles
+    List<Configuration> getEntryProject() {
+        return entryProjects
+    }
 
     @TaskAction
     void copy() {
         List componentIds = Lists.newArrayList()
 
-        for (String entryProjectPath: entryProjectPaths) {
-            def conf = project.findProject(entryProjectPath).configurations.runtime
-
+        for (Configuration conf: entryProjects) {
             // select transitive dependencies, from this configuration and all referenced subprojects.
             componentIds += conf.incoming.resolutionResult.allDependencies.findAll {
                 it.selected.id instanceof ModuleComponentIdentifier

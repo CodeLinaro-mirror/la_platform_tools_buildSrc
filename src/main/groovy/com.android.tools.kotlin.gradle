@@ -2,7 +2,22 @@ plugins {
     id "kotlin"
 }
 
+import org.gradle.internal.jvm.Jvm
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.gradle.internal.os.OperatingSystem
+
+String jdk8Folder
+if (OperatingSystem.current().isWindows()) {
+    jdk8Folder = "win64"
+} else if (OperatingSystem.current().isLinux()) {
+    jdk8Folder = "linux"
+} else if (OperatingSystem.current().isMacOsX()) {
+    jdk8Folder = "mac/Contents/Home"
+} else {
+    throw new IllegalStateException("Unsupported operating system: " + OperatingSystem.current())
+}
+
+String jdk8Home = "$rootDir/../prebuilts/studio/jdk/$jdk8Folder"
 
 tasks.withType(KotlinCompile).configureEach {
     kotlinOptions {
@@ -11,5 +26,8 @@ tasks.withType(KotlinCompile).configureEach {
         freeCompilerArgs = ((freeCompilerArgs + [
                 "-Xjvm-default=enable"
         ]) as Set) as List
+        jdkHome = jdk8Home
     }
 }
+
+project.ext.toolsJarForJava8 = Jvm.forHome(new File(jdk8Home)).toolsJar

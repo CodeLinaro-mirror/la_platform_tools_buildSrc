@@ -19,7 +19,10 @@ package com.android.tools.internal.artifacts.offline
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.artifacts.component.ProjectComponentIdentifier
+import org.gradle.api.artifacts.result.ResolvedDependencyResult
+import org.gradle.api.attributes.Usage
 import org.gradle.api.tasks.TaskProvider
 import org.gradle.api.tasks.bundling.Zip
 
@@ -54,7 +57,7 @@ class OfflineRepoPlugin implements Plugin<Project> {
             // top project is the root of all the gradle plugin dependencies
             Set<Project> projectsToConsider = new HashSet<Project>()
             for (String projectPath: entryProjectPaths) {
-                projectsToConsider.addAll(getAllDependencies(project, project.findProject(projectPath)))
+                projectsToConsider.addAll(getAllProjectDependencies(project, project.findProject(projectPath)))
 
             }
             // for each projects, check its output artifact and copy it only with the associated pom file to our
@@ -112,14 +115,19 @@ class OfflineRepoPlugin implements Plugin<Project> {
             dependsOn extractReadme // zipTree doesn't preserve the dependency information
             preserveFileTimestamps = false
             reproducibleFileOrder = true
-            archiveName outputFile.name
-            destinationDir outputFile.parentFile
+            archiveFileName.set(outputFile.name)
+            destinationDirectory.set(outputFile.parentFile)
         }
         zipOfflineRepo.dependsOn makeOfflineRepo
     }
 
-    private static Collection<Project> getAllDependencies(Project rootProject, Project topProject) {
-        def projects = topProject.configurations.runtime.incoming.resolutionResult.allDependencies.findResults {
+    private static Collection<Project> getAllProjectDependencies(Project rootProject, Project topProject) {
+        Configuration projectDependency = rootProject.configurations.detachedConfiguration(
+            rootProject.dependencies.project(Collections.singletonMap("path", topProject.path))
+        )
+        projectDependency.attributes.attribute(Usage.USAGE_ATTRIBUTE, rootProject.objects.named(Usage, Usage.JAVA_RUNTIME))
+
+        def projects = projectDependency.incoming.resolutionResult.allDependencies.findResults {
             (it.selected.id instanceof ProjectComponentIdentifier) ? rootProject.findProject(it.selected.id.projectPath) : null
         }
 

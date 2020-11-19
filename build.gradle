@@ -12,21 +12,21 @@ buildDir = "../../out/build/buildSrc/build"
 apply from: 'base/version.gradle'
 
 dependencies {
-    compile gradleApi()
-    compile localGroovy()
+    implementation gradleApi()
+    implementation localGroovy()
 
-    compile "com.googlecode.jarjar:jarjar:1.3"
-    compile libs.apache_commons_io
-    compile libs.guava
-    compile ('com.google.protobuf:protobuf-gradle-plugin:0.8.10') {
+    implementation "com.googlecode.jarjar:jarjar:1.3"
+    implementation libs.apache_commons_io
+    implementation libs.guava
+    implementation ('com.google.protobuf:protobuf-gradle-plugin:0.8.13') {
         exclude group: 'org.apache.maven', module: 'maven-plugin-api'
     }
-    compile libs.apache_commons_lang
-    compile "org.pegdown:pegdown:1.1.0"
-    compile libs.jsoup
-    compile libs.kotlin_gradle_plugin
+    implementation libs.apache_commons_lang
+    implementation "org.pegdown:pegdown:1.1.0"
+    implementation libs.jsoup
+    implementation libs.kotlin_gradle_plugin
 
-    testCompile libs.junit
+    testImplementation libs.junit
 }
 
 validatePlugins {
@@ -50,7 +50,7 @@ sourceSets {
 // 'JAVA_FOR_TESTS' environment variable (to, e.g., '1.6')
 task('checkJavaVersion').doLast {
 
-    def requiredJdkVersion = JavaVersion.VERSION_1_8
+    def requiredJdkVersion = JavaVersion.VERSION_11
     def javaForTests = System.getenv('JAVA_FOR_TESTS')
     if (javaForTests != null) {
         requiredJdkVersion = JavaVersion.toVersion(javaForTests)
@@ -60,6 +60,11 @@ task('checkJavaVersion').doLast {
     if (jvmVersion != requiredJdkVersion) {
         throw new RuntimeException("Tools need to be compiled with Java $requiredJdkVersion, you are using Java $jvmVersion.")
     }
+}
+
+tasks.withType(ProcessResources) {
+    // Gradle 7.0 requires specifying this explicitly, and this value is what pre 7.0 versions did
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
 
 assemble.dependsOn checkJavaVersion
