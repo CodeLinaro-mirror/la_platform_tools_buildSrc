@@ -130,3 +130,5 @@ project(':base:java-lib-model-builder').projectDir = new File(rootDir, 'base/bui
 
 include ':base:zipflinger'
 include ':base:signflinger'
+
+include ':base:utp:android-device-provider-ddmlib'
