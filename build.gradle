@@ -58,7 +58,7 @@ task('checkJavaVersion').doLast {
 
     def jvmVersion = JavaVersion.current()
     if (jvmVersion != requiredJdkVersion) {
-        throw new RuntimeException("Tools need to be compiled with Java $requiredJdkVersion, you are using Java $jvmVersion.")
+        throw new RuntimeException("Tools need to be compiled with Java $requiredJdkVersion, you are using Java $jvmVersion.\nIf you are trying to open the project in IntelliJ, go to Settings and search for \"Gradle JVM\"")
     }
 }
 
