@@ -165,6 +165,8 @@ def main(argv):
                  platform.uname(),
                  version)
 
+    os.environ["GIT_DISCOVERY_ACROSS_FILESYSTEM"] = "1"
+
     target = platform.system().lower()
     if args.target:
         target = args.target.lower()
@@ -194,8 +196,12 @@ def main(argv):
         "--sdk_build_number", args.build_id, "--target", target, "--dist",
         args.dist_dir, "--test_jobs", str(args.test_jobs)
     ]
-    prod = ["--crash", "prod"]
+
     debug = ["--config", "debug"]
+    if target == 'darwin_aarch64':
+        prod = ["prod"]
+    else:
+        prod = ["--crash", "prod"]
 
     if args.gfxstream:
         cmd.append(gfxstream_arg)
