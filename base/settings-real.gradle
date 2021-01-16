@@ -132,6 +132,8 @@ include ':base:zipflinger'
 include ':base:signflinger'
 
 include ':base:utp:android-device-provider-ddmlib'
+include ':base:utp:android-device-provider-gradle'
+include ':base:utp:android-device-provider-gradle-proto'
 include ':base:utp:android-test-plugin-host-device-info'
 include ':base:utp:android-test-plugin-host-device-info-proto'
 include ':base:utp:android-test-plugin-host-retention'
