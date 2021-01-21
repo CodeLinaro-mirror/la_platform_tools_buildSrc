@@ -18,7 +18,6 @@ include ':base:lint'
 include ':base:lint-cli'
 include ':base:lint-api'
 include ':base:lint-checks'
-include ':base:lint-gradle-api'
 include ':base:lint-gradle'
 include ':base:lint-kotlin'
 include ':base:lint-model'
@@ -73,7 +72,6 @@ project(':base:lint'               ).projectDir = new File(rootDir, 'base/lint')
 project(':base:lint-cli'           ).projectDir = new File(rootDir, 'base/lint/cli')
 project(':base:lint-api'           ).projectDir = new File(rootDir, 'base/lint/libs/lint-api')
 project(':base:lint-checks'        ).projectDir = new File(rootDir, 'base/lint/libs/lint-checks')
-project(':base:lint-gradle-api'    ).projectDir = new File(rootDir, 'base/lint/libs/lint-gradle-api')
 project(':base:lint-gradle'        ).projectDir = new File(rootDir, 'base/lint/libs/lint-gradle')
 project(':base:lint-kotlin'        ).projectDir = new File(rootDir, 'base/lint/libs/lint-kotlin')
 project(':base:lint-model'         ).projectDir = new File(rootDir, 'base/lint/libs/lint-model')
