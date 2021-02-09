@@ -26,7 +26,12 @@ tasks.withType(KotlinCompile).configureEach {
         freeCompilerArgs = ((freeCompilerArgs + [
                 "-Xjvm-default=enable",
                 // Dependency jars may be compiled with a new kotlinc IR backend.
-                "-Xallow-unstable-dependencies"
+		// In particular `com.google.testing.platform.api.config` is
+		// built with the IR backend. Once we update to a dependency
+		// built with 1.4.30 we can remove this flag. The build that needs
+		// the flag is `./gradlew publishLocal`.
+                "-Xallow-unstable-dependencies",
+                "-Xuse-ir"
         ]) as Set) as List
         jdkHome = jdk8Home
     }
