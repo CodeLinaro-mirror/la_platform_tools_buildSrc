@@ -26,7 +26,7 @@ tasks.withType(KotlinCompile).configureEach {
         freeCompilerArgs = ((freeCompilerArgs + [
                 "-Xjvm-default=enable",
                 // Dependency jars may be compiled with a new kotlinc IR backend.
-                "-Xallow-jvm-ir-dependencies"
+                "-Xallow-unstable-dependencies"
         ]) as Set) as List
         jdkHome = jdk8Home
     }
