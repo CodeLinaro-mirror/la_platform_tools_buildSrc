@@ -124,8 +124,6 @@ subprojects { project ->
 // basic task for custom distribution of project should the build server.
 task('dist').doLast {}
 
-apply plugin: 'offline-repo'
-
 task('clean').doLast {
   delete 'build'
 
