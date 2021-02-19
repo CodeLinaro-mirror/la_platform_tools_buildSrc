@@ -26,7 +26,7 @@ repositories {
     maven { url "$rootDir/../prebuilts/tools/common/m2/repository" }
 }
 
-if (System.env.USE_EXTERNAL_REPO != null) {
+if (project.providers.environmentVariable("USE_EXTERNAL_REPO").forUseAtConfigurationTime().isPresent()) {
   allprojects {
     repositories {
         maven { url = uri(rootProject.cloneArtifacts.repository) }
@@ -84,7 +84,7 @@ task prepareRepo(type: Copy) {
 }
 
 task("copyGradleProperty").doLast {
-    def gradleProperties = file("${System.env.HOME}/.gradle/gradle.properties")
+    def gradleProperties = file("${project.providers.environmentVariable("HOME").forUseAtConfigurationTime().orNull}/.gradle/gradle.properties")
     if (gradleProperties.exists()) {
         project.copy {
             from { gradleProperties }
@@ -123,8 +123,6 @@ subprojects { project ->
 
 // basic task for custom distribution of project should the build server.
 task('dist').doLast {}
-
-apply plugin: 'offline-repo'
 
 task('clean').doLast {
   delete 'build'
