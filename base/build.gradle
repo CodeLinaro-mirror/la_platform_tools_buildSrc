@@ -46,10 +46,6 @@ ext.androidHostDist = new File(ext.androidHostOut, "dist")
 buildDir = new File(ext.androidHostOut, "build/root")
 
 
-// apply this after the buildDir has been changed.
-apply plugin: 'sdk-tools'
-
-
 ext.localRepo = project.hasProperty('localRepo') ? localRepo : "$ext.androidHostOut/repo"
 
 subprojects { Project project ->
