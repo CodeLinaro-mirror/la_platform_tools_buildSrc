@@ -58,7 +58,7 @@ public class UserGuideTransformTask extends DefaultTask {
     @Input
     Set<String> tags = new HashSet()
 
-    final SampleElementValidator validator = new SampleElementValidator();
+    private final SampleElementValidator validator = new SampleElementValidator();
 
     @Input String getJavadocUrl() {
         javadocUrl

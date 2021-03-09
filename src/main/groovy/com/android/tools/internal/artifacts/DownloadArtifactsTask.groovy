@@ -18,10 +18,12 @@ package com.android.tools.internal.artifacts
 import com.android.tools.internal.BaseTask
 import org.gradle.api.provider.Provider
 import org.gradle.api.file.Directory
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 
 class DownloadArtifactsTask extends BaseTask {
 
+    @OutputDirectory
     Provider<Directory> repository
 
     @TaskAction

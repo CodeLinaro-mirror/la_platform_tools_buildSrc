@@ -15,11 +15,16 @@
  */
 package org.gradle.build
 
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.Sync
 
 class Install extends Sync {
 
+    @Input
     String installDirPropertyName
+
+    @OutputDirectory
     File installDir
 
     def Install() {

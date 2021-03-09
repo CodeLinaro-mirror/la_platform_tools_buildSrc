@@ -39,7 +39,7 @@ class BuildEmulator extends DefaultTask {
         return project.projectDir
     }
 
-    boolean windows = false
+    private boolean windows = false
 
     @TaskAction
     void build() {

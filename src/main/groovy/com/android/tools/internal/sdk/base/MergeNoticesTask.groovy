@@ -23,11 +23,16 @@ import com.google.common.io.Files
 import org.gradle.api.NamedDomainObjectSet
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.TaskAction
 
 class MergeNoticesTask extends BaseTask {
 
+    @OutputFile
     File noticeFile
+
+    @Input
     String[] noticeTaskNames
 
     @TaskAction
