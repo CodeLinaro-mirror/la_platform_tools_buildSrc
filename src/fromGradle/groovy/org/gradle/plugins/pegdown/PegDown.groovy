@@ -57,7 +57,7 @@ class PegDown extends SourceTask {
         getDestination().write(html, getOutputEncoding())
     }
     
-    int getCalculatedOptions() {
+    private int getCalculatedOptions() {
         getOptions().inject(0) { acc, val -> acc | toOptionValue(val) } as int
     }
     

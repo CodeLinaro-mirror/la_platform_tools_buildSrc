@@ -73,6 +73,7 @@ public class GenerateDefaultImportsTask extends DefaultTask {
         excludePatterns.add(name);
     }
 
+    @Input
     public Set<String> getExtraPackages() {
         return extraPackages;
     }

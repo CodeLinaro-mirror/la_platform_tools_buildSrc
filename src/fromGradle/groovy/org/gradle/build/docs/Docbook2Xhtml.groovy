@@ -35,6 +35,7 @@ class Docbook2Xhtml extends SourceTask {
     @InputDirectory
     File stylesheetsDir
 
+    @Input
     String stylesheetName
 
     @InputFiles @Optional

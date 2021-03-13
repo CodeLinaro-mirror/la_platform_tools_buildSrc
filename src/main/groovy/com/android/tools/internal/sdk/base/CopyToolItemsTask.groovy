@@ -23,16 +23,21 @@ import com.google.common.collect.Lists
 import com.google.common.io.Files
 import org.gradle.api.DefaultTask
 import org.gradle.api.Project
+import org.gradle.api.tasks.Input
+import org.gradle.api.tasks.OutputDirectory
 import org.gradle.api.tasks.TaskAction
 /**
  * Task to copy tools items and their notice file.
  */
 class CopyToolItemsTask extends DefaultTask {
 
+    @Input
     List<ToolItem> items;
 
+    @OutputDirectory
     File itemOutputDir
 
+    @OutputDirectory
     File noticeDir
 
     @TaskAction

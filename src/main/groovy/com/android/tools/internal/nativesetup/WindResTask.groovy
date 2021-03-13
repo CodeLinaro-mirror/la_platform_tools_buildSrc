@@ -26,6 +26,7 @@ import org.gradle.api.tasks.TaskAction
  */
 class WindResTask extends DefaultTask {
 
+    @InputFile
     File winResExe
 
     @InputFile
