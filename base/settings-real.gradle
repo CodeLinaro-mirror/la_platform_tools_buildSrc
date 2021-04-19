@@ -38,6 +38,7 @@ include ':base:gradle-import'
 include ':base:vector-drawable-tool'
 include ':base:chunkio'
 include ':base:pixelprobe'
+include ':base:profgen'
 
 include ':base:profile'
 include ':base:builder-model'
@@ -87,6 +88,7 @@ project(':base:manifest-merger'    ).projectDir = new File(rootDir, 'base/build-
 project(':base:gradle-api'      ).projectDir = new File(rootDir, 'base/build-system/gradle-api')
 project(':base:project-test-lib'   ).projectDir = new File(rootDir, 'base/build-system/project-test-lib')
 project(':base:project-test'       ).projectDir = new File(rootDir, 'base/build-system/project-test')
+project(':base:profgen'            ).projectDir = new File(rootDir, 'base/profgen')
 
 include ':external:fat32lib'
 
