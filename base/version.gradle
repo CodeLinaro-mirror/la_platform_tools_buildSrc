@@ -24,15 +24,52 @@ for (name in properties.stringPropertyNames()) {
     project.ext[name] = version
 }
 
+// This will be replaced with a dependency catalog soon.
+
+// Deep copy the dependency map to give more helpful error messages,
+private Map<String, ?> dependencyMapOf(Map<String, ?> sourceMap, prefix) {
+    Map<String, ?> dependencyMap = [:].withDefault {
+        key -> throw new IllegalArgumentException('"' + prefix + key + '" is not a valid dependency.\nDependencies ' + libs.keySet())
+    }
+    sourceMap.each {
+        if (it.value instanceof Map) {
+            dependencyMap[it.key] = dependencyMapOf(it.value, it.key + ".")
+        } else if (it.value instanceof String) {
+            dependencyMap[it.key] = it.value
+        } else {
+            throw new IllegalArgumentException('"' + prefix + key + '" is not a valid dependency type.')
+        }
+    }
+    return Collections.unmodifiableMap(dependencyMap)
+}
+
 // Add ext.libs for library versions
 Properties dependencies = new Properties()
 File dependenciesProperties = new File(versionRootDir, "buildSrc/base/dependencies.properties")
 dependenciesProperties.withReader { dependencies.load(it) }
-
-def libs = [:].withDefault { key -> throw new IllegalArgumentException('"' + key + '" not a valid dependency.') }
-for (name in dependencies.stringPropertyNames()) {
-    libs[name] = dependencies.getProperty(name)
-}
 // Use the proto compiler that matches the protobuf java runtime.
-libs['proto_compiler'] = libs['protobuf'].replace('protobuf-java', 'protoc')
-rootProject.ext['libs'] = libs
+dependencies.put('proto_compiler', dependencies.getProperty("protobuf").replace('protobuf-java', 'protoc'))
+Map<String, ?> libs = [:]
+
+for (name in dependencies.stringPropertyNames()) {
+    // Use . separated names in preparation for migration to a version catalog
+    Iterator<String> paths = Arrays.asList(name.split('_')).iterator()
+    Map<String, ?> sub = libs
+    while (paths.hasNext()) {
+        String path = paths.next()
+        if (!paths.hasNext()) {
+            sub[path] = dependencies.getProperty(name)
+            continue
+        }
+        if (sub[path] == null) sub[path] = [:]
+        if (!(sub[path] instanceof Map)) {
+            break
+        } // Ignore clashing foo_sub if there's a dependency foo
+        sub = sub[path]
+    }
+    // The old way
+    if (name.contains('_')) {
+        libs[name] = dependencies.getProperty(name)
+    }
+}
+rootProject.ext['libs'] = dependencyMapOf(libs, "")
