@@ -16,72 +16,27 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
-import json
 import logging
 import multiprocessing
 import os
 import platform
 import site
-import subprocess
 import sys
 
-from distutils.spawn import find_executable
-from Queue import Queue
-from threading import Thread, currentThread
+
+if sys.version_info[0] == 3:
+    from queue import Queue
+else:
+    from Queue import Queue
+
+from distutils.dir_util import mkpath
 
 from server_config import ServerConfig
 from time_formatter import TimeFormatter
+from qemu_builder import QemuBuilder
 
-AOSP_ROOT = os.path.abspath(
-    os.path.join(os.path.dirname(os.path.realpath(__file__)), "..", "..", "..")
-)
-TOOLS = os.path.join(AOSP_ROOT, "tools")
-PYTHON_EXE = sys.executable or "python"
-
-
-def _reader(pipe, queue):
-    try:
-        with pipe:
-            for line in iter(pipe.readline, b""):
-                queue.put((pipe, line[:-1]))
-    finally:
-        queue.put(None)
-
-
-def log_std_out(proc):
-    """Logs the output of the given process."""
-    q = Queue()
-    Thread(target=_reader, args=[proc.stdout, q]).start()
-    Thread(target=_reader, args=[proc.stderr, q]).start()
-    for _ in range(2):
-        for _, line in iter(q.get, None):
-            logging.info(line)
-
-
-def run(cmd, env, log_prefix, cwd=AOSP_ROOT):
-    currentThread().setName(log_prefix)
-    cmd_env = os.environ.copy()
-    cmd_env.update(env)
-    is_windows = platform.system() == "Windows"
-
-    logging.info("=" * 140)
-    logging.info(json.dumps(cmd_env, sort_keys=True))
-    logging.info("%s $> %s", cwd, " ".join(cmd))
-    logging.info("=" * 140)
-
-    proc = subprocess.Popen(
-        cmd,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        shell=is_windows,  # Make sure windows propagates ENV vars properly.
-        cwd=cwd,
-        env=cmd_env,
-    )
-
-    log_std_out(proc)
-    proc.wait()
-    if proc.returncode != 0:
-        raise Exception("Failed to run %s - %s" % (" ".join(cmd), proc.returncode))
+from utils import PYTHON_EXE, AOSP_ROOT, is_presubmit, run
+from threading import currentThread
 
 
 def install_deps():
@@ -97,10 +52,6 @@ def install_deps():
         "dep",
         os.path.join(AOSP_ROOT, "external", "qemu", "android", "build", "python"),
     )
-
-
-def is_presubmit(build_id):
-    return build_id.startswith("P")
 
 
 def config_logging():
@@ -177,8 +128,11 @@ def main(argv):
     os.environ["GIT_DISCOVERY_ACROSS_FILESYSTEM"] = "1"
 
     target = platform.system().lower()
+
     if args.target:
         target = args.target.lower()
+
+    crosscompile = target != platform.system().lower()
 
     if not os.path.isabs(args.out_dir):
         args.out_dir = os.path.join(AOSP_ROOT, args.out_dir)
@@ -228,30 +182,18 @@ def main(argv):
     if args.crosvm:
         cmd.append(crosvm_arg)
 
+    # Make sure the dist directory exists.
+    mkpath(args.dist_dir)
+
     # Kick of builds for 2 targets. (debug/release)
     with ServerConfig(is_presubmit(args.build_id)) as cfg:
+
+        # Build qemu, and make sure the cmake file matches.
+        QemuBuilder(target, args.dist_dir, args.out_dir, cfg).validate()
+
         run(launcher + cmd + prod, cfg.get_env(), "rel")
         if not args.gfxstream and not args.crosvm:
             run(launcher + cmd + debug, cfg.get_env(), "dbg")
-            if target == "linux":
-              run(
-                  [
-                      os.path.join(
-                          AOSP_ROOT,
-                          "external",
-                          "qemu",
-                          "android",
-                          "scripts",
-                          "unix",
-                          "build-qemu-android.sh",
-                      ),
-                      "--build-dir={}/build-qemu".format(args.out_dir),
-                      "--host=linux-x86_64",
-                      "--verbose",
-                  ],
-                  cfg.get_env(),
-                  "qemu"
-              )
 
     logging.info("Build completed!")
 
