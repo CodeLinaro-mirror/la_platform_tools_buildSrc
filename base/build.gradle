@@ -11,6 +11,7 @@ buildscript {
         classpath libs.kotlin_gradle_plugin
         classpath libs.dokka
         classpath libs.kotlin_reflect
+        classpath libs.guava
         classpath "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.8.1"
     }
 }
@@ -37,7 +38,7 @@ if (project.providers.environmentVariable("USE_EXTERNAL_REPO").forUseAtConfigura
 }
 
 // ext.androidHostOut is shared by all tools/{base,build} gradle projects
-ext.androidHostOut = file("$rootDir/../out")
+ext.androidHostOut = file(providers.environmentVariable('BUILD_DIR').forUseAtConfigurationTime().orNull ?: "$rootDir/../out")
 ext.androidHostDist = new File(ext.androidHostOut, "dist")
 
 
@@ -99,7 +100,9 @@ publishLocalTask.dependsOn publishLocalPluginTask
 subprojects { project ->
     project.plugins.withId('maven-publish') {
         project.plugins.withId('signing') {
-            rootProject.publishAndroidGradleLocal.dependsOn project.tasks.findByName('publish')
+            if(bazelPrebuilts.shouldPublish) {
+                rootProject.publishAndroidGradleLocal.dependsOn project.tasks.findByName('publish')
+            }
         }
     }
 }
@@ -129,5 +132,10 @@ task('clean').doLast {
   }
 }
 
-
+tasks.register('zipPlugin', Zip) {
+    it.from(localRepo)
+    it.destinationDirectory = androidHostDist
+    it.archiveFileName = "repo.zip"
+    it.dependsOn(publishLocalPluginTask) // TODO include data binding runtime build
+}
 apply plugin: 'presubmit-runner'

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012 the original author or authors.
+ * Copyright (C) 2021 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,20 +14,8 @@
  * limitations under the License.
  */
 
-package org.gradle.plugins.pegdown
+package com.android.tools.internal.bazel;
 
-import org.gradle.api.Plugin
-import org.gradle.api.Project
-import java.nio.charset.Charset
-
-class PegDownPlugin implements Plugin<Project> {
-
-    void apply(Project project) {
-        project.tasks.withType(PegDown) { task ->
-            task.conventionMapping.with {
-                inputEncoding = { Charset.defaultCharset().name() }
-                outputEncoding = { task.inputEncoding }
-            }
-        }
-    }
+public interface BazelPrebuiltSupportExtension {
+    boolean getShouldPublish();
 }

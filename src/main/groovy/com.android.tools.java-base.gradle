@@ -1,5 +1,6 @@
 plugins {
     id 'clone-artifacts'
+    id 'com.android.tools.bazel-prebuilt-support'
 }
 
 java {
