@@ -90,8 +90,7 @@ class QemuBuilder(object):
         crosscompile = self.target != machine
 
         if crosscompile:
-            # Darwin TBD
-            return self.target in ["linux_aarch64", "windows"]
+            return True
 
         # We need posix to build qemu
         return self.target != "windows"
