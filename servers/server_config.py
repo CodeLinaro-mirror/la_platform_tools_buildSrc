@@ -93,4 +93,4 @@ class ServerConfig(object):
         if exc_type and exc_value:
             if self.ccache:
                 logging.info("Clearing ccache.")
-                subprocess.call([self.ccache, '-C'])
+                # subprocess.call([self.ccache, '-C'])
