@@ -38,7 +38,7 @@ repositories {
 
 test {
     // todo: disable this for CI since we'll use the CI UI to do the report.
-    reports.html.enabled = true
+    reports.html.required = true
 }
 
 afterEvaluate {
