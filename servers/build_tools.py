@@ -151,6 +151,9 @@ def main(argv):
         "--gfxstream", action="store_true", help="Build gfxstream libraries"
     )
     parser.add_argument("--crosvm", action="store_true", help="Build crosvm")
+    parser.add_argument(
+        "--generate", action="store_true", help="Generate and replaceqemu files only."
+    )
 
     args = parser.parse_args()
 
@@ -220,8 +223,14 @@ def main(argv):
     with ServerConfig(is_presubmit(args.build_id)) as cfg:
 
         # Build qemu, and make sure the cmake file matches.
-        if target != "darwin_aarch64":
-            QemuBuilder(target, args.dist_dir, args.out_dir, cfg).validate()
+        bld = QemuBuilder(target, args.dist_dir, args.out_dir, cfg)
+        if args.generate:
+            bld.generate()
+            return
+        elif (crosscompile or target != 'darwin_aarch64'):
+            bld.validate()
+        else:
+            logging.info("Not validating QEMU build.")
 
         run(launcher + cmd + prod, cfg.get_env(), "rel")
         if not args.gfxstream and not args.crosvm:

@@ -21,6 +21,7 @@ from functools import partial
 
 from utils import AOSP_ROOT, PYTHON_EXE, platform_to_cmake_target, run
 import subprocess
+import shutil
 import sys
 
 
@@ -134,7 +135,9 @@ class QemuBuilder(object):
             )
             sys.stderr.write(err.output.decode("utf-8"))
             sys.stderr.write("EOF\n")
-            raise Exception("Mismatch of expected: {0} != {1}.\ncp {0} {1}\n".format(expected, src))
+            raise Exception(
+                "Mismatch of expected: {0} != {1}.\ncp {0} {1}\n".format(expected, src)
+            )
 
     def compare_cmake(self):
         # Check that config host is still like it should be.
@@ -161,6 +164,30 @@ class QemuBuilder(object):
         # current qemu build.
         expected = os.path.join(self.dist, cmake_inc)
         self._compare_file(src, expected)
+
+    def generate(self):
+        self.build()
+        self.gen_cmake()
+        config_host = os.path.join(
+            QemuBuilder._QEMU_DIR,
+            "android-qemu2-glue",
+            "config",
+            "{}-{}".format(self.os, self.aarch),
+            "config-host.h",
+        )
+        expected = os.path.join(
+            self.out,
+            "build-{}-{}".format(self.os, self.aarch),
+            "qemu-android",
+            "config-host.h",
+        )
+        logging.info("cp %s %s", expected, config_host)
+        shutil.copy(expected, config_host)
+        cmake_inc = "cmake-main.{}.inc".format(self.host)
+        src = os.path.join(QemuBuilder._QEMU_DIR, cmake_inc)
+        expected = os.path.join(self.dist, cmake_inc)
+        logging.info("cp %s %s", expected, src)
+        shutil.copy(expected, src)
 
     def validate(self):
         if not self.can_validate():
