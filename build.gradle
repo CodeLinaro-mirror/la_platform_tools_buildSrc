@@ -1,10 +1,19 @@
-apply plugin: 'groovy-gradle-plugin'
-apply plugin: 'idea'
-apply plugin: 'maven-publish'
+plugins {
+    id 'groovy-gradle-plugin'
+    id 'idea'
+    id 'maven-publish'
+}
 
 repositories {
     maven { url = "$rootDir/../../prebuilts/tools/common/m2/repository" }
-    maven { url = "$rootDir/../../prebuilts/tools/common/m2/internal" }
+}
+
+String injectedMavenRepo = project.providers.gradleProperty('injectedMavenRepo').forUseAtConfigurationTime().getOrNull()
+if (injectedMavenRepo != null) {
+    println("injected: $injectedMavenRepo")
+    repositories {
+        maven { url = injectedMavenRepo }
+    }
 }
 
 buildDir = "../../out/build/buildSrc/build"
@@ -18,11 +27,11 @@ dependencies {
     implementation "com.googlecode.jarjar:jarjar:1.3"
     implementation libs.apache_commons_io
     implementation libs.guava
+    implementation libs.gson
     implementation ('com.google.protobuf:protobuf-gradle-plugin:0.8.15') {
         exclude group: 'org.apache.maven', module: 'maven-plugin-api'
     }
     implementation libs.apache_commons_lang
-    implementation "org.pegdown:pegdown:1.1.0"
     implementation libs.jsoup
     implementation libs.kotlin_gradle_plugin
 

@@ -18,3 +18,12 @@ maven_pom(
     version_property = "buildVersion",
     visibility = ["//visibility:public"],
 )
+
+filegroup(
+    name = "agp_gradle_build_files",
+    srcs = glob([
+        "*.gradle",
+        "*.properties",
+    ]),
+    visibility = ["//tools/base/build-system:__pkg__"],
+)

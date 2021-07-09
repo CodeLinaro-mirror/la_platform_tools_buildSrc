@@ -1,0 +1,12 @@
+filegroup(
+    name = "agp_gradle_build_files",
+    srcs = glob([
+        "**/*.gradle",
+        "**/*.gradle.kts",
+        "src/**/*.java",
+        "src/**/*.groovy",
+        "src/**/*.kt",
+        "src/*/resources/**",
+    ]),
+    visibility = ["//tools/base/build-system:__pkg__"],
+)

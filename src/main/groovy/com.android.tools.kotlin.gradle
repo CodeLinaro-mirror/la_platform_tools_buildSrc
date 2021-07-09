@@ -17,7 +17,7 @@ if (OperatingSystem.current().isWindows()) {
     throw new IllegalStateException("Unsupported operating system: " + OperatingSystem.current())
 }
 
-String jdk8Home = "$rootDir/../prebuilts/studio/jdk/$jdk8Folder"
+String jdk8Home = "${rootDir.parent}/prebuilts/studio/jdk/$jdk8Folder"
 
 tasks.withType(KotlinCompile).configureEach {
     kotlinOptions {
