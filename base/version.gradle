@@ -17,10 +17,6 @@ versionProperties.withReader { properties.load(it) }
 
 for (name in properties.stringPropertyNames()) {
     String version = properties.getProperty(name)
-    // For development versions, replace '26.5.0-alpha01' to '26.5.0-dev'
-    if (!project.hasProperty("release") && version.contains('-')) {
-        version = version.substring(0, version.indexOf('-')) + "-dev"
-    }
     project.ext[name] = version
 }
 
