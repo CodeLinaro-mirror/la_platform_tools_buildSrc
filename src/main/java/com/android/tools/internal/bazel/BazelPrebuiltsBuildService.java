@@ -75,7 +75,7 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
     public Provider<Directory> getMavenRepoLocation() {
         return getParameters()
                 .getRootDir()
-                .dir("../out/build/base/agp_artifacts_zip.zip");
+                .dir("../out/build/base/agp_artifacts");
     }
 
     private void invokeBazel() throws IOException {
@@ -90,14 +90,13 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
                                             .getAsFile());
                             spec.args(
                                     "build",
-                                    "//tools/base:agp_artifacts_zip");
+                                    "//tools/base:agp_artifacts.zip");
                         });
         // Unzip: TODO - can this be optimized a bit, as it runs every build.
         Path zip =
                 getParameters()
                         .getRootDir()
-                        .file(
-                                "../bazel-bin/tools/base/agp_artifacts_zip.zip")
+                        .file("../bazel-bin/tools/base/agp_artifacts.zip")
                         .get()
                         .getAsFile()
                         .toPath();
