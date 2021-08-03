@@ -20,8 +20,11 @@ import com.google.common.collect.ImmutableMap;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.TaskProvider;
+import org.gradle.api.tasks.compile.JavaCompile;
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -52,7 +55,7 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
         boolean shouldPublish = true;
 
         if (hybridBuild || embeddedBuild) {
-            BazelPrebuiltsBuildService buildService =
+            Provider<BazelPrebuiltsBuildService> buildServiceProvider =
                     project.getGradle()
                             .getSharedServices()
                             .registerIfAbsent(
@@ -70,8 +73,8 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                                                     );
 
                                                 });
-                                    })
-                            .get();
+                                    });
+            BazelPrebuiltsBuildService buildService = buildServiceProvider.get();
             if (buildService.getParameters().getSubstitutions().get().containsKey(project.getPath())) {
                 shouldPublish = false;
             }
@@ -111,6 +114,22 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                                     mavenArtifactRepository.setUrl(buildService.getMavenRepoLocation());
                                     mavenArtifactRepository.setName("Maven artifacts built by bazel");
                                 });
+                TaskProvider<BazelPrebuiltTask> bazelPrebuiltTask =
+                        project.getTasks()
+                                .register(
+                                        "ensurePrebuiltsAreBuilt",
+                                        BazelPrebuiltTask.class,
+                                        task -> {
+                                            task.getBazelPrebuiltsBuildService()
+                                                    .set(buildServiceProvider);
+                                            task.getBazelPrebuiltsBuildService().disallowChanges();
+                                        });
+                project.getTasks()
+                        .withType(JavaCompile.class)
+                        .configureEach(task -> task.dependsOn(bazelPrebuiltTask));
+                project.getTasks()
+                        .withType(KotlinCompile.class)
+                        .configureEach(task -> task.dependsOn(bazelPrebuiltTask));
             }
         }
 
@@ -134,7 +153,6 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
         return builder.build();
     }
 
-
     private static boolean getBoolean(ProviderFactory providerFactory, String property) {
         String value =
                 providerFactory
@@ -156,5 +174,4 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                             + "'");
         }
     }
-
 }
