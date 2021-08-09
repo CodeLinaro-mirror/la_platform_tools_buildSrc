@@ -66,7 +66,7 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
     public Provider<Directory> getMavenRepoLocation() {
         return getParameters()
                 .getRootDir()
-                .dir("../out/build/base/agp_artifacts");
+                .dir("../out/repo");
     }
 
     private void invokeBazel() throws IOException {
