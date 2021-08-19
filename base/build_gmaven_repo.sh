@@ -8,8 +8,8 @@ export JAVA_HOME="$(realpath "${script_dir}"/../../../prebuilts/studio/jdk/jdk11
 
 # Add --warning-mode=fail manually until https://youtrack.jetbrains.com/issue/IDEA-272594 is fixed
 (cd "${workspace_dir}"/tools && \
-./gradlew --init-script buildSrc/base/release.gradle :publishLocal compileTestJava --warning-mode=fail && \
+./gradlew --init-script buildSrc/base/release.gradle :publishLocal compileTestJava --warning-mode=fail -Phybrid-build=false && \
 # Dokka is incompatible with configuration cache
-./gradlew --init-script buildSrc/base/release.gradle :base:gradle-api:dokkaZip --no-configuration-cache) || exit $?
+./gradlew --init-script buildSrc/base/release.gradle :base:gradle-api:dokkaZip --no-configuration-cache -Phybrid-build=false) || exit $?
 cp "${workspace_dir}/out/dist/documentation.zip" "${dist_dir}"
 (cd "${workspace_dir}/out/repo" && zip -r --suffixes sha1:md5:xml "${dist_dir}/gmaven_repo.zip" .) || exit $?
