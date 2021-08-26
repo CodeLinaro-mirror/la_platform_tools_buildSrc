@@ -32,7 +32,7 @@ if (project.providers.environmentVariable("USE_EXTERNAL_REPO").forUseAtConfigura
     repositories {
         maven { url = uri(rootProject.cloneArtifacts.repository) }
         maven { url 'https://repo.gradle.org/gradle/libs-snapshots-local' }
-        maven { url 'https://repo.gradle.org/gradle/libs-releases-local' }
+        maven { url 'https://repo.gradle.org/gradle/libs-releases' }
     }
   }
 }

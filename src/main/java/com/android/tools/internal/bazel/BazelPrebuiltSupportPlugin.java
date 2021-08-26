@@ -42,19 +42,12 @@ import java.util.Properties;
 public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
-        /*
-         This property can be set by AGP developers to try out the hybrid build support locally before it becomes the
-         default.
-        */
-        boolean hybridBuild = getBoolean(project.getProviders(), "hybrid-build");
-        /*
-         This property is set when building within a bazel genrule - in that case all the prerequisites are
-         already built an available in the injected repo.
-        */
-        boolean embeddedBuild = getBoolean(project.getProviders(), "hybrid-build-embedded-in-bazel");
+
+        BuildType buildType = BuildType.getBuildType(project.getProviders());
+
         boolean shouldPublish = true;
 
-        if (hybridBuild || embeddedBuild) {
+        if (buildType == BuildType.BAZEL_INVOKES_GRADLE || buildType == BuildType.GRADLE_INVOKES_BAZEL) {
             Provider<BazelPrebuiltsBuildService> buildServiceProvider =
                     project.getGradle()
                             .getSharedServices()
@@ -89,7 +82,7 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
             project.getConfigurations()
                     .all(
                             configuration -> {
-                                if (hybridBuild) {
+                                if (buildType == BuildType.GRADLE_INVOKES_BAZEL) {
                                     configuration
                                             .getIncoming()
                                             .beforeResolve(
@@ -107,7 +100,7 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                                     );
                                 });
                             });
-            if (hybridBuild) {
+            if (buildType == BuildType.GRADLE_INVOKES_BAZEL) {
                 project.getRepositories()
                         .maven(
                                 mavenArtifactRepository -> {
@@ -153,12 +146,12 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
         return builder.build();
     }
 
-    private static boolean getBoolean(ProviderFactory providerFactory, String property) {
+    private static boolean getBoolean(ProviderFactory providerFactory, String property, boolean defaultValue) {
         String value =
                 providerFactory
                         .gradleProperty(property)
                         .forUseAtConfigurationTime()
-                        .getOrElse("false")
+                        .getOrElse(Boolean.toString(defaultValue))
                         .trim();
 
         if (value.equalsIgnoreCase("false")) {
@@ -172,6 +165,26 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                             + " to be 'true' or 'false', but was '"
                             + value
                             + "'");
+        }
+    }
+
+    /** orchestrates  asfas */
+    private enum BuildType {
+        LEGACY_GRADLE_ONLY,
+        GRADLE_INVOKES_BAZEL,
+        BAZEL_INVOKES_GRADLE,
+        ;
+        public static BuildType getBuildType(ProviderFactory providers) {
+            if (getBoolean(providers, "hybrid-build-embedded-in-bazel", false)) {
+                // This property is set when building within a bazel rule - in that case all the prerequisites are
+                // already built an available in the injected repo.
+                return BAZEL_INVOKES_GRADLE;
+            } else if (getBoolean(providers, "hybrid-build", true)) {
+                // This property can be enabled or disabled by AGP developers to try out the hybrid build support locally.
+                return GRADLE_INVOKES_BAZEL;
+            } else {
+                return LEGACY_GRADLE_ONLY;
+            }
         }
     }
 }
