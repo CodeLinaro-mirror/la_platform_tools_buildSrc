@@ -30,10 +30,10 @@ private Map<String, ?> dependencyMapOf(Map<String, ?> sourceMap, prefix) {
     sourceMap.each {
         if (it.value instanceof Map) {
             dependencyMap[it.key] = dependencyMapOf(it.value, it.key + ".")
-        } else if (it.value instanceof String) {
+        } else if (it.value instanceof String || it.value instanceof Provider) {
             dependencyMap[it.key] = it.value
         } else {
-            throw new IllegalArgumentException('"' + prefix + key + '" is not a valid dependency type.')
+            throw new IllegalArgumentException('"' + prefix + it.key + '" is not a valid dependency type.')
         }
     }
     return Collections.unmodifiableMap(dependencyMap)
@@ -47,6 +47,11 @@ dependenciesProperties.withReader { dependencies.load(it) }
 dependencies.put('proto_compiler', dependencies.getProperty("protobuf").replace('protobuf-java', 'protoc'))
 Map<String, ?> libs = [:]
 
+// TODO(b/143864616): These will be replaced by a version catalog
+libs['versions'] = [
+        'base': provider { properties.getProperty('baseVersion') },
+        'build': provider { properties.getProperty('buildVersion') }
+]
 for (name in dependencies.stringPropertyNames()) {
     // Use . separated names in preparation for migration to a version catalog
     Iterator<String> paths = Arrays.asList(name.split('_')).iterator()
@@ -54,7 +59,8 @@ for (name in dependencies.stringPropertyNames()) {
     while (paths.hasNext()) {
         String path = paths.next()
         if (!paths.hasNext()) {
-            sub[path] = dependencies.getProperty(name)
+            // TODO(b/143864616): switch to version catalog
+            sub[path] = dependencies.getProperty(name).replace(':baseVersion', ':' + libs.versions.base.get())
             continue
         }
         if (sub[path] == null) sub[path] = [:]

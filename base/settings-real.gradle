@@ -1,5 +1,4 @@
 rootProject.name = 'tools-gradle'
-include ':base:annotations'
 include ':base:api-generator'
 include ':apkzlib'
 include ':base:archquery'
