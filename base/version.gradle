@@ -30,7 +30,7 @@ private Map<String, ?> dependencyMapOf(Map<String, ?> sourceMap, prefix) {
     sourceMap.each {
         if (it.value instanceof Map) {
             dependencyMap[it.key] = dependencyMapOf(it.value, it.key + ".")
-        } else if (it.value instanceof String || it.value instanceof Provider) {
+        } else if (it.value instanceof String || it.value instanceof Provider || it.value instanceof FileCollection) {
             dependencyMap[it.key] = it.value
         } else {
             throw new IllegalArgumentException('"' + prefix + it.key + '" is not a valid dependency type.')
@@ -75,3 +75,11 @@ for (name in dependencies.stringPropertyNames()) {
     }
 }
 rootProject.ext['libs'] = dependencyMapOf(libs, "")
+
+
+Map<String, FileCollection> externalTestFixtures = [:]
+
+externalTestFixtures['common'] = files("$rootDir/../bazel-bin/tools/base/common/libtools.fixtures.jar")
+externalTestFixtures['repository'] = files("$rootDir/../bazel-bin/tools/base/repository/libtools.testlib.jar")
+
+ext['externalTestFixtures'] = dependencyMapOf(externalTestFixtures, "")
