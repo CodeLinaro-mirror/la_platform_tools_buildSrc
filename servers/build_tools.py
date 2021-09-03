@@ -21,6 +21,7 @@ import multiprocessing
 import os
 import platform
 import site
+import socket
 import sys
 
 
@@ -63,8 +64,44 @@ def config_logging():
     currentThread().setName("inf")
 
 
+def get_host_and_ip():
+    """Try to get my hostname and ip address."""
+    st = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        st.connect(("10.255.255.255", 1))
+        my_ip = st.getsockname()[0]
+    except Exception:
+        my_ip = "127.0.0.1"
+    finally:
+        st.close()
+
+    try:
+        hostname = socket.gethostname()
+    except Exception:
+        hostname = "Unkwown"
+
+    return hostname, my_ip
+
+
+def log_system_info():
+    """Log some useful system information."""
+    version = "{0[0]}.{0[1]}.{0[2]}".format(sys.version_info)
+    hostname, my_ip = get_host_and_ip()
+
+    logging.info(
+        "Hello from %s (%s). I'm a %s build bot", hostname, my_ip, platform.system()
+    )
+    logging.info("My uname is: %s", platform.uname())
+    logging.info(
+        "I'm hapy to build the emulator using Python %s (%s)",
+        PYTHON_EXE,
+        version,
+    )
+
+
 def main(argv):
     config_logging()
+    log_system_info()
 
     # We don't want to be too aggressive with concurrency.
     test_cpu_count = int(multiprocessing.cpu_count() / 4)
@@ -116,14 +153,6 @@ def main(argv):
     parser.add_argument("--crosvm", action="store_true", help="Build crosvm")
 
     args = parser.parse_args()
-    version = "{0[0]}.{0[1]}.{0[2]}".format(sys.version_info)
-    logging.info(
-        "Building with %s on %s - %s, Python: %s",
-        PYTHON_EXE,
-        platform.system(),
-        platform.uname(),
-        version,
-    )
 
     os.environ["GIT_DISCOVERY_ACROSS_FILESYSTEM"] = "1"
 
@@ -191,7 +220,7 @@ def main(argv):
     with ServerConfig(is_presubmit(args.build_id)) as cfg:
 
         # Build qemu, and make sure the cmake file matches.
-        #if target != "darwin_aarch64":
+        # if target != "darwin_aarch64":
         #    QemuBuilder(target, args.dist_dir, args.out_dir, cfg).validate()
 
         run(launcher + cmd + prod, cfg.get_env(), "rel")
