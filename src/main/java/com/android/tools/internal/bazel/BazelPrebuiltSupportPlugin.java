@@ -64,7 +64,7 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                                                                     .getAsText().forUseAtConfigurationTime()
                                                                     .map(it -> parseProjectListingFile(it))
                                                     );
-
+                                                    params.getOsName().set(project.getProviders().systemProperty("os.name").forUseAtConfigurationTime());
                                                 });
                                     });
             BazelPrebuiltsBuildService buildService = buildServiceProvider.get();

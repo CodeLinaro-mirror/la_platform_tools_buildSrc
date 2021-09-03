@@ -20,6 +20,7 @@ import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.provider.MapProperty;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
@@ -41,6 +42,7 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
     public interface Params extends BuildServiceParameters {
         DirectoryProperty getRootDir();
         MapProperty<String, String> getSubstitutions();
+        Property<String> getOsName();
     }
 
     @Inject
@@ -70,13 +72,14 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
     }
 
     private void invokeBazel() throws IOException {
+
         getExecOperations()
                 .exec(
                         spec -> {
                             spec.executable(
                                     getParameters()
                                             .getRootDir()
-                                            .file("base/bazel/bazel")
+                                            .file(getBazelExe())
                                             .get()
                                             .getAsFile());
                             spec.args(
@@ -85,6 +88,14 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
                                     "--",
                                     getMavenRepoLocation().get().getAsFile().getAbsolutePath());
                         });
+    }
+
+    private String getBazelExe() {
+        if (getParameters().getOsName().get().startsWith("Windows")) {
+            return "base/bazel/bazel.cmd";
+        } else {
+            return "base/bazel/bazel";
+        }
     }
 
     @Override
