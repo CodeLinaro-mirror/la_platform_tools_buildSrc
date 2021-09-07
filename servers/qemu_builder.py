@@ -151,7 +151,9 @@ class QemuBuilder(object):
             "qemu-android",
             "config-host.h",
         )
-        self._compare_file(config_host, expected)
+
+        # The config file generation differs from platform to platform
+        # self._compare_file(config_host, expected)
 
         cmake_inc = "cmake-main.{}.inc".format(self.host)
         src = os.path.join(QemuBuilder._QEMU_DIR, cmake_inc)

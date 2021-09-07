@@ -220,8 +220,8 @@ def main(argv):
     with ServerConfig(is_presubmit(args.build_id)) as cfg:
 
         # Build qemu, and make sure the cmake file matches.
-        # if target != "darwin_aarch64":
-        #    QemuBuilder(target, args.dist_dir, args.out_dir, cfg).validate()
+        if target != "darwin_aarch64":
+            QemuBuilder(target, args.dist_dir, args.out_dir, cfg).validate()
 
         run(launcher + cmd + prod, cfg.get_env(), "rel")
         if not args.gfxstream and not args.crosvm:
