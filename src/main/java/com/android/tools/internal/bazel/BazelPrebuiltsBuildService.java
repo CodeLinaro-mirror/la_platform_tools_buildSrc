@@ -41,7 +41,6 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
 
     public interface Params extends BuildServiceParameters {
         DirectoryProperty getRootDir();
-        MapProperty<String, String> getSubstitutions();
         Property<String> getOsName();
     }
 

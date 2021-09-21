@@ -4,11 +4,6 @@ plugins {
     id 'signing'
 }
 
-if(!bazelPrebuilts.shouldPublish) {
-    logger.info("Excluded from publishing")
-    return
-}
-
 // Disable test-fixtures publishing to Maven
 project.plugins.withId('java-test-fixtures') {
     components.java.withVariantsFromConfiguration(configurations.testFixturesRuntimeElements) {

@@ -100,9 +100,7 @@ publishLocalTask.dependsOn publishLocalPluginTask
 subprojects { project ->
     project.plugins.withId('maven-publish') {
         project.plugins.withId('signing') {
-            if(bazelPrebuilts.shouldPublish) {
-                rootProject.publishAndroidGradleLocal.dependsOn project.tasks.findByName('publish')
-            }
+            rootProject.publishAndroidGradleLocal.dependsOn project.tasks.findByName('publish')
         }
     }
 }

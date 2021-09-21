@@ -45,8 +45,6 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
 
         BuildType buildType = BuildType.getBuildType(project.getProviders());
 
-        boolean shouldPublish = true;
-
         if (buildType == BuildType.BAZEL_INVOKES_GRADLE || buildType == BuildType.GRADLE_INVOKES_BAZEL) {
             Provider<BazelPrebuiltsBuildService> buildServiceProvider =
                     project.getGradle()
@@ -58,19 +56,10 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                                         spec.parameters(
                                                 params -> {
                                                     params.getRootDir().set(project.getRootDir());
-                                                    params.getSubstitutions().set(
-                                                            project.getProviders()
-                                                                    .fileContents(project.getLayout().getProjectDirectory().file(project.getRootDir() + "/base/build-system/artifacts-built-with-bazel.properties"))
-                                                                    .getAsText().forUseAtConfigurationTime()
-                                                                    .map(it -> parseProjectListingFile(it))
-                                                    );
                                                     params.getOsName().set(project.getProviders().systemProperty("os.name").forUseAtConfigurationTime());
                                                 });
                                     });
             BazelPrebuiltsBuildService buildService = buildServiceProvider.get();
-            if (buildService.getParameters().getSubstitutions().get().containsKey(project.getPath())) {
-                shouldPublish = false;
-            }
             String baseVersion =
                     project.getRootProject().getExtensions()
                             .getExtraProperties().get("baseVersion").toString();
@@ -90,15 +79,6 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                                                         buildService.ensurePrebuiltsAreBuilt();
                                                     });
                                 }
-                                configuration.getResolutionStrategy().dependencySubstitution(substitutions -> {
-                                    buildService.getParameters().getSubstitutions().get().forEach((gradle, external) ->
-                                            {
-                                                substitutions.substitute(substitutions.project(gradle))
-                                                        .because(external + " is now built with bazel")
-                                                        .with(substitutions.module(external.replace("baseVersion", baseVersion).replace("buildVersion", buildVersion)));
-                                            }
-                                    );
-                                });
                             });
             if (buildType == BuildType.GRADLE_INVOKES_BAZEL) {
                 project.getRepositories()
@@ -125,25 +105,6 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                         .configureEach(task -> task.dependsOn(bazelPrebuiltTask));
             }
         }
-
-        project.getExtensions().create(
-                BazelPrebuiltSupportExtension.class,
-                "bazelPrebuilts",
-                BazelPrebuiltSupportExtensionImpl.class,
-                shouldPublish);
-
-    }
-
-    private Map<String, String> parseProjectListingFile(String content) {
-        Properties properties = new Properties();
-        try {
-            properties.load(new StringReader(content));
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        ImmutableMap.Builder<String, String> builder = ImmutableMap.builder();
-        properties.forEach((key, value) -> builder.put(key.toString(), value.toString()));
-        return builder.build();
     }
 
     private static boolean getBoolean(ProviderFactory providerFactory, String property, boolean defaultValue) {
