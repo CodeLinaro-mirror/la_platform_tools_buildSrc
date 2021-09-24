@@ -105,11 +105,6 @@ project(':dataBinding:compiler').projectDir = new File(rootDir, "data-binding/co
 include ':dataBinding:compilerCommon'
 project(':dataBinding:compilerCommon').projectDir = new File(rootDir, "data-binding/compilerCommon")
 
-include ':analytics-library:inspector'
-include ':analytics-library:publisher'
-include ':analytics-library:testing'
-include ':analytics-library:crash'
-
 include ':base:apkparser:binary-resources'
 project(':base:apkparser:binary-resources'    ).projectDir = new File(rootDir, 'base/apkparser/binary-resources')
 include ':base:apkparser:apkanalyzer'
