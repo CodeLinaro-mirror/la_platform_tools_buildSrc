@@ -227,7 +227,7 @@ def main(argv):
         if args.generate:
             bld.generate()
             return
-        elif crosscompile or (not target.startswith("darwin")):
+        elif not target.startswith("darwin"):
             bld.validate()
         else:
             logging.info("Not validating QEMU build.")
