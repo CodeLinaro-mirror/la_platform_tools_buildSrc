@@ -105,12 +105,6 @@ project(':dataBinding:compiler').projectDir = new File(rootDir, "data-binding/co
 include ':dataBinding:compilerCommon'
 project(':dataBinding:compilerCommon').projectDir = new File(rootDir, "data-binding/compilerCommon")
 
-include ':base:apkparser:binary-resources'
-project(':base:apkparser:binary-resources'    ).projectDir = new File(rootDir, 'base/apkparser/binary-resources')
-include ':base:apkparser:apkanalyzer'
-project(':base:apkparser:apkanalyzer'        ).projectDir = new File(rootDir, 'base/apkparser/analyzer')
-include ':base:apkparser:apkanalyzer-cli'
-project(':base:apkparser:apkanalyzer-cli'    ).projectDir = new File(rootDir, 'base/apkparser/cli')
 
 include ':apksig'
 project(':apksig').buildFileName = 'android_plugin_for_gradle.gradle'

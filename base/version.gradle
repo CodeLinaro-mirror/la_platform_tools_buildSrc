@@ -81,5 +81,6 @@ Map<String, FileCollection> externalTestFixtures = [:]
 
 externalTestFixtures['common'] = files("$rootDir/../bazel-bin/tools/base/common/libtools.fixtures.jar")
 externalTestFixtures['repository'] = files("$rootDir/../bazel-bin/tools/base/repository/libtools.testlib.jar")
+externalTestFixtures['apkanalyzer'] = files("$rootDir/../bazel-bin/tools/base/apkparser/cli/libtools.analyzer-cli.jar")
 
 ext['externalTestFixtures'] = dependencyMapOf(externalTestFixtures, "")
