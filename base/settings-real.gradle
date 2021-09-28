@@ -35,8 +35,6 @@ include ':base:sdklib'
 include ':base:testutils'
 include ':base:gradle-import'
 include ':base:vector-drawable-tool'
-include ':base:chunkio'
-include ':base:pixelprobe'
 include ':base:profgen'
 include ':base:profgen-cli'
 
