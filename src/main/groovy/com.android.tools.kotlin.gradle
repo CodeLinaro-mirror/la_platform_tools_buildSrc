@@ -4,6 +4,7 @@ plugins {
 
 import org.gradle.internal.jvm.Jvm
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+import org.jetbrains.kotlin.gradle.tasks.UsesKotlinJavaToolchain
 import org.gradle.internal.os.OperatingSystem
 
 String jdk8Folder
@@ -25,8 +26,16 @@ tasks.withType(KotlinCompile).configureEach {
         apiVersion = "1.5"
         languageVersion = "1.5"
         freeCompilerArgs = ((freeCompilerArgs + ["-Xjvm-default=enable"]) as Set) as List
-        jdkHome = jdk8Home
     }
 }
+
+project.tasks
+        .withType(UsesKotlinJavaToolchain.class)
+        .configureEach {
+            it.kotlinJavaToolchain.jdk.use(
+                    jdk8Home,
+                    JavaVersion.VERSION_1_8
+            )
+        }
 
 project.ext.toolsJarForJava8 = Jvm.forHome(new File(jdk8Home)).toolsJar
