@@ -11,7 +11,6 @@ include ':base:dvlib'
 include ':base:jobb'
 include ':base:layoutlib-extensions'
 include ':base:lint'
-include ':base:lint-gradle'
 include ':base:manifest-merger'
 include ':base:mlkit-common'
 include ':base:screenshot2'
@@ -52,7 +51,6 @@ include ':base:testing-infrastructure:device-pool:device-provider'
 project(':base:api-generator'      ).projectDir = new File(rootDir, 'base/misc/api-generator')
 project(':base:archquery'          ).projectDir = new File(rootDir, 'base/legacy/archquery')
 project(':base:dvlib'              ).projectDir = new File(rootDir, 'base/device_validator/dvlib')
-project(':base:lint-gradle'        ).projectDir = new File(rootDir, 'base/lint/libs/lint-gradle')
 project(':base:screenshot2'        ).projectDir = new File(rootDir, 'base/misc/screenshot2')
 
 project(':base:profile'            ).projectDir = new File(rootDir, 'base/build-system/profile')
