@@ -7,7 +7,6 @@ include ':base:bazel:avd'
 include ':base:bazel:repolinker'
 include ':base:devicelib'
 include ':base:fakeadbserver'
-include ':base:dvlib'
 include ':base:jobb'
 include ':base:layoutlib-extensions'
 include ':base:lint'
@@ -49,7 +48,6 @@ include ':base:testing-infrastructure:device-pool:device-provider'
 
 project(':base:api-generator'      ).projectDir = new File(rootDir, 'base/misc/api-generator')
 project(':base:archquery'          ).projectDir = new File(rootDir, 'base/legacy/archquery')
-project(':base:dvlib'              ).projectDir = new File(rootDir, 'base/device_validator/dvlib')
 project(':base:screenshot2'        ).projectDir = new File(rootDir, 'base/misc/screenshot2')
 
 project(':base:profile'            ).projectDir = new File(rootDir, 'base/build-system/profile')
