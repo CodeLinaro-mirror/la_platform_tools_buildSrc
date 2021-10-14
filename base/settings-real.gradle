@@ -6,27 +6,14 @@ include ':base:asset-studio'
 include ':base:bazel:avd'
 include ':base:bazel:repolinker'
 include ':base:devicelib'
-include ':base:draw9patch'
 include ':base:fakeadbserver'
 include ':base:dvlib'
 include ':base:jobb'
-include ':base:layoutlib-api'
 include ':base:layoutlib-extensions'
 include ':base:lint'
-include ':base:lint-cli'
-include ':base:lint-api'
-include ':base:lint-checks'
 include ':base:lint-gradle'
-include ':base:lint-kotlin'
-include ':base:lint-model'
-include ':base:lint-tests'
-include ':base:lint-studio-checks'
-include ':base:uast'
-include ':base:intellij-core'
-include ':base:kotlin-compiler'
 include ':base:manifest-merger'
 include ':base:mlkit-common'
-include ':base:ninepatch'
 include ':base:screenshot2'
 include ':base:repository'
 include ':base:resource-repository'
@@ -65,18 +52,7 @@ include ':base:testing-infrastructure:device-pool:device-provider'
 project(':base:api-generator'      ).projectDir = new File(rootDir, 'base/misc/api-generator')
 project(':base:archquery'          ).projectDir = new File(rootDir, 'base/legacy/archquery')
 project(':base:dvlib'              ).projectDir = new File(rootDir, 'base/device_validator/dvlib')
-project(':base:lint'               ).projectDir = new File(rootDir, 'base/lint')
-project(':base:lint-cli'           ).projectDir = new File(rootDir, 'base/lint/cli')
-project(':base:lint-api'           ).projectDir = new File(rootDir, 'base/lint/libs/lint-api')
-project(':base:lint-checks'        ).projectDir = new File(rootDir, 'base/lint/libs/lint-checks')
 project(':base:lint-gradle'        ).projectDir = new File(rootDir, 'base/lint/libs/lint-gradle')
-project(':base:lint-kotlin'        ).projectDir = new File(rootDir, 'base/lint/libs/lint-kotlin')
-project(':base:lint-model'         ).projectDir = new File(rootDir, 'base/lint/libs/lint-model')
-project(':base:lint-tests'         ).projectDir = new File(rootDir, 'base/lint/libs/lint-tests')
-project(':base:lint-studio-checks' ).projectDir = new File(rootDir, 'base/lint/studio-checks')
-project(':base:uast'               ).projectDir = new File(rootDir, 'base/lint/libs/uast')
-project(':base:intellij-core'      ).projectDir = new File(rootDir, 'base/lint/libs/intellij-core')
-project(':base:kotlin-compiler'    ).projectDir = new File(rootDir, 'base/lint/libs/kotlin-compiler')
 project(':base:screenshot2'        ).projectDir = new File(rootDir, 'base/misc/screenshot2')
 
 project(':base:profile'            ).projectDir = new File(rootDir, 'base/build-system/profile')
