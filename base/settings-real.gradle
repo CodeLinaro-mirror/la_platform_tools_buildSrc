@@ -75,9 +75,6 @@ include ':dataBinding:compilerCommon'
 project(':dataBinding:compilerCommon').projectDir = new File(rootDir, "data-binding/compilerCommon")
 
 
-include ':apksig'
-project(':apksig').buildFileName = 'android_plugin_for_gradle.gradle'
-
 include ':base:zipflinger'
 include ':base:signflinger'
 
