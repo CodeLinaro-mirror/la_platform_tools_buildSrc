@@ -1,6 +1,5 @@
 rootProject.name = 'tools-gradle'
 include ':base:api-generator'
-include ':apkzlib'
 include ':base:archquery'
 include ':base:asset-studio'
 include ':base:bazel:avd'
