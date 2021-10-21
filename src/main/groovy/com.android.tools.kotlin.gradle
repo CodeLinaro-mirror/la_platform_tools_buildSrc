@@ -25,7 +25,7 @@ tasks.withType(KotlinCompile).configureEach {
         jvmTarget = "1.8"
         apiVersion = "1.4"
         languageVersion = "1.4"
-        freeCompilerArgs = ((freeCompilerArgs + ["-Xjvm-default=enable"]) as Set) as List
+        freeCompilerArgs = ((freeCompilerArgs + ["-Xjvm-default=enable", "-Xuse-ir"]) as Set) as List
     }
 }
 

@@ -1,24 +1,19 @@
 rootProject.name = 'tools-gradle'
 include ':base:api-generator'
-include ':apkzlib'
 include ':base:archquery'
 include ':base:asset-studio'
 include ':base:bazel:avd'
 include ':base:bazel:repolinker'
 include ':base:devicelib'
 include ':base:fakeadbserver'
-include ':base:dvlib'
 include ':base:jobb'
 include ':base:layoutlib-extensions'
 include ':base:lint'
-include ':base:lint-gradle'
 include ':base:manifest-merger'
 include ':base:mlkit-common'
 include ':base:screenshot2'
-include ':base:repository'
 include ':base:resource-repository'
 include ':base:sdk-common'
-include ':base:sdklib'
 include ':base:testutils'
 include ':base:gradle-import'
 include ':base:vector-drawable-tool'
@@ -51,8 +46,6 @@ include ':base:testing-infrastructure:device-pool:device-provider'
 
 project(':base:api-generator'      ).projectDir = new File(rootDir, 'base/misc/api-generator')
 project(':base:archquery'          ).projectDir = new File(rootDir, 'base/legacy/archquery')
-project(':base:dvlib'              ).projectDir = new File(rootDir, 'base/device_validator/dvlib')
-project(':base:lint-gradle'        ).projectDir = new File(rootDir, 'base/lint/libs/lint-gradle')
 project(':base:screenshot2'        ).projectDir = new File(rootDir, 'base/misc/screenshot2')
 
 project(':base:profile'            ).projectDir = new File(rootDir, 'base/build-system/profile')
@@ -79,9 +72,6 @@ project(':dataBinding:compiler').projectDir = new File(rootDir, "data-binding/co
 include ':dataBinding:compilerCommon'
 project(':dataBinding:compilerCommon').projectDir = new File(rootDir, "data-binding/compilerCommon")
 
-
-include ':apksig'
-project(':apksig').buildFileName = 'android_plugin_for_gradle.gradle'
 
 include ':base:zipflinger'
 include ':base:signflinger'

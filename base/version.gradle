@@ -60,7 +60,7 @@ for (name in dependencies.stringPropertyNames()) {
         String path = paths.next()
         if (!paths.hasNext()) {
             // TODO(b/143864616): switch to version catalog
-            sub[path] = dependencies.getProperty(name).replace(':baseVersion', ':' + libs.versions.base.get())
+            sub[path] = dependencies.getProperty(name).replace(':buildVersion', ':' + libs.versions.build.get()).replace(':baseVersion', ':' + libs.versions.base.get())
             continue
         }
         if (sub[path] == null) sub[path] = [:]
