@@ -5,7 +5,6 @@ include ':base:asset-studio'
 include ':base:bazel:avd'
 include ':base:bazel:repolinker'
 include ':base:devicelib'
-include ':base:fakeadbserver'
 include ':base:jobb'
 include ':base:layoutlib-extensions'
 include ':base:lint'
@@ -60,19 +59,7 @@ project(':base:profgen'            ).projectDir = new File(rootDir, 'base/profge
 project(':base:profgen-cli'        ).projectDir = new File(rootDir, 'base/profgen/profgen-cli')
 
 include ':external:fat32lib'
-
-include ':dataBinding'
-project(':dataBinding').projectDir = new File(rootDir, "data-binding")
-include ':dataBinding:baseLibrary'
-project(':dataBinding:baseLibrary').projectDir = new File(rootDir, "data-binding/baseLibrary")
-include ':dataBinding:baseLibrarySupport'
-project(':dataBinding:baseLibrarySupport').projectDir = new File(rootDir, "data-binding/baseLibrarySupport")
-include ':dataBinding:compiler'
-project(':dataBinding:compiler').projectDir = new File(rootDir, "data-binding/compiler")
-include ':dataBinding:compilerCommon'
-project(':dataBinding:compilerCommon').projectDir = new File(rootDir, "data-binding/compilerCommon")
-
-
+include ':data-binding'
 include ':base:zipflinger'
 include ':base:signflinger'
 
