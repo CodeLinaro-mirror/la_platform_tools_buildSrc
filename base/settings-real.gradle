@@ -59,7 +59,6 @@ project(':base:profgen-cli'        ).projectDir = new File(rootDir, 'base/profge
 
 include ':external:fat32lib'
 include ':data-binding'
-include ':base:signflinger'
 
 include ':base:utp:android-device-provider-ddmlib'
 include ':base:utp:android-device-provider-ddmlib-proto'
