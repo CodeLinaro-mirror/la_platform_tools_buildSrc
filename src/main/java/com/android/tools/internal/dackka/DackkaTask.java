@@ -185,7 +185,8 @@ public abstract class DackkaTask extends DefaultTask {
                                 // b/183989795 tracks moving these away from an environment
                                 // variables
                                 spec.environment(
-                                        "DEVSITE_TENANT", getParameters().getDevsiteTenant().get());
+                                        "DEVSITE_TENANT_VERSIONED", getParameters().getDevsiteTenant().get()
+                                );
                             });
         }
 
