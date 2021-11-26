@@ -8,5 +8,8 @@ filegroup(
         "src/**/*.kt",
         "src/*/resources/**",
     ]),
-    visibility = ["//tools/base/build-system:__pkg__"],
+    visibility = [
+        "//tools/base/build-system:__pkg__",
+        "//tools/base/utp:__pkg__",
+    ],
 )
