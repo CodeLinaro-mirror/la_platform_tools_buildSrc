@@ -12,7 +12,6 @@ include ':base:manifest-merger'
 include ':base:mlkit-common'
 include ':base:screenshot2'
 include ':base:resource-repository'
-include ':base:testutils'
 include ':base:gradle-import'
 include ':base:vector-drawable-tool'
 include ':base:profgen'
@@ -59,7 +58,6 @@ project(':base:profgen-cli'        ).projectDir = new File(rootDir, 'base/profge
 
 include ':external:fat32lib'
 include ':data-binding'
-include ':base:signflinger'
 
 include ':base:utp:android-device-provider-ddmlib'
 include ':base:utp:android-device-provider-ddmlib-proto'
