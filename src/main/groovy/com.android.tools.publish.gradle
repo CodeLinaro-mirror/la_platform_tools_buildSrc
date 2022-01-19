@@ -61,7 +61,7 @@ afterEvaluate {
                 def pomArtifactId = artifactId
                 pom.withXml {
                     asNode().appendNode('description', pomDescription)
-                    asNode().appendNode('url', 'http://tools.android.com/')
+                    asNode().appendNode('url', 'https://developer.android.com/studio/build')
                     asNode().appendNode('name', pomGroupId + '.' + pomArtifactId)
 
                     Node license = asNode().appendNode('licenses').appendNode('license')
