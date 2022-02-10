@@ -56,7 +56,7 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                                         spec.parameters(
                                                 params -> {
                                                     params.getRootDir().set(project.getRootDir());
-                                                    params.getOsName().set(project.getProviders().systemProperty("os.name").forUseAtConfigurationTime());
+                                                    params.getOsName().set(project.getProviders().systemProperty("os.name"));
                                                 });
                                     });
             BazelPrebuiltsBuildService buildService = buildServiceProvider.get();
@@ -111,7 +111,6 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
         String value =
                 providerFactory
                         .gradleProperty(property)
-                        .forUseAtConfigurationTime()
                         .getOrElse(Boolean.toString(defaultValue))
                         .trim();
 
