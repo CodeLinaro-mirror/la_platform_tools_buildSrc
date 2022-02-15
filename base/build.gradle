@@ -26,7 +26,7 @@ repositories {
     maven { url "$rootDir/../prebuilts/tools/common/m2/repository" }
 }
 
-if (project.providers.environmentVariable("USE_EXTERNAL_REPO").forUseAtConfigurationTime().isPresent()) {
+if (System.getenv("USE_EXTERNAL_REPO") != null) {
   allprojects {
     repositories {
         maven { url = uri(rootProject.cloneArtifacts.repository) }
@@ -37,7 +37,7 @@ if (project.providers.environmentVariable("USE_EXTERNAL_REPO").forUseAtConfigura
 }
 
 // ext.androidHostOut is shared by all tools/{base,build} gradle projects
-ext.androidHostOut = file(providers.environmentVariable('BUILD_DIR').forUseAtConfigurationTime().orNull ?: "$rootDir/../out")
+ext.androidHostOut = file(System.getenv('BUILD_DIR') ?: "$rootDir/../out")
 ext.androidHostDist = new File(ext.androidHostOut, "dist")
 
 
@@ -79,7 +79,7 @@ task prepareRepo(type: Copy) {
 }
 
 task("copyGradleProperty").doLast {
-    def gradleProperties = file("${project.providers.environmentVariable("HOME").forUseAtConfigurationTime().orNull}/.gradle/gradle.properties")
+    def gradleProperties = file("${System.getenv("HOME")}/.gradle/gradle.properties")
     if (gradleProperties.exists()) {
         project.copy {
             from { gradleProperties }

@@ -8,7 +8,7 @@ repositories {
     maven { url = "$rootDir/../../prebuilts/tools/common/m2/repository" }
 }
 
-String injectedMavenRepo = project.providers.gradleProperty('injectedMavenRepo').forUseAtConfigurationTime().getOrNull()
+String injectedMavenRepo = project.providers.gradleProperty('injectedMavenRepo').getOrNull()
 if (injectedMavenRepo != null) {
     println("injected: $injectedMavenRepo")
     repositories {
@@ -60,7 +60,7 @@ sourceSets {
 task('checkJavaVersion').doLast {
 
     def requiredJdkVersion = JavaVersion.VERSION_11
-    def javaForTests = project.providers.environmentVariable("JAVA_FOR_TESTS").forUseAtConfigurationTime().orNull
+    def javaForTests = System.getenv("JAVA_FOR_TESTS")
     if (javaForTests != null) {
         requiredJdkVersion = JavaVersion.toVersion(javaForTests)
     }
