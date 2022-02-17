@@ -16,16 +16,20 @@
 
 package com.android.tools.internal.metalava;
 
-import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
-import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.Directory;
 import org.gradle.api.plugins.JavaBasePlugin;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.JavaExec;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.Sync;
+import org.gradle.api.tasks.TaskContainer;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
+import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.jvm.Jvm;
 
 import java.io.File;
@@ -44,8 +48,9 @@ public class MetalavaPlugin implements Plugin<Project> {
                 );
 
         project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
-            TaskProvider<GenerateApiTask> generateApi = project.getTasks().register("generateApi", GenerateApiTask.class, task -> {
-                SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            TaskContainer tasks = project.getTasks();
+            TaskProvider<GenerateApiTask> generateApi = tasks.register("generateApi", GenerateApiTask.class, task -> {
                 SourceSet main = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME);
                 task.getSourcePaths().from(main.getAllJava().getSourceDirectories());
                 task.getSourcePaths().disallowChanges();
@@ -59,15 +64,36 @@ public class MetalavaPlugin implements Plugin<Project> {
                 task.getOutputDirectory().disallowChanges();
             });
 
-            TaskProvider<Zip> zip = project.getTasks().register("distMetalavaApiZip", Zip.class, task -> {
-                task.from(
-                        generateApi.flatMap(GenerateApiTask::getOutputDirectory),
-                        copySpec -> copySpec.rename(path -> "current/" + path)
-                );
+            Provider<Directory> generateApiOutput = generateApi.flatMap(GenerateApiTask::getOutputDirectory);
+
+            tasks.register("distMetalavaApiZip", Zip.class, task -> {
+                task.from(generateApiOutput, copySpec -> copySpec.rename(path -> "current/" + path));
                 File dist = new File(project.getRootProject().getExtensions().getExtraProperties().get("androidHostDist").toString());
                 task.getDestinationDirectory().set(dist);
                 task.getArchiveFileName().set("apis.zip");
             });
+
+            SourceSet metalavaTestSourceSet = sourceSets.create("metalavaTest");
+            metalavaTestSourceSet.getResources().srcDir("api");
+
+            MetaLavaTestInputs metalavaCurrentTxtInput = project.getObjects().newInstance(MetaLavaTestInputs.class);
+            metalavaCurrentTxtInput.getMetalavaCurrentApiFile().set(generateApiOutput);
+
+            tasks.register("metalavaTest", Test.class, task -> {
+                task.setTestClassesDirs(metalavaTestSourceSet.getOutput().getClassesDirs());
+                task.setClasspath(metalavaTestSourceSet.getRuntimeClasspath());
+                task.getJvmArgumentProviders().add(metalavaCurrentTxtInput);
+            });
+
+            tasks.register("updateApi", Sync.class, task -> {
+               task.from(generateApiOutput);
+               task.setDestinationDir(project.file("api"));
+            });
+
+            tasks.withType(JavaExec.class).configureEach(task -> {
+                task.getJvmArgumentProviders().add(metalavaCurrentTxtInput);
+            });
+
         });
     }
 }
