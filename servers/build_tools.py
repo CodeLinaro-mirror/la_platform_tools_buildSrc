@@ -93,7 +93,7 @@ def log_system_info():
     )
     logging.info("My uname is: %s", platform.uname())
     logging.info(
-        "I'm hapy to build the emulator using Python %s (%s)",
+        "I'm happy to build the emulator using Python %s (%s)",
         PYTHON_EXE,
         version,
     )
