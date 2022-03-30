@@ -55,12 +55,30 @@ def install_deps():
     )
 
 
+class LogBelowLevel(logging.Filter):
+    def __init__(self, exclusive_maximum, name=""):
+        super(LogBelowLevel, self).__init__(name)
+        self.max_level = exclusive_maximum
+
+    def filter(self, record):
+        return True if record.levelno < self.max_level else False
+
+
 def config_logging():
-    ch = logging.StreamHandler()
-    ch.setFormatter(TimeFormatter("%(asctime)s %(threadName)s | %(message)s"))
+    logging_handler_out = logging.StreamHandler(sys.stdout)
+    logging_handler_out.setFormatter(TimeFormatter("%(asctime)s %(threadName)s | %(message)s"))
+    logging_handler_out.setLevel(logging.DEBUG)
+    logging_handler_out.addFilter(LogBelowLevel(logging.WARNING))
+
+    logging_handler_err = logging.StreamHandler(sys.stderr)
+    logging_handler_err.setFormatter(TimeFormatter("%(asctime)s %(threadName)s | %(message)s"))
+    logging_handler_err.setLevel(logging.WARNING)
+
     logging.root = logging.getLogger("build")
     logging.root.setLevel(logging.INFO)
-    logging.root.addHandler(ch)
+    logging.root.addHandler(logging_handler_out)
+    logging.root.addHandler(logging_handler_err)
+
     currentThread().setName("inf")
 
 
