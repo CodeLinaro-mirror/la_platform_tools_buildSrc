@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 #
 # Copyright 2018 - The Android Open Source Project
 #
@@ -25,7 +25,11 @@ import socket
 import sys
 
 
-if sys.version_info[0] == 3:
+def is_python3():
+    return sys.version_info[0] == 3
+
+
+if is_python3():
     from queue import Queue
 else:
     from Queue import Queue
@@ -66,12 +70,16 @@ class LogBelowLevel(logging.Filter):
 
 def config_logging():
     logging_handler_out = logging.StreamHandler(sys.stdout)
-    logging_handler_out.setFormatter(TimeFormatter("%(asctime)s %(threadName)s | %(message)s"))
+    logging_handler_out.setFormatter(
+        TimeFormatter("%(asctime)s %(threadName)s | %(message)s")
+    )
     logging_handler_out.setLevel(logging.DEBUG)
     logging_handler_out.addFilter(LogBelowLevel(logging.WARNING))
 
     logging_handler_err = logging.StreamHandler(sys.stderr)
-    logging_handler_err.setFormatter(TimeFormatter("%(asctime)s %(threadName)s | %(message)s"))
+    logging_handler_err.setFormatter(
+        TimeFormatter("%(asctime)s %(threadName)s | %(message)s")
+    )
     logging_handler_err.setLevel(logging.WARNING)
 
     logging.root = logging.getLogger("build")
@@ -245,7 +253,7 @@ def main(argv):
         if args.generate:
             bld.generate()
             return
-        elif not target.startswith("darwin"):
+        elif not target.startswith("darwin") and not is_python3():
             bld.validate()
         else:
             logging.info("Not validating QEMU build.")
