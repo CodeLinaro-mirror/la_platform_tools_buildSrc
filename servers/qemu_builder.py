@@ -74,6 +74,7 @@ class QemuBuilder(object):
                 "--build-dir={}".format(self.out),
                 "--host={}".format(self.host),
                 "--verbose",
+                "--verbose",
             ],
             self.env,
             "qemu",
