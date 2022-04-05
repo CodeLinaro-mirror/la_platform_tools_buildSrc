@@ -180,6 +180,9 @@ def main(argv):
     parser.add_argument(
         "--generate", action="store_true", help="Generate and replaceqemu files only."
     )
+    parser.add_argument(
+        "--with_debug", action="store_true", help="Build debug instead of release"
+    )
 
     args = parser.parse_args()
 
@@ -229,7 +232,6 @@ def main(argv):
         str(args.test_jobs),
     ]
 
-    debug = ["--config", "debug"]
     if target == "darwin_aarch64":
         prod = ["prod"]
         # Unit tests on M1 are failing, so let's not run them yet
@@ -241,6 +243,8 @@ def main(argv):
         cmd.append(gfxstream_arg)
     if args.crosvm:
         cmd.append(crosvm_arg)
+    if args.with_debug:
+        prod = ["--config", "debug"]
 
     # Make sure the dist directory exists.
     mkpath(args.dist_dir)
@@ -258,9 +262,7 @@ def main(argv):
         else:
             logging.info("Not validating QEMU build.")
 
-        run(launcher + cmd + prod, cfg.get_env(), "rel")
-        if not args.gfxstream and not args.crosvm:
-            run(launcher + cmd + debug, cfg.get_env(), "dbg")
+        run(launcher + cmd + prod, cfg.get_env(), "bld")
 
     logging.info("Build completed!")
 
