@@ -85,7 +85,7 @@ public class MetalavaPlugin implements Plugin<Project> {
                 task.getJvmArgumentProviders().add(metalavaCurrentTxtInput);
             });
 
-            tasks.register("updateApi", Sync.class, task -> {
+            tasks.register("updateMetalavaApi", Sync.class, task -> {
                task.from(generateApiOutput);
                task.setDestinationDir(project.file("api"));
             });
