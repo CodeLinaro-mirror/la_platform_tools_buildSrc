@@ -249,8 +249,10 @@ def main(argv):
     # Make sure the dist directory exists.
     mkpath(args.dist_dir)
 
+
     # Kick of builds for 2 targets. (debug/release)
-    with ServerConfig(is_presubmit(args.build_id)) as cfg:
+    presubmit = is_presubmit(args.build_id)
+    with ServerConfig(presubmit, args) as cfg:
 
         # Build qemu, and make sure the cmake file matches.
         bld = QemuBuilder(target, args.dist_dir, args.out_dir, cfg)
@@ -262,6 +264,11 @@ def main(argv):
         else:
             logging.info("Not validating QEMU build.")
 
+        # Lets only use sccache in presubmit for now.
+        if presubmit and not target == 'windows':
+            # sccache does not (yet?) make life better on windows in gce.
+            cmd = cmd + ["--ccache", cfg.sccache]
+
         run(launcher + cmd + prod, cfg.get_env(), "bld")
 
     logging.info("Build completed!")
@@ -270,5 +277,6 @@ def main(argv):
 if __name__ == "__main__":
     try:
         main(sys.argv)
+        sys.exit(0)
     except (Exception, KeyboardInterrupt) as exc:
         sys.exit(exc)

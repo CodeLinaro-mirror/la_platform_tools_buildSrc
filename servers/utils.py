@@ -51,7 +51,7 @@ def is_presubmit(build_id):
     return build_id.startswith("P")
 
 
-def run(cmd, env, log_prefix, cwd=AOSP_ROOT):
+def run(cmd, env, log_prefix, cwd=AOSP_ROOT, throw_on_failure=True):
     currentThread().setName(log_prefix)
     cmd_env = os.environ.copy()
     cmd_env.update(env)
@@ -73,7 +73,7 @@ def run(cmd, env, log_prefix, cwd=AOSP_ROOT):
 
     _log_proc(proc, log_prefix)
     proc.wait()
-    if proc.returncode != 0:
+    if proc.returncode != 0 and throw_on_failure:
         raise Exception("Failed to run %s - %s" % (" ".join(cmd), proc.returncode))
 
 
