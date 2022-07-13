@@ -2,7 +2,6 @@ plugins {
     id "kotlin"
 }
 
-import org.gradle.internal.jvm.Jvm
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jetbrains.kotlin.gradle.tasks.UsesKotlinJavaToolchain
 import org.gradle.internal.os.OperatingSystem
@@ -25,9 +24,9 @@ if (OperatingSystem.current().isWindows()) {
 tasks.withType(KotlinCompile).configureEach {
     kotlinOptions {
         jvmTarget = "11"
-        apiVersion = "1.5"
-        languageVersion = "1.5"
-        freeCompilerArgs = ((freeCompilerArgs + ["-Xjvm-default=all-compatibility", "-Xsam-conversions=class", "-Xuse-ir"]) as Set) as List
+        apiVersion = "1.6"
+        languageVersion = "1.6"
+        freeCompilerArgs = ((freeCompilerArgs + ["-Xjvm-default=all-compatibility", "-Xsam-conversions=class"]) as Set) as List
     }
 }
 
