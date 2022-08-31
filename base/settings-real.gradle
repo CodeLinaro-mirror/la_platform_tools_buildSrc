@@ -70,3 +70,5 @@ include ':base:utp:android-test-plugin-host-device-info'
 include ':base:utp:android-test-plugin-host-logcat'
 include ':base:utp:android-test-plugin-host-retention'
 include ':base:utp:android-test-plugin-result-listener-gradle'
+
+include ':base:firebase:testlab:testlab-gradle-plugin'
