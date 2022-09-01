@@ -43,22 +43,6 @@ from qemu_builder import QemuBuilder
 from utils import PYTHON_EXE, AOSP_ROOT, is_presubmit, run
 from threading import currentThread
 
-
-def install_deps():
-    # It is possible that the USER_SITE dir has never been created on freshly minted
-    # windows build bots. Since python's setuptools doesn't create it for us, we do it
-    # if needed.
-    if not os.path.exists(site.USER_SITE):
-        os.makedirs(site.USER_SITE)
-
-    run(
-        [PYTHON_EXE, "setup.py", "develop", "--user"],
-        {},
-        "dep",
-        os.path.join(AOSP_ROOT, "external", "qemu", "android", "build", "python"),
-    )
-
-
 class LogBelowLevel(logging.Filter):
     def __init__(self, exclusive_maximum, name=""):
         super(LogBelowLevel, self).__init__(name)
@@ -197,9 +181,6 @@ def main(argv):
 
     if not os.path.isabs(args.out_dir):
         args.out_dir = os.path.join(AOSP_ROOT, args.out_dir)
-
-    # Make sure we have all the build dependencies
-    install_deps()
 
     # This how we are going to launch the python build script
     launcher = [
