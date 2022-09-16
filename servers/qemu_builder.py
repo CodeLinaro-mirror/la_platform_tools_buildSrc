@@ -26,7 +26,11 @@ import sys
 
 
 class QemuBuilder(object):
-    """A qemu builder builds standard qemu, and extracts the cmake include file from the build."""
+    """A qemu builder builds standard qemu, and extracts the cmake include file from the build.
+
+
+       Note: Qemu 2.12 is still based on Python2.
+    """
 
     _QEMU_DIR = os.path.join(AOSP_ROOT, "external", "qemu")
 

@@ -20,7 +20,7 @@ import logging
 import os
 import platform
 import socket
-import subprocess
+import urllib.request
 from distutils.spawn import find_executable
 from utils import AOSP_ROOT, run
 
@@ -69,10 +69,8 @@ class ServerConfig(object):
     def __in_gce(self):
         """Queries the magic url to determine if we are in GCE"""
         try:
-            import requests
-
-            r = requests.get("http://metadata.google.internal")
-            return r.headers["Metadata-Flavor"] == "Google"
+            with urllib.request.urlopen("http://metadata.google.internal") as r:
+                return r.getheader("Metadata-Flavor") == "Google"
         except:
             logging.info("Unable to query magic url, we are not in gce.")
             return False
@@ -111,7 +109,7 @@ class ServerConfig(object):
         # On windows we do not want debug ui to be activated.
         if self.target == "windows":
             disable_debug_policy()
-            
+
         if self.__in_gce():
             # Use a bucket in gce. Make sure the default service account has R/W
             # access to gs://emu-dev-sccache

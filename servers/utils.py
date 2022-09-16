@@ -17,9 +17,12 @@ import json
 import logging
 import os
 import platform
+import socket
 import subprocess
 import sys
-from functools import partial
+from threading import currentThread
+
+from time_formatter import TimeFormatter
 
 if sys.version_info[0] == 3:
     from queue import Queue
@@ -49,6 +52,74 @@ def platform_to_cmake_target(target):
 
 def is_presubmit(build_id):
     return build_id.startswith("P")
+
+
+def get_host_and_ip():
+    """Try to get my hostname and ip address."""
+    st = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        st.connect(("10.255.255.255", 1))
+        my_ip = st.getsockname()[0]
+    except Exception:
+        my_ip = "127.0.0.1"
+    finally:
+        st.close()
+
+    try:
+        hostname = socket.gethostname()
+    except Exception:
+        hostname = "Unkwown"
+
+    return hostname, my_ip
+
+
+class LogBelowLevel(logging.Filter):
+    def __init__(self, exclusive_maximum, name=""):
+        super(LogBelowLevel, self).__init__(name)
+        self.max_level = exclusive_maximum
+
+    def filter(self, record):
+        return True if record.levelno < self.max_level else False
+
+
+def config_logging():
+    logging_handler_out = logging.StreamHandler(sys.stdout)
+    logging_handler_out.setFormatter(
+        TimeFormatter("%(asctime)s %(threadName)s | %(message)s")
+    )
+    logging_handler_out.setLevel(logging.DEBUG)
+    logging_handler_out.addFilter(LogBelowLevel(logging.WARNING))
+
+    logging_handler_err = logging.StreamHandler(sys.stderr)
+    logging_handler_err.setFormatter(
+        TimeFormatter("%(asctime)s %(threadName)s | %(message)s")
+    )
+    logging_handler_err.setLevel(logging.WARNING)
+
+    logging.root = logging.getLogger("build")
+    logging.root.setLevel(logging.INFO)
+    logging.root.addHandler(logging_handler_out)
+    logging.root.addHandler(logging_handler_err)
+
+    currentThread().setName("inf")
+
+
+
+def log_system_info():
+    """Log some useful system information."""
+    version = "{0[0]}.{0[1]}.{0[2]}".format(sys.version_info)
+    hostname, my_ip = get_host_and_ip()
+
+    logging.info(
+        "Hello from %s (%s). I'm a %s build bot", hostname, my_ip, platform.system()
+    )
+    logging.info("My uname is: %s", platform.uname())
+    logging.info(
+        "I'm happy to build the emulator using Python %s (%s)",
+        PYTHON_EXE,
+        version,
+    )
+
 
 
 def run(cmd, env, log_prefix, cwd=AOSP_ROOT, throw_on_failure=True):
