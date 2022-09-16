@@ -20,7 +20,6 @@ import logging
 import os
 import platform
 import socket
-import urllib.request
 from distutils.spawn import find_executable
 from utils import AOSP_ROOT, run
 
@@ -69,6 +68,8 @@ class ServerConfig(object):
     def __in_gce(self):
         """Queries the magic url to determine if we are in GCE"""
         try:
+            # TODO(jansene): Remove once windows buildbots are using PY3
+            import urllib.request
             with urllib.request.urlopen("http://metadata.google.internal") as r:
                 return r.getheader("Metadata-Flavor") == "Google"
         except:
