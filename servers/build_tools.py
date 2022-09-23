@@ -131,12 +131,7 @@ def main(argv):
         str(args.test_jobs),
     ]
 
-    if target == "darwin_aarch64":
-        prod = ["prod"]
-        # Unit tests on M1 are failing, so let's not run them yet
-        cmd.append("--no-tests")
-    else:
-        prod = ["--crash", "prod"]
+    prod = ["--crash", "prod"]
 
     if args.gfxstream:
         cmd.append(gfxstream_arg)
