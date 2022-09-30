@@ -51,12 +51,28 @@ def install_deps():
     if not os.path.exists(site.USER_SITE):
         os.makedirs(site.USER_SITE)
 
-    run(
-        [PYTHON_EXE, "setup.py", "develop", "--user"],
-        {},
-        "dep",
-        os.path.join(AOSP_ROOT, "external", "qemu", "android", "build", "python"),
-    )
+    try:
+        run(
+            [
+                PYTHON_EXE,
+                "-m",
+                "pip",
+                "install",
+                "-e",
+                ".",
+                "--user",
+            ],
+            {},
+            "dep",
+            os.path.join(AOSP_ROOT, "external", "qemu", "android", "build", "python"),
+        )
+    except:
+        run(
+            [PYTHON_EXE, "setup.py", "develop", "--user"],
+            {},
+            "dep",
+            os.path.join(AOSP_ROOT, "external", "qemu", "android", "build", "python"),
+        )
 
 
 class LogBelowLevel(logging.Filter):
