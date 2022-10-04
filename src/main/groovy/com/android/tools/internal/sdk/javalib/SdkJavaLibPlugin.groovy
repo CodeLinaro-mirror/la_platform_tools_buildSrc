@@ -45,9 +45,9 @@ public class SdkJavaLibPlugin extends SdkFilesPlugin {
         // This is called through the ToolItem.builtBy
         buildTask = project.tasks.create("sdkJar", Jar)
         buildTask.from(project.sourceSets.main.output)
-        buildTask.conventionMapping.destinationDir = {
+        buildTask.destinationDirectory.set(
             new File(sdkDir, "jar")
-        }
+        )
 
         // delay computing the manifest classpath only if the
         // prebuiltJar task is set to run.
