@@ -17,6 +17,8 @@
 package com.android.tools.internal.dackka;
 
 import com.google.common.collect.ImmutableList;
+
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -26,9 +28,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.*;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Properties;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 import javax.inject.Inject;
+
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
@@ -63,7 +72,11 @@ public abstract class DackkaTask extends DefaultTask {
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract DirectoryProperty getSourcesDir();
+    public abstract ConfigurableFileCollection getSources();
+
+    // Intermediate directory to extract sources to, doesn't need to be tracked as an input or output
+    @Internal
+    public abstract DirectoryProperty getExtractedSources();
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -107,7 +120,7 @@ public abstract class DackkaTask extends DefaultTask {
                                 .collect(Collectors.joining("^^"))
                         + "^^";
 
-        String sourcesDir = getSourcesDir().get().getAsFile().getAbsolutePath();
+        String sourcesDir = getExtractedSources().get().getAsFile().getAbsolutePath();
         String outputDirectory = getDestinationDirectory().get().getAsFile().getAbsolutePath();
 
         return ImmutableList.of(
@@ -146,6 +159,8 @@ public abstract class DackkaTask extends DefaultTask {
                         parameters -> {
                             parameters.getDevsiteTenant().set(getDevsiteTenant());
                             parameters.getArgs().set(arguments);
+                            parameters.getSources().from(getSources());
+                            parameters.getExtractedSources().set(getExtractedSources());
                             parameters.getDestinationDirectory().set(getDestinationDirectory());
                             parameters.getDackkaClasspath().from(getDackkaClasspath());
                         });
@@ -156,6 +171,9 @@ public abstract class DackkaTask extends DefaultTask {
 
         ListProperty<String> getArgs();
 
+        ConfigurableFileCollection getSources();
+
+        DirectoryProperty getExtractedSources();
         DirectoryProperty getDestinationDirectory();
 
         ConfigurableFileCollection getDackkaClasspath();
@@ -171,7 +189,31 @@ public abstract class DackkaTask extends DefaultTask {
         @Override
         public void execute() {
             try {
-                clean();
+                clean(
+                        getParameters().getDestinationDirectory().get().getAsFile().toPath());
+                Path extractedSourcesDir = getParameters().getExtractedSources().get().getAsFile().toPath();
+                Files.createDirectories(extractedSourcesDir);
+                clean(extractedSourcesDir);
+                if (getParameters().getSources().isEmpty()) {
+                    throw new IOException("No sources specified, add projects to the api configuration");
+                }
+                for (File rootFile : getParameters().getSources()) {
+                    Path root = rootFile.toPath();
+                    if (!Files.isRegularFile(root)) {
+                        throw new IOException("Expected " + root + " to be a file");
+                    }
+                    try(ZipInputStream zis = new ZipInputStream(new BufferedInputStream(Files.newInputStream(root)))) {
+                        while(true) {
+                            ZipEntry entry = zis.getNextEntry();
+                            if (entry == null) break;
+                            if (entry.isDirectory() || entry.getName().equals("NOTICE") || entry.getName().toUpperCase(Locale.US).startsWith("META-INF/") || entry.getName().contains("..")) continue;
+                            Path file = extractedSourcesDir.resolve(entry.getName());
+                            Files.createDirectories(file.getParent());
+                            Files.copy(zis, file);
+                        }
+                    }
+
+                }
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -190,9 +232,8 @@ public abstract class DackkaTask extends DefaultTask {
                             });
         }
 
-        private void clean() throws IOException {
-            Path outDirectory =
-                    getParameters().getDestinationDirectory().get().getAsFile().toPath();
+        static void clean(Path outDirectory) throws IOException {
+            Files.createDirectories(outDirectory);
             Files.walkFileTree(
                     outDirectory,
                     new SimpleFileVisitor<>() {
