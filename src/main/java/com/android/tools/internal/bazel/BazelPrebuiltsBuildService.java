@@ -29,8 +29,12 @@ import org.gradle.process.ExecOperations;
 import javax.annotation.concurrent.GuardedBy;
 import javax.annotation.concurrent.ThreadSafe;
 import javax.inject.Inject;
+import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @ThreadSafe
 public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPrebuiltsBuildService.Params>, AutoCloseable {
@@ -71,21 +75,29 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
     }
 
     private void invokeBazel() throws IOException {
+        File bazel = getParameters()
+                .getRootDir()
+                .file(getBazelExe())
+                .get()
+                .getAsFile();
+        List<String> args = new ArrayList<>();
+        args.add("run");
+        if (!getParameters().getRootDir().dir("vendor").get().getAsFile().isDirectory()) {
+            Logging.getLogger(BazelPrebuiltsBuildService.class).lifecycle("Running in AOSP mode");
+            args.add("--config=without_vendor");
+        }
+        args.add("//tools/base:agp_artifacts_dir");
+        args.add("--");
+        args.add(getMavenRepoLocation().get().getAsFile().getAbsolutePath());
 
+        Logging.getLogger(BazelPrebuiltsBuildService.class)
+                .lifecycle(
+                        "Running bazel build:\n  " + bazel.getAbsolutePath() + " \\\n" + args.stream().collect(Collectors.joining(" \\\n     ")));
         getExecOperations()
                 .exec(
                         spec -> {
-                            spec.executable(
-                                    getParameters()
-                                            .getRootDir()
-                                            .file(getBazelExe())
-                                            .get()
-                                            .getAsFile());
-                            spec.args(
-                                    "run",
-                                    "//tools/base:agp_artifacts_dir",
-                                    "--",
-                                    getMavenRepoLocation().get().getAsFile().getAbsolutePath());
+                            spec.executable(bazel);
+                            spec.args(args);
                         });
     }
 
