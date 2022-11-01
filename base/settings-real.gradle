@@ -57,7 +57,7 @@ project(':base:builder-model'      ).projectDir = new File(rootDir, 'base/build-
 project(':base:builder-test-api'   ).projectDir = new File(rootDir, 'base/build-system/builder-test-api')
 project(':base:builder'            ).projectDir = new File(rootDir, 'base/build-system/builder')
 project(':base:manifest-merger'    ).projectDir = new File(rootDir, 'base/build-system/manifest-merger')
-project(':base:gradle-api'      ).projectDir = new File(rootDir, 'base/build-system/gradle-api')
+project(':base:gradle-api'         ).projectDir = new File(rootDir, 'base/build-system/gradle-api')
 project(':base:project-test-lib'   ).projectDir = new File(rootDir, 'base/build-system/project-test-lib')
 project(':base:project-test'       ).projectDir = new File(rootDir, 'base/build-system/project-test')
 project(':base:profgen'            ).projectDir = new File(rootDir, 'base/profgen/profgen')
@@ -73,6 +73,7 @@ include ':base:utp:android-test-plugin-host-apk-installer'
 include ':base:utp:android-test-plugin-host-coverage'
 include ':base:utp:android-test-plugin-host-device-info'
 include ':base:utp:android-test-plugin-host-logcat'
+include ':base:utp:android-test-plugin-host-emulator-control'
 include ':base:utp:android-test-plugin-host-retention'
 include ':base:utp:android-test-plugin-result-listener-gradle'
 include ':base:perf-logger'
