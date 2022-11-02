@@ -104,7 +104,6 @@ def config_logging():
     currentThread().setName("inf")
 
 
-
 def log_system_info():
     """Log some useful system information."""
     version = "{0[0]}.{0[1]}.{0[2]}".format(sys.version_info)
@@ -119,7 +118,6 @@ def log_system_info():
         PYTHON_EXE,
         version,
     )
-
 
 
 def run(cmd, env, log_prefix, cwd=AOSP_ROOT, throw_on_failure=True):
@@ -163,8 +161,11 @@ def _reader(pipe, logfn):
         with pipe:
             for line in iter(pipe.readline, b""):
                 lg = line[:-1]
-                if sys.version_info[0] == 3:
+                try:
                     lg = lg.decode("utf-8")
+                except Exception as e:
+                    logfn("Failed to utf-8 decode line, {}".format(e))
+                    lg = str(lg)
                 logfn(lg.strip())
     finally:
         pass
