@@ -76,7 +76,10 @@ def main(argv):
         help="Build emulator with QtWebEngine libraries",
     )
     parser.add_argument(
-        "--gfxstream", action="store_true", help="Build gfxstream libraries"
+        "--gfxstream", action="store_true", help="Build the emulator with the gfxstream libraries"
+    )
+    parser.add_argument(
+        "--gfxstream_only", action="store_true", help="Build gfxstream libraries only"
     )
     parser.add_argument("--crosvm", action="store_true", help="Build crosvm")
     parser.add_argument(
@@ -133,6 +136,8 @@ def main(argv):
 
     prod = ["--crash", "prod"]
 
+    if args.gfxstream_only:
+        cmd.append('--gfxstream_only')
     if args.gfxstream:
         cmd.append(gfxstream_arg)
     if args.crosvm:
