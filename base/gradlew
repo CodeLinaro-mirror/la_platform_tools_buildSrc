@@ -116,6 +116,14 @@ esac
 
 CLASSPATH=$APP_HOME/gradle/wrapper/gradle-wrapper.jar
 
+# Android Gradle plugin hack - always force the use of the prebuilt JDK
+# if present on linux b/260692657
+if [ $darwin == "false" ]; then
+    CANDIDATE_JAVA_HOME="../prebuilts/studio/jdk/jdk17/linux"
+    if [ -x "$CANDIDATE_JAVA_HOME/bin/java" ] ; then
+        JAVA_HOME=$CANDIDATE_JAVA_HOME
+    fi
+fi
 
 # Determine the Java command to use to start the JVM.
 if [ -n "$JAVA_HOME" ] ; then
