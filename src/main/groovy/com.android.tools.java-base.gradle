@@ -66,6 +66,15 @@ tasks.withType(ProcessResources) {
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
 }
 
+// Unblock updating to java 17
+// See https://docs.gradle.org/current/userguide/upgrading_version_7.html#changes_7.6
+tasks.withType(Test).configureEach {
+    jvmArgs([
+        "--add-opens=java.base/java.lang=ALL-UNNAMED",
+        "--add-opens=java.base/java.util=ALL-UNNAMED"
+    ])
+}
+
 task disableTestFailures {
     doLast {
         tasks.withType(Test) {

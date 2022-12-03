@@ -4,7 +4,7 @@ readonly script_dir="$(dirname $0)"
 readonly dist_dir="$1"
 readonly workspace_dir="$(realpath "${script_dir}/../../../")"
 
-export JAVA_HOME="$(realpath "${script_dir}"/../../../prebuilts/studio/jdk/jdk11/linux)"
+export JAVA_HOME="$(realpath "${script_dir}"/../../../prebuilts/studio/jdk/jdk17/linux)"
 
 # Add --warning-mode=fail manually until https://youtrack.jetbrains.com/issue/IDEA-272594 is fixed
 (cd "${workspace_dir}"/tools && \
