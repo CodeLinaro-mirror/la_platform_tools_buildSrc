@@ -1,5 +1,3 @@
-exports_files(["version.properties"])
-
 exports_files(["dependencies.properties"])
 
 filegroup(

@@ -1,9 +1,8 @@
 // Versions that we are building.
 Properties properties = new Properties()
 File versionRootDir = rootDir
-String relativeVersionPath = "buildSrc/base/version.properties"
+String relativeVersionPath = "base/common/version.bzl"
 File versionProperties = new File(versionRootDir, relativeVersionPath)
-
 
 project.ext['versionProperties'] = versionProperties
 
@@ -15,10 +14,8 @@ while (!versionProperties.exists() && versionRootDir.parentFile != null &&
 
 versionProperties.withReader { properties.load(it) }
 
-for (name in properties.stringPropertyNames()) {
-    String version = properties.getProperty(name)
-    project.ext[name] = version
-}
+project.ext['baseVersion'] = properties.getProperty('BASE_VERSION') - '"' - '"'
+project.ext['buildVersion'] = properties.getProperty('BUILD_VERSION') - '"' - '"'
 
 // This will be replaced with a dependency catalog soon.
 
@@ -49,8 +46,8 @@ Map<String, ?> libs = [:]
 
 // TODO(b/143864616): These will be replaced by a version catalog
 libs['versions'] = [
-        'base': provider { properties.getProperty('baseVersion') },
-        'build': provider { properties.getProperty('buildVersion') }
+        'base': provider { project.ext['baseVersion'] },
+        'build': provider { project.ext['buildVersion'] }
 ]
 for (name in dependencies.stringPropertyNames()) {
     // Use . separated names in preparation for migration to a version catalog
