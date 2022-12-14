@@ -19,7 +19,6 @@ package com.android.tools.internal.bazel;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.logging.Logging;
-import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
@@ -40,32 +39,39 @@ import java.util.stream.Collectors;
 public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPrebuiltsBuildService.Params>, AutoCloseable {
 
     public BazelPrebuiltsBuildService() {
-        Logging.getLogger(BazelPrebuiltsBuildService.class).lifecycle("Using experimental hybrid build");
+        Logging.getLogger(BazelPrebuiltsBuildService.class).lifecycle("Using hybrid build");
     }
 
     public interface Params extends BuildServiceParameters {
         DirectoryProperty getRootDir();
         Property<String> getOsName();
+        Property<Boolean> getUseReleaseVersion();
     }
 
     @Inject
     public abstract ExecOperations getExecOperations();
 
     @GuardedBy("this")
-    private boolean invoked = false;
+    private boolean success = false;
+    @GuardedBy("this")
+    private UncheckedIOException failure;
 
     public synchronized void ensurePrebuiltsAreBuilt() {
-        if (invoked) {
+        if (failure != null) {
+            throw failure;
+        }
+        if (success) {
             return;
         }
 
         try {
             invokeBazel();
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            failure = new UncheckedIOException(e);
+            throw failure;
         }
 
-        invoked = true;
+        success = true;
     }
 
     public Provider<Directory> getMavenRepoLocation() {
@@ -85,6 +91,9 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
         if (!getParameters().getRootDir().dir("vendor").get().getAsFile().isDirectory()) {
             Logging.getLogger(BazelPrebuiltsBuildService.class).lifecycle("Running in AOSP mode");
             args.add("--config=without_vendor");
+        }
+        if (getParameters().getUseReleaseVersion().get()) {
+            args.add("--config=release");
         }
         args.add("//tools/base:agp_artifacts_dir");
         args.add("--");
@@ -111,6 +120,7 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
 
     @Override
     public synchronized void close() throws Exception {
-        invoked = false;
+        success = false;
+        failure = null;
     }
 }
