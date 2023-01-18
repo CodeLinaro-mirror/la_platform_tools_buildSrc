@@ -24,7 +24,14 @@ import sys
 
 from server_config import ServerConfig
 
-from utils import PYTHON_EXE, AOSP_ROOT, is_presubmit, run, log_system_info, config_logging
+from utils import (
+    PYTHON_EXE,
+    AOSP_ROOT,
+    is_presubmit,
+    run,
+    log_system_info,
+    config_logging,
+)
 
 
 def main(argv):
@@ -76,7 +83,9 @@ def main(argv):
         help="Build emulator with QtWebEngine libraries",
     )
     parser.add_argument(
-        "--gfxstream", action="store_true", help="Build the emulator with the gfxstream libraries"
+        "--gfxstream",
+        action="store_true",
+        help="Build the emulator with the gfxstream libraries",
     )
     parser.add_argument(
         "--gfxstream_only", action="store_true", help="Build gfxstream libraries only"
@@ -114,14 +123,7 @@ def main(argv):
     gfxstream_arg = "--gfxstream"
     crosvm_arg = "--crosvm"
 
-    # Standard arguments for both debug & production.
-    if args.qtwebengine:
-        qtwebengine_arg = "--qtwebengine"
-    else:
-        qtwebengine_arg = "--noqtwebengine"
     cmd = [
-        qtwebengine_arg,
-        "--noshowprefixforinfo",
         "--out",
         args.out_dir,
         "--sdk_build_number",
@@ -136,8 +138,11 @@ def main(argv):
 
     prod = ["--crash", "prod"]
 
+    # Standard arguments for both debug & production.
+    if args.qtwebengine:
+        cmd.append("--qtwebengine")
     if args.gfxstream_only:
-        cmd.append('--gfxstream_only')
+        cmd.append("--gfxstream_only")
     if args.gfxstream:
         cmd.append(gfxstream_arg)
     if args.crosvm:
@@ -148,16 +153,24 @@ def main(argv):
     # Make sure the dist directory exists.
     os.makedirs(args.dist_dir, exist_ok=True)
 
-
     # Kick of builds for 2 targets. (debug/release)
     presubmit = is_presubmit(args.build_id)
     with ServerConfig(presubmit, args) as cfg:
         # Lets only use sccache in presubmit for now.
-        if presubmit and not target == 'windows':
+        if presubmit and not target == "windows":
             # sccache does not (yet?) make life better on windows in gce.
             cmd = cmd + ["--ccache", cfg.sccache]
 
         run(launcher + cmd + prod, cfg.get_env(), "bld")
+
+        # Let's run the e2e tests.
+        if (
+            presubmit
+            and target == "linux"
+            and not args.gfxstream
+            and not args.gfxstream_only
+        ):
+            run(launcher + cmd + prod + ["--task", "IntegrationTest"], cfg.get_env(), "tst")
 
     logging.info("Build completed!")
 
