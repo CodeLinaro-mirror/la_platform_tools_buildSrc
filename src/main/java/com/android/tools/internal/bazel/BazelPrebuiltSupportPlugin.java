@@ -57,6 +57,7 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                                                 params -> {
                                                     params.getRootDir().set(project.getRootDir());
                                                     params.getOsName().set(project.getProviders().systemProperty("os.name"));
+                                                    params.getUseReleaseVersion().set(getBoolean(project.getProviders(), "release", false));
                                                 });
                                     });
             BazelPrebuiltsBuildService buildService = buildServiceProvider.get();

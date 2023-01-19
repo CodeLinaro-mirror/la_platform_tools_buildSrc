@@ -1,7 +1,7 @@
 // Versions that we are building.
 Properties properties = new Properties()
 File versionRootDir = rootDir
-String relativeVersionPath = "base/common/version.bzl"
+String relativeVersionPath = "base/common/release_version.bzl"
 File versionProperties = new File(versionRootDir, relativeVersionPath)
 
 project.ext['versionProperties'] = versionProperties
@@ -14,9 +14,19 @@ while (!versionProperties.exists() && versionRootDir.parentFile != null &&
 
 versionProperties.withReader { properties.load(it) }
 
-project.ext['baseVersion'] = properties.getProperty('BASE_VERSION') - '"' - '"'
-project.ext['buildVersion'] = properties.getProperty('BUILD_VERSION') - '"' - '"'
+String releaseProperty = project.providers.gradleProperty("release").getOrElse("false")
+boolean release = releaseProperty.equalsIgnoreCase("true")
+if (!release && !releaseProperty.equalsIgnoreCase("false")) throw new IllegalStateException("Expected release property to be true or false, but was '$releaseProperty'")
 
+String releaseBaseVersion = properties.getProperty('BASE_VERSION') - '"' - '"'
+String releaseBuildVersion = properties.getProperty('BUILD_VERSION') - '"' - '"'
+
+String dev(String release) {
+    release.split('-')[0] + '-dev'
+}
+
+project.ext['baseVersion'] = release ? releaseBaseVersion : dev(releaseBaseVersion)
+project.ext['buildVersion'] = release ? releaseBuildVersion : dev(releaseBuildVersion)
 // This will be replaced with a dependency catalog soon.
 
 // Deep copy the dependency map to give more helpful error messages,

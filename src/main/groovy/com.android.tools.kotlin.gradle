@@ -12,7 +12,7 @@ if (OperatingSystem.current().isWindows()) {
 } else if (OperatingSystem.current().isLinux()) {
     jdk11Folder = "linux"
 } else if (OperatingSystem.current().isMacOsX()) {
-    if ("arm64" == System.getProperty("os.arch")) {
+    if ("aarch64" == System.getProperty("os.arch")) {
         jdk11Folder = "mac-arm64/Contents/Home"
     } else {
         jdk11Folder = "mac/Contents/Home"
