@@ -156,8 +156,7 @@ def main(argv):
     # Kick of builds for 2 targets. (debug/release)
     presubmit = is_presubmit(args.build_id)
     with ServerConfig(presubmit, args) as cfg:
-        # Lets only use sccache in presubmit for now.
-        if presubmit and not target == "windows":
+        if not target == 'windows':
             # sccache does not (yet?) make life better on windows in gce.
             cmd = cmd + ["--ccache", cfg.sccache]
 
