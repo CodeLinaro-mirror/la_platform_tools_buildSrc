@@ -69,7 +69,7 @@ public class PresubmitRunner implements Plugin<Project> {
     @Override
     public void apply(final Project project) {
 
-        if (project.hasProperty(PRESUBMIT_FILES_PROPERTY)) {
+        if (project.getProviders().gradleProperty(PRESUBMIT_FILES_PROPERTY).isPresent()) {
             final Logger logger = project.getLogger();
             logger.info("Creating presubmit task.");
 
