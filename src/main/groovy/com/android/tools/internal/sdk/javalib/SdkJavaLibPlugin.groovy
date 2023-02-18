@@ -75,7 +75,7 @@ public class SdkJavaLibPlugin extends SdkFilesPlugin {
         super.createCopyTaskHook()
 
         for (PlatformConfig platform : extension.getPlatforms()) {
-            platform.item(buildTask.getArchivePath()) {
+            platform.item(buildTask.getArchiveFile().get().asFile) {
                 into 'lib/'
                 builtBy buildTask
             }
