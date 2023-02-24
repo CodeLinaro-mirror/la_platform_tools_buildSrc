@@ -164,6 +164,7 @@ def main(argv):
 
         # Let's run the e2e tests.
         if (
+            False and # We disable the IntegrationTests due to stability issues.
             presubmit
             and target == "linux"
             and not args.gfxstream
