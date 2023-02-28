@@ -155,12 +155,7 @@ def main(argv):
     if presubmit:
         logging.info("Not uploading symbols for presubmit builds.")
     else:
-        if target == "windows":
-            logging.warning(
-                "TEMPORARY DISABLING SYMBOLS UPLOADING b/270986065 PLEASE REVERT ONCE THIS IS FIXED"
-            )
-        else:
-            cmd = cmd + ["--crash", "prod"]
+        cmd = cmd + ["--crash", "prod"]
 
     with ServerConfig(presubmit, args) as cfg:
         if not target == "windows":
