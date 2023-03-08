@@ -107,8 +107,6 @@ def main(argv):
     if args.target:
         target = args.target.lower()
 
-    crosscompile = target != platform.system().lower()
-
     if not os.path.isabs(args.out_dir):
         args.out_dir = os.path.join(AOSP_ROOT, args.out_dir)
 
@@ -136,8 +134,6 @@ def main(argv):
         str(args.test_jobs),
     ]
 
-    prod = ["--crash", "prod"]
-
     # Standard arguments for both debug & production.
     if args.qtwebengine:
         cmd.append("--qtwebengine")
@@ -148,29 +144,35 @@ def main(argv):
     if args.crosvm:
         cmd.append(crosvm_arg)
     if args.with_debug:
-        prod = ["--config", "debug"]
+        cmd = cmd + ["--config", "debug"]
 
     # Make sure the dist directory exists.
     os.makedirs(args.dist_dir, exist_ok=True)
 
     # Kick of builds for 2 targets. (debug/release)
     presubmit = is_presubmit(args.build_id)
+
+    if presubmit:
+        logging.info("Not uploading symbols for presubmit builds.")
+    else:
+        cmd = cmd + ["--crash", "prod"]
+
     with ServerConfig(presubmit, args) as cfg:
-        if not target == 'windows':
+        if not target == "windows":
             # sccache does not (yet?) make life better on windows in gce.
             cmd = cmd + ["--ccache", cfg.sccache]
 
-        run(launcher + cmd + prod, cfg.get_env(), "bld")
+        run(launcher + cmd, cfg.get_env(), "bld")
 
         # Let's run the e2e tests.
         if (
-            False and # We disable the IntegrationTests due to stability issues.
-            presubmit
+            False
+            and presubmit  # We disable the IntegrationTests due to stability issues.
             and target == "linux"
             and not args.gfxstream
             and not args.gfxstream_only
         ):
-            run(launcher + cmd + prod + ["--task", "IntegrationTest"], cfg.get_env(), "tst")
+            run(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), "tst")
 
     logging.info("Build completed!")
 
