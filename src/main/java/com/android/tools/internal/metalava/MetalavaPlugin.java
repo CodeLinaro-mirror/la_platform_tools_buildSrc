@@ -46,6 +46,8 @@ public class MetalavaPlugin implements Plugin<Project> {
                 project.getConfigurations().detachedConfiguration(
                         project.getDependencies().create(METALAVA_MAVEN)
                 );
+        metalavaClasspath.setCanBeConsumed(false);
+        metalavaClasspath.setCanBeResolved(true);
 
         project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
