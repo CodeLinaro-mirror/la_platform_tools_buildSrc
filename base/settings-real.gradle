@@ -44,6 +44,7 @@ include ':base:build-system:shrinker'
 include ':base:project-test-lib'
 include ':base:project-test'
 include ':base:build-system:debug:model'
+include ':base:kotlin-multiplatform-models'
 
 include ':base:testing-infrastructure:device-pool:device-provider'
 
