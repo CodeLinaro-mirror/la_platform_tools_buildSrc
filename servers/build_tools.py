@@ -165,11 +165,8 @@ def main(argv):
         run(launcher + cmd, cfg.get_env(), "bld")
 
         # Let's run the e2e tests.
-        if (
-            False
-            and presubmit  # We disable the IntegrationTests due to stability issues.
+        if (presubmit  # We disable the IntegrationTests due to stability issues.
             and target == "linux"
-            and not args.gfxstream
             and not args.gfxstream_only
         ):
             run(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), "tst")
