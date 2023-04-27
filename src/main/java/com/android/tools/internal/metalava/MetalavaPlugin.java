@@ -37,7 +37,7 @@ import java.io.File;
 
 public class MetalavaPlugin implements Plugin<Project> {
 
-    private static final String METALAVA_MAVEN = "com.android.tools.metalava:metalava:1.0.0-alpha04";
+    private static final String METALAVA_MAVEN = "com.android.tools.metalava:metalava:1.0.0-alpha06";
 
 
     @Override
@@ -88,8 +88,10 @@ public class MetalavaPlugin implements Plugin<Project> {
             });
 
             tasks.register("updateMetalavaApi", Sync.class, task -> {
-               task.from(generateApiOutput);
-               task.setDestinationDir(project.file("api"));
+                task.from(generateApiOutput);
+                task.setDestinationDir(project.file("api"));
+                // preserve all files in destination directory
+                task.preserve(patternFilterable -> patternFilterable.include("**/*"));
             });
 
             tasks.withType(JavaExec.class).configureEach(task -> {
