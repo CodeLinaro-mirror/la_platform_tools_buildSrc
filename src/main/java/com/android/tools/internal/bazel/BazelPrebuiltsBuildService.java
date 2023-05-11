@@ -105,6 +105,7 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
         getExecOperations()
                 .exec(
                         spec -> {
+                            spec.setWorkingDir(getParameters().getRootDir());
                             spec.executable(bazel);
                             spec.args(args);
                         });
