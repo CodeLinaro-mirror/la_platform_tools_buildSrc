@@ -6,16 +6,16 @@ import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
 import org.jetbrains.kotlin.gradle.tasks.UsesKotlinJavaToolchain
 import org.gradle.internal.os.OperatingSystem
 
-String jdk17Folder
+String jdk11Folder
 if (OperatingSystem.current().isWindows()) {
-    jdk17Folder = "win"
+    jdk11Folder = "win"
 } else if (OperatingSystem.current().isLinux()) {
-    jdk17Folder = "linux"
+    jdk11Folder = "linux"
 } else if (OperatingSystem.current().isMacOsX()) {
     if ("aarch64" == System.getProperty("os.arch")) {
-        jdk17Folder = "mac-arm64/Contents/Home"
+        jdk11Folder = "mac-arm64/Contents/Home"
     } else {
-        jdk17Folder = "mac/Contents/Home"
+        jdk11Folder = "mac/Contents/Home"
     }
 } else {
     throw new IllegalStateException("Unsupported operating system: " + OperatingSystem.current())
@@ -23,19 +23,19 @@ if (OperatingSystem.current().isWindows()) {
 
 tasks.withType(KotlinCompile).configureEach {
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "11"
         apiVersion = "1.6"
         languageVersion = "1.6"
         freeCompilerArgs = ((freeCompilerArgs + ["-Xjvm-default=all-compatibility", "-Xsam-conversions=class"]) as Set) as List
     }
 }
 
-String jdk17Home = "${rootDir.parent}/prebuilts/studio/jdk/jdk17/$jdk17Folder"
+String jdk11Home = "${rootDir.parent}/prebuilts/studio/jdk/jdk11/$jdk11Folder"
 project.tasks
         .withType(UsesKotlinJavaToolchain.class)
         .configureEach {
             it.kotlinJavaToolchain.jdk.use(
-                    jdk17Home,
-                    JavaVersion.VERSION_17
+                    jdk11Home,
+                    JavaVersion.VERSION_11
             )
         }
