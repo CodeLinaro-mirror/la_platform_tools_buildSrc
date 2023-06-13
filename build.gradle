@@ -28,7 +28,7 @@ dependencies {
     implementation libs.apache_commons_io
     implementation libs.guava
     implementation libs.gson
-    implementation ('com.google.protobuf:protobuf-gradle-plugin:0.8.15') {
+    implementation ('com.google.protobuf:protobuf-gradle-plugin:0.9.3') {
         exclude group: 'org.apache.maven', module: 'maven-plugin-api'
     }
     implementation libs.apache_commons_lang

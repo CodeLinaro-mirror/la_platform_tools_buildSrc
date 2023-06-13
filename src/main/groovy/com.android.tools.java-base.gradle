@@ -24,9 +24,7 @@ project.plugins.withId("com.google.protobuf") {
     project.protobuf {
         generateProtoTasks {
             ofSourceSet('main').each { generateProtoTask ->
-                sourceSets {
-                    main.java.srcDir "${generateProtoTask.getOutputBaseDir()}/java"
-                }
+                project.sourceSets.main.java.srcDir(generateProtoTask)
                 sourcesJar.dependsOn(generateProtoTask)
             }
         }
