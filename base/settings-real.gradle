@@ -80,3 +80,5 @@ include ':base:perf-logger'
 include ':base:screenshot:junit-engine'
 
 include ':base:firebase:testlab:testlab-gradle-plugin'
+
+include ':base:declarative-gradle:model'
