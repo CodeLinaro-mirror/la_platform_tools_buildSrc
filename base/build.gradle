@@ -104,14 +104,16 @@ subprojects { project ->
     }
 }
 
-subprojects { project ->
-    if (project.hasProperty("runtimeArtifactTasks")) {
-        project.getProperty("runtimeArtifactTasks").each { runtimeArtifactTask ->
-            rootProject.publishLocal.dependsOn runtimeArtifactTask
-            runtimeArtifactTask.dependsOn publishLocalPluginTask
-            def disableRuntimeArtifact = rootProject.hasProperty("disableRuntimeArtifacts") ||
-                    project.hasProperty("disableRuntimeArtifacts")
-            runtimeArtifactTask.enabled = !disableRuntimeArtifact
+if (file("vendor").exists()) {
+    subprojects { project ->
+        if (project.hasProperty("runtimeArtifactTasks")) {
+            project.getProperty("runtimeArtifactTasks").each { runtimeArtifactTask ->
+                rootProject.publishLocal.dependsOn runtimeArtifactTask
+                runtimeArtifactTask.dependsOn publishLocalPluginTask
+                def disableRuntimeArtifact = rootProject.hasProperty("disableRuntimeArtifacts") ||
+                        project.hasProperty("disableRuntimeArtifacts")
+                runtimeArtifactTask.enabled = !disableRuntimeArtifact
+            }
         }
     }
 }
