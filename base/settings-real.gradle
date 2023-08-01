@@ -77,7 +77,6 @@ include ':base:utp:android-test-plugin-host-emulator-control'
 include ':base:utp:android-test-plugin-host-retention'
 include ':base:utp:android-test-plugin-result-listener-gradle'
 include ':base:perf-logger'
-include ':base:screenshot:junit-engine'
 
 include ':base:firebase:testlab:testlab-gradle-plugin'
 
