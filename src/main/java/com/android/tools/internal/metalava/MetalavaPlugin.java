@@ -31,14 +31,12 @@ import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.jvm.Jvm;
-
 import java.io.File;
 
 
 public class MetalavaPlugin implements Plugin<Project> {
 
     private static final String METALAVA_MAVEN = "com.android.tools.metalava:metalava:1.0.0-alpha08";
-
 
     @Override
     public void apply(Project project) {
@@ -52,12 +50,18 @@ public class MetalavaPlugin implements Plugin<Project> {
         project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
             TaskContainer tasks = project.getTasks();
+            String buildVersion = project.getRootProject().getExtensions().getExtraProperties().get("buildVersion").toString();
+
             TaskProvider<GenerateApiTask> generateApi = tasks.register("generateApi", GenerateApiTask.class, task -> {
                 SourceSet main = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME);
                 task.getSourcePaths().from(main.getAllJava().getSourceDirectories());
                 task.getSourcePaths().disallowChanges();
                 task.getJdkHome().set(Jvm.current().getJavaHome());
                 task.getJdkHome().disallowChanges();
+                task.getOldApiFiles().from(project.getLayout().getProjectDirectory().dir("previous-gradle-apis").getAsFileTree());
+                task.getOldApiFiles().disallowChanges();
+                task.getAgpVersion().set(buildVersion);
+                task.getAgpVersion().disallowChanges();
                 task.getClasspath().from(main.getCompileClasspath());
                 task.getClasspath().disallowChanges();
                 task.getMetalavaClasspath().from(metalavaClasspath);

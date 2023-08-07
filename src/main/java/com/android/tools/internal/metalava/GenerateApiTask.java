@@ -16,26 +16,30 @@
 
 package com.android.tools.internal.metalava;
 
-import com.google.common.collect.ImmutableList;
+import com.android.tools.internal.AgpVersion;
+import com.google.common.collect.Lists;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.*;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.*;
 import org.gradle.workers.WorkerExecutor;
-
 import javax.inject.Inject;
 import java.io.File;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
  * Task to generate the current API from the source files
- *
- * Adapted from https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:buildSrc/private/src/main/kotlin/androidx/build/metalava/
+ * <p>
+ * Adapted from <a href="https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:buildSrc/private/src/main/kotlin/androidx/build/metalava/">androidx</a>
  */
 public abstract class GenerateApiTask extends DefaultTask {
 
     @Internal
     public abstract DirectoryProperty getJdkHome();
+
+    @Internal
+    public abstract Property<String> getAgpVersion();
 
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
@@ -53,10 +57,13 @@ public abstract class GenerateApiTask extends DefaultTask {
     @Inject
     public abstract WorkerExecutor getWorkerExecutor();
 
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract ConfigurableFileCollection getOldApiFiles();
+
     @TaskAction
     public void generateApi() {
-
-        List<String> args = ImmutableList.of(
+        List<String> args = Lists.newArrayList(
                 "--no-banner",
                 "--error",
                 "UnresolvedImport",
@@ -73,6 +80,9 @@ public abstract class GenerateApiTask extends DefaultTask {
                 "--api",
                 asArg(getOutputDirectory()) + "/current.txt" // TODO: --removed-api ?
         );
+
+        args.addAll(getGenerateApiLevelsArgs(getFilesForApiLevels(getOldApiFiles().getFiles()), getAgpVersion()));
+
         getWorkerExecutor().noIsolation().submit(
                 MetalavaWorkAction.class,
                 params -> {
@@ -83,12 +93,48 @@ public abstract class GenerateApiTask extends DefaultTask {
     }
 
     private static String asArg(FileCollection files) {
-        return files.getFiles().stream().filter(File::exists).map(File::getPath).collect(Collectors.joining(File.pathSeparator));
+        return files.getFiles().stream()
+            .filter(File::exists).map(File::getPath)
+            .collect(Collectors.joining(File.pathSeparator));
     }
 
     private static String asArg(FileSystemLocationProperty<?> file) {
         return file.get().getAsFile().getPath();
     }
 
+    private List<String> getGenerateApiLevelsArgs(SortedMap<AgpVersion, File> apiFiles, Property<String> currentVersion) {
+        if (apiFiles.isEmpty()) return Collections.emptyList();
 
+        List<AgpVersion> versions = Lists.newArrayList(new TreeSet<>(apiFiles.keySet()));
+        // TODO enable after upgrading to 1.0.0-alpha09 (b/295130446)
+        // versions.add(parseVersion(currentVersion.get()));
+        String apiVersionNames = versions.stream().map(AgpVersion::toString).collect(Collectors.joining(" "));
+        List<String> args =
+            Lists.newArrayList(
+                "--generate-api-version-history",
+                asArg(getOutputDirectory()) + "/apiLevels.json",
+                "--api-version-names",
+                apiVersionNames
+            );
+
+        String apiFilesString = apiFiles.values().stream().map(File::toString).collect(Collectors.joining(File.pathSeparator));
+        args.addAll(List.of("--api-version-signature-files", apiFilesString));
+
+        return args;
+    }
+
+    private SortedMap<AgpVersion, File> getFilesForApiLevels(Set<File> files) {
+        SortedMap<AgpVersion, File> versionFileMap = new TreeMap<>();
+        // create a map from AGP version to the file containing the API surface for that version
+        for (File file: files) {
+            if (file.getName().endsWith(".txt") && !file.getName().startsWith("current")) {
+                AgpVersion version = AgpVersion.parseFileNameOrNull(file.getName());
+                if (version != null) {
+                    versionFileMap.put(version, file);
+                }
+            }
+        }
+
+        return versionFileMap;
+    }
 }
