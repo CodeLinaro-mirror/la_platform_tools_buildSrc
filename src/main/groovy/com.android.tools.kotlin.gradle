@@ -39,3 +39,8 @@ project.tasks
                     JavaVersion.VERSION_11
             )
         }
+
+// Workaround for https://youtrack.jetbrains.com/issue/KT-54207
+tasks.named("kotlinSourcesJar").configure {
+    it.enabled = false
+}
