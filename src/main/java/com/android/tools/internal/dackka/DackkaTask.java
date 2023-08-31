@@ -16,11 +16,11 @@
 
 package com.android.tools.internal.dackka;
 
-import com.google.common.collect.ImmutableList;
+import com.android.tools.internal.GsonUtils;
 
 import java.io.BufferedInputStream;
-import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.FileVisitResult;
@@ -28,19 +28,21 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Properties;
-import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 import javax.inject.Inject;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.Lists;
+import com.google.gson.Gson;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.*;
@@ -53,7 +55,7 @@ import org.gradle.workers.WorkerExecutor;
  * Task to generate documentation for developer.android.com
  *
  * <p>Based on
- * https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:buildSrc/private/src/main/kotlin/androidx/build/dackka/DackkaTask.kt
+ * <a href="https://cs.android.com/androidx/platform/frameworks/support/+/androidx-main:buildSrc/private/src/main/kotlin/androidx/build/dackka/DackkaTask.kt">androidx</a>
  */
 public abstract class DackkaTask extends DefaultTask {
     @Inject
@@ -85,80 +87,136 @@ public abstract class DackkaTask extends DefaultTask {
     @OutputDirectory
     public abstract DirectoryProperty getDestinationDirectory();
 
+    // List of annotations which should not be displayed in the docs
+    private static final List<String> hiddenAnnotations = ImmutableList.of(
+            "kotlin.OptIn",
+            // This annotation is generated upstream. Dokka uses it for signature serialization.
+            "kotlin.ParameterName",
+            // This annotations is not useful for developers but right now is @ShowAnnotation?
+            "kotlin.js.JsName",
+            // This annotation is intended to target the compiler and is general not useful for devs.
+            "java.lang.Override"
+    );
+
+    // Annotations which should not be displayed in the Kotlin docs, in addition to hiddenAnnotations
+    private static final List<String> hiddenAnnotationsKotlin = ImmutableList.of("kotlin.ExtensionFunctionType");
+
+    // Annotations which should not be displayed in the Java docs, in addition to hiddenAnnotations
+    private static final List<String> hiddenAnnotationsJava = ImmutableList.of();
+
+    private static final Map<String, String> externalLinks = ImmutableMap.<String, String>builder()
+            .put("asm", "https://asm.ow2.io/javadoc/")
+            .put("gradle", "https://docs.gradle.org/current/javadoc/")
+            .put("kotlin", "https://kotlinlang.org/api/latest/jvm/stdlib/")
+            .put("jdk", "https://docs.oracle.com/en/java/javase/11/docs/api/java.base/")
+            .put("guava", "https://guava.dev/releases/18.0/api/docs/")
+            .put("coroutinesCore", "https://kotlinlang.org/api/kotlinx.coroutines/")
+            .put("junit", "https://junit.org/junit4/javadoc/4.12/")
+            .put("okio", "https://square.github.io/okio/3.x/okio/")
+            .put("protobuf", "https://protobuf.dev/reference/java/api-docs/")
+            .put("grpc", "https://grpc.github.io/grpc-java/javadoc/")
+            .put("mlkit", "https://developers.google.com/android/reference/")
+            .put("dagger", "https://dagger.dev/api/latest/")
+            .put("jetbrains-annotations", "https://javadoc.io/doc/org.jetbrains/annotations/latest/")
+            .put("auto-value", "https://www.javadoc.io/doc/com.google.auto.value/auto-value/latest/")
+            .build();
+
     /**
      * Documentation for Dackka command line usage and arguments can be found at
-     * https://kotlin.github.io/dokka/1.4.0/user_guide/cli/usage/
+     * <a href="https://kotlin.github.io/dokka/1.4.0/user_guide/cli/usage/">dokka</a>
+     * Documentation for the DevsitePlugin arguments can be found at
+     * <a href="https://cs.android.com/androidx/platform/tools/dokka-devsite-plugin/+/master:src/main/java/com/google/devsite/DevsiteConfiguration.kt">devsite configuration</a>
      */
-    private List<String> computeArguments() throws IOException {
-        // path comes with colons but dokka expects a semicolon delimited string
-        String dependenciesClasspath =
-                getDependenciesClasspath().getFiles().stream().map(File::getPath).collect(Collectors.joining(";"));
-        Path indexFile =
-                getPackageListsDirectory().get().getAsFile().toPath().resolve("index.properties");
-        Properties index = new Properties();
-        try (BufferedReader reader = Files.newBufferedReader(indexFile)) {
-            index.load(reader);
-        } catch (IOException e) {
-            throw new IOException(
-                    "Failed to load package list index file "
-                            + indexFile
-                            + "\nExpected format: relativeFilePath=url",
-                    e);
-        }
-        Map<String, Path> urlToPackageList = new LinkedHashMap<>();
-        for (Map.Entry<Object, Object> e : index.entrySet()) {
-            Path entryFile = indexFile.resolveSibling(e.getKey().toString());
-            if (!Files.isRegularFile(entryFile)) {
-                throw new IOException("Index file entry not found: " + entryFile);
-            }
-            urlToPackageList.put(e.getValue().toString(), entryFile);
-        }
-        // //         Dokka sets this format: url^packageListUrl^^url2...
-        String linksConfiguration =
-                urlToPackageList.entrySet().stream()
-                                .map(entry -> entry.getKey() + "^" + entry.getValue().toString())
-                                .collect(Collectors.joining("^^"))
-                        + "^^";
-
+    private File computeArguments() throws IOException {
         String sourcesDir = getExtractedSources().get().getAsFile().getAbsolutePath();
         String outputDirectory = getDestinationDirectory().get().getAsFile().getAbsolutePath();
+        Gson gson = GsonUtils.createGson();
 
-        return ImmutableList.of(
+        Map<String, Object> jsonMap = Map.of(
+            "moduleName", "",
+            "outputDir", outputDirectory,
+            "globalLinks", "",
+            "sourceSets", sourceSets(sourcesDir, getDependenciesClasspath()),
+            "offlineMode", "true",
+            "pluginsConfiguration",
+            List.of(
+                Map.of(
+                    "fqPluginName", "com.google.devsite.DevsitePlugin",
+                    "serializationFormat", "JSON",
+                    "values",
+                        gson.toJson(
+                            Map.of(
+                                "docRootPath", "reference/" + getDevsiteTenant().get(),
+                                "javaDocsPath", "null",
+                                "kotlinDocsPath", "",
+                                "projectPath", "",
+                                    "annotationsNotToDisplay", hiddenAnnotations,
+                                    "annotationsNotToDisplayJava", hiddenAnnotationsJava,
+                                    "annotationsNotToDisplayKotlin", hiddenAnnotationsKotlin
+                            )
+                        )
+                )
+            )
+        );
 
-                // moduleName arg needs to be present but is not used the generated docs
-                // b/184166302 tracks an update to the CLI to mark this as optional
-                "-moduleName",
-                "",
+        String json = gson.toJson(jsonMap);
+        File outputFile = File.createTempFile("dackkaArgs", ".json");
+        outputFile.deleteOnExit();
+        FileWriter writer = new FileWriter(outputFile);
+        writer.write(json);
+        writer.flush();
+        writer.close();
+        return outputFile;
+    }
+    
+    private List<DackkaInputModel.SourceSet> sourceSets(String sourcesDir, FileCollection dependenciesClasspath) {
+        List<DackkaInputModel.SourceSetId> dependentSourceSets = List.of();
+        List<DackkaInputModel.GlobalDocsLink> externalDocumentationLinks = Lists.newArrayList();
 
-                // location of the generated docs
-                "-outputDir",
-                outputDirectory,
+        for (Map.Entry<String, String> entry : externalLinks.entrySet()) {
+            String name = entry.getKey();
+            String url = entry.getValue();
 
-                // links to external types
-                "-globalLinks",
-                linksConfiguration,
+            externalDocumentationLinks.add(new DackkaInputModel.GlobalDocsLink(
+                url,
+                "file://" + getPackageListsDirectory().get().getAsFile().toPath() + "/" + name + ""
+            ));
+        }
 
-                // Set logging level to only show warnings and errors
-                "-loggingLevel",
-                "WARN",
+        List<DackkaInputModel.SrcLink> sourceLinks = List.of();
+        List<String> documentedVisibilities = List.of("PUBLIC", "PROTECTED");
 
-                // Configuration of sources. The generated string looks like this:
-                // "-sourceSet -src /path/to/src -samples /path/to/samples ..."
-                "-sourceSet",
-                "-src " + sourcesDir + " -classpath " + dependenciesClasspath + " ",
-                "-offlineMode");
+        return List.of(
+            new DackkaInputModel.SourceSet(
+                "main",
+                new DackkaInputModel.SourceSetId("main", "android-gradle-plugin"),
+                dependenciesClasspath,
+                getProject().getObjects().fileCollection().from(sourcesDir),
+                getProject().getObjects().fileCollection(), // samples
+                getProject().getObjects().fileCollection(), // includes
+                "jvm",
+                documentedVisibilities,
+                false,
+                false,
+                false,
+                dependentSourceSets,
+                externalDocumentationLinks,
+                sourceLinks
+            )
+        );
     }
 
     @TaskAction
     public void generate() throws IOException {
-        List<String> arguments = computeArguments();
+        String argumentsFile = computeArguments().getPath();
+
         getWorkerExecutor()
                 .noIsolation()
                 .submit(
                         DackkaWorkAction.class,
                         parameters -> {
                             parameters.getDevsiteTenant().set(getDevsiteTenant());
-                            parameters.getArgs().set(arguments);
+                            parameters.getArgs().set(List.of(argumentsFile, "-loggingLevel", "WARN"));
                             parameters.getSources().from(getSources());
                             parameters.getExtractedSources().set(getExtractedSources());
                             parameters.getDestinationDirectory().set(getDestinationDirectory());
@@ -224,11 +282,6 @@ public abstract class DackkaTask extends DefaultTask {
                                 spec.getMainClass().set("org.jetbrains.dokka.MainKt");
                                 spec.setArgs(getParameters().getArgs().get());
                                 spec.setClasspath(getParameters().getDackkaClasspath());
-                                // b/183989795 tracks moving these away from an environment
-                                // variables
-                                spec.environment(
-                                        "DEVSITE_TENANT_VERSIONED", getParameters().getDevsiteTenant().get()
-                                );
                             });
         }
 
