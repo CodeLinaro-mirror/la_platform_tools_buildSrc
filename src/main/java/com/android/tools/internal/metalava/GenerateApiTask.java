@@ -64,14 +64,12 @@ public abstract class GenerateApiTask extends DefaultTask {
     @TaskAction
     public void generateApi() {
         List<String> args = Lists.newArrayList(
-                "--no-banner",
                 "--error",
                 "UnresolvedImport",
                 "--delete-empty-removed-signatures",
                 "--source-path",
                 asArg(getSourcePaths()),
                 "--format=v4",
-                "--output-kotlin-nulls=yes",
                 "--warnings-as-errors",
                 "--jdk-home",
                 asArg(getJdkHome()),
@@ -106,8 +104,7 @@ public abstract class GenerateApiTask extends DefaultTask {
         if (apiFiles.isEmpty()) return Collections.emptyList();
 
         List<AgpVersion> versions = Lists.newArrayList(new TreeSet<>(apiFiles.keySet()));
-        // TODO enable after upgrading to 1.0.0-alpha09 (b/295130446)
-        // versions.add(parseVersion(currentVersion.get()));
+        versions.add(AgpVersion.parseOrNull(currentVersion.get()));
         String apiVersionNames = versions.stream().map(AgpVersion::toString).collect(Collectors.joining(" "));
         List<String> args =
             Lists.newArrayList(

@@ -36,7 +36,7 @@ import java.io.File;
 
 public class MetalavaPlugin implements Plugin<Project> {
 
-    private static final String METALAVA_MAVEN = "com.android.tools.metalava:metalava:1.0.0-alpha08";
+    private static final String METALAVA_MAVEN = "com.android.tools.metalava:metalava:1.0.0-alpha09";
 
     @Override
     public void apply(Project project) {
@@ -50,7 +50,7 @@ public class MetalavaPlugin implements Plugin<Project> {
         project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
             TaskContainer tasks = project.getTasks();
-            String buildVersion = project.getRootProject().getExtensions().getExtraProperties().get("buildVersion").toString();
+            String buildVersion = project.getRootProject().getExtensions().getExtraProperties().get("releaseBuildVersion").toString();
 
             TaskProvider<GenerateApiTask> generateApi = tasks.register("generateApi", GenerateApiTask.class, task -> {
                 SourceSet main = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME);
@@ -101,7 +101,6 @@ public class MetalavaPlugin implements Plugin<Project> {
             tasks.withType(JavaExec.class).configureEach(task -> {
                 task.getJvmArgumentProviders().add(metalavaCurrentTxtInput);
             });
-
         });
     }
 }

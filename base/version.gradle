@@ -27,6 +27,7 @@ String dev(String release) {
 
 project.ext['baseVersion'] = release ? releaseBaseVersion : dev(releaseBaseVersion)
 project.ext['buildVersion'] = release ? releaseBuildVersion : dev(releaseBuildVersion)
+project.ext['releaseBuildVersion'] = releaseBuildVersion
 // This will be replaced with a dependency catalog soon.
 
 // Deep copy the dependency map to give more helpful error messages,
