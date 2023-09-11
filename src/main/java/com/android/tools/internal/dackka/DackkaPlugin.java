@@ -19,9 +19,9 @@ package com.android.tools.internal.dackka;
 import groovy.util.Eval;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
+import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.DocsType;
 import org.gradle.api.attributes.Usage;
@@ -80,6 +80,17 @@ public class DackkaPlugin implements Plugin<Project> {
             });
         });
 
+        Configuration metalavaMetadata = configurations.create("versionsMetadata", it -> {
+            it.setCanBeConsumed(false);
+            it.setCanBeResolved(true);
+            it.extendsFrom(api);
+
+            it.attributes(attributes -> {
+                attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+                attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "metalava-api-levels"));
+            });
+        });
+
         TaskProvider<DackkaTask> dackkaTask = project.getTasks().register("dackkaDocs", DackkaTask.class, task -> {
             task.getDevsiteTenant().set(devsitePrefix);
             task.getDestinationDirectory().set(project.getLayout().getBuildDirectory().dir("dackka"));
@@ -88,6 +99,7 @@ public class DackkaPlugin implements Plugin<Project> {
             task.getSources().from(sources);
             task.getExtractedSources().set(project.getLayout().getBuildDirectory().dir("intermediates/extracted_sources"));
             task.getPackageListsDirectory().set(project.getRootProject().file("../prebuilts/tools/common/dackka/package-lists"));
+            task.getVersionMetadataFiles().from(metalavaMetadata);
         });
 
 

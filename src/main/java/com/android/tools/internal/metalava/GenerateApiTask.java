@@ -28,6 +28,8 @@ import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.android.tools.internal.metalava.MetalavaPlugin.API_LEVELS_FILE;
+
 /**
  * Task to generate the current API from the source files
  * <p>
@@ -109,7 +111,7 @@ public abstract class GenerateApiTask extends DefaultTask {
         List<String> args =
             Lists.newArrayList(
                 "--generate-api-version-history",
-                asArg(getOutputDirectory()) + "/apiLevels.json",
+                asArg(getOutputDirectory()) + "/" + API_LEVELS_FILE,
                 "--api-version-names",
                 apiVersionNames
             );

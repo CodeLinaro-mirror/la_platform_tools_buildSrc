@@ -84,6 +84,10 @@ public abstract class DackkaTask extends DefaultTask {
     @PathSensitive(PathSensitivity.RELATIVE)
     public abstract DirectoryProperty getPackageListsDirectory();
 
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract ConfigurableFileCollection getVersionMetadataFiles();
+
     @OutputDirectory
     public abstract DirectoryProperty getDestinationDirectory();
 
@@ -150,9 +154,10 @@ public abstract class DackkaTask extends DefaultTask {
                                 "javaDocsPath", "null",
                                 "kotlinDocsPath", "",
                                 "projectPath", "",
-                                    "annotationsNotToDisplay", hiddenAnnotations,
-                                    "annotationsNotToDisplayJava", hiddenAnnotationsJava,
-                                    "annotationsNotToDisplayKotlin", hiddenAnnotationsKotlin
+                                "annotationsNotToDisplay", hiddenAnnotations,
+                                "annotationsNotToDisplayJava", hiddenAnnotationsJava,
+                                "annotationsNotToDisplayKotlin", hiddenAnnotationsKotlin,
+                                "versionMetadataFilenames", getVersionMetadataFiles().getFiles().stream().toList()
                             )
                         )
                 )

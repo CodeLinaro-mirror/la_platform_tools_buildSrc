@@ -19,7 +19,10 @@ package com.android.tools.internal.metalava;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
+import org.gradle.api.attributes.Category;
+import org.gradle.api.attributes.Usage;
 import org.gradle.api.file.Directory;
+import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.JavaExec;
@@ -37,6 +40,7 @@ import java.io.File;
 public class MetalavaPlugin implements Plugin<Project> {
 
     private static final String METALAVA_MAVEN = "com.android.tools.metalava:metalava:1.0.0-alpha09";
+    protected static final String API_LEVELS_FILE = "apiLevels.json";
 
     @Override
     public void apply(Project project) {
@@ -71,6 +75,22 @@ public class MetalavaPlugin implements Plugin<Project> {
             });
 
             Provider<Directory> generateApiOutput = generateApi.flatMap(GenerateApiTask::getOutputDirectory);
+
+            // new outgoing variant for the metalava generated API metadata json files
+            Configuration versionsMetadataConfiguration = project.getConfigurations().create("versionsMetadata", configuration -> {
+                configuration.setCanBeConsumed(true);
+                configuration.setCanBeResolved(false);
+
+                configuration.attributes(attributes -> {
+                    attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
+                    attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "metalava-api-levels"));
+                });
+
+                // Add the version metadata json file as an artifact
+                Provider<RegularFile> apiLevelsFile =
+                    generateApi.map(task -> task.getOutputDirectory().file(API_LEVELS_FILE).get());
+                configuration.getOutgoing().artifact(apiLevelsFile);
+            });
 
             tasks.register("distMetalavaApiZip", Zip.class, task -> {
                 task.from(generateApiOutput, copySpec -> copySpec.rename(path -> "current/" + path));
