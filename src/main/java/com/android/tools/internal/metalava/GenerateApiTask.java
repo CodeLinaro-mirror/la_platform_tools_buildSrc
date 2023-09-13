@@ -78,7 +78,9 @@ public abstract class GenerateApiTask extends DefaultTask {
                 "--classpath",
                 asArg(getClasspath()),
                 "--api",
-                asArg(getOutputDirectory()) + "/current.txt" // TODO: --removed-api ?
+                asArg(getOutputDirectory()) + "/current.txt",
+                "--removed-api",
+                asArg(getOutputDirectory()) + "/removed_current.txt"
         );
 
         args.addAll(getGenerateApiLevelsArgs(getFilesForApiLevels(getOldApiFiles().getFiles()), getAgpVersion()));

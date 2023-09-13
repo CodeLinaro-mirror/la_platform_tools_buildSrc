@@ -151,7 +151,6 @@ public abstract class DackkaTask extends DefaultTask {
                         gson.toJson(
                             Map.of(
                                 "docRootPath", "reference/" + getDevsiteTenant().get(),
-                                "javaDocsPath", "null",
                                 "kotlinDocsPath", "",
                                 "projectPath", "",
                                 "annotationsNotToDisplay", hiddenAnnotations,
