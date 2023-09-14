@@ -28,6 +28,8 @@ import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static com.android.tools.internal.metalava.MetalavaPlugin.API_LEVELS_FILE;
+
 /**
  * Task to generate the current API from the source files
  * <p>
@@ -64,21 +66,21 @@ public abstract class GenerateApiTask extends DefaultTask {
     @TaskAction
     public void generateApi() {
         List<String> args = Lists.newArrayList(
-                "--no-banner",
                 "--error",
                 "UnresolvedImport",
                 "--delete-empty-removed-signatures",
                 "--source-path",
                 asArg(getSourcePaths()),
                 "--format=v4",
-                "--output-kotlin-nulls=yes",
                 "--warnings-as-errors",
                 "--jdk-home",
                 asArg(getJdkHome()),
                 "--classpath",
                 asArg(getClasspath()),
                 "--api",
-                asArg(getOutputDirectory()) + "/current.txt" // TODO: --removed-api ?
+                asArg(getOutputDirectory()) + "/current.txt",
+                "--removed-api",
+                asArg(getOutputDirectory()) + "/removed_current.txt"
         );
 
         args.addAll(getGenerateApiLevelsArgs(getFilesForApiLevels(getOldApiFiles().getFiles()), getAgpVersion()));
@@ -106,13 +108,12 @@ public abstract class GenerateApiTask extends DefaultTask {
         if (apiFiles.isEmpty()) return Collections.emptyList();
 
         List<AgpVersion> versions = Lists.newArrayList(new TreeSet<>(apiFiles.keySet()));
-        // TODO enable after upgrading to 1.0.0-alpha09 (b/295130446)
-        // versions.add(parseVersion(currentVersion.get()));
+        versions.add(AgpVersion.parseOrNull(currentVersion.get()));
         String apiVersionNames = versions.stream().map(AgpVersion::toString).collect(Collectors.joining(" "));
         List<String> args =
             Lists.newArrayList(
                 "--generate-api-version-history",
-                asArg(getOutputDirectory()) + "/apiLevels.json",
+                asArg(getOutputDirectory()) + "/" + API_LEVELS_FILE,
                 "--api-version-names",
                 apiVersionNames
             );
