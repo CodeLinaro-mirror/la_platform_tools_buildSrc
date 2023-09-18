@@ -18,6 +18,7 @@ package com.android.tools.internal.metalava;
 
 import com.google.common.collect.ImmutableList;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.process.ExecOperations;
 import org.gradle.workers.WorkAction;
@@ -27,7 +28,8 @@ import javax.inject.Inject;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.nio.charset.StandardCharsets;
-import java.util.stream.Collectors;
+import java.util.ArrayList;
+import java.util.List;
 
 public abstract class MetalavaWorkAction implements WorkAction<MetalavaWorkAction.MetalavaParams> {
 
@@ -37,6 +39,7 @@ public abstract class MetalavaWorkAction implements WorkAction<MetalavaWorkActio
     interface MetalavaParams extends WorkParameters {
         ListProperty<String> getArgs();
         SetProperty<File> getMetalavaClasspath();
+        Property<Boolean> getK2UastEnabled();
     }
 
     @Inject
@@ -45,20 +48,23 @@ public abstract class MetalavaWorkAction implements WorkAction<MetalavaWorkActio
     @Override
     public void execute() {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+        List<String> args = new ArrayList<>(getParameters().getArgs().get());
+        if (getParameters().getK2UastEnabled().get()) {
+            args.add("--Xuse-k2-uast");
+        }
         try {
             getExecOperations().javaexec(spec -> {
-                        // Intellij core reflects into java.util.ResourceBundle
-                        spec.setJvmArgs(ImmutableList.of(
-                                "--add-opens",
-                                "java.base/java.util=ALL-UNNAMED"
-                        ));
-                        spec.classpath(getParameters().getMetalavaClasspath().get());
+                // Intellij core reflects into java.util.ResourceBundle
+                spec.setJvmArgs(ImmutableList.of(
+                        "--add-opens",
+                        "java.base/java.util=ALL-UNNAMED"
+                ));
+                spec.classpath(getParameters().getMetalavaClasspath().get());
                 spec.getMainClass().set(METALAVA_MAIN);
-                        spec.args(getParameters().getArgs().get());
-                        spec.setStandardOutput(outputStream);
-                        spec.setErrorOutput(outputStream);
-                    }
-            );
+                spec.args(args);
+                spec.setStandardOutput(outputStream);
+                spec.setErrorOutput(outputStream);
+            });
         } catch (Exception e) {
             System.err.println(outputStream.toString(StandardCharsets.UTF_8));
             throw new RuntimeException("Failed to run metalava.", e);
