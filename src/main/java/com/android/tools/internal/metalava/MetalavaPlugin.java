@@ -114,8 +114,8 @@ public class MetalavaPlugin implements Plugin<Project> {
             tasks.register("updateMetalavaApi", Sync.class, task -> {
                 task.from(generateApiOutput);
                 task.setDestinationDir(project.file("api"));
-                // preserve all files in destination directory
-                task.preserve(patternFilterable -> patternFilterable.include("**/*"));
+                // exclude checking in apiLevels.json
+                task.exclude("**/" + API_LEVELS_FILE);
             });
 
             tasks.withType(JavaExec.class).configureEach(task -> {
