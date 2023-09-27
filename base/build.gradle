@@ -42,10 +42,7 @@ ext.androidHostDist = new File(ext.androidHostOut, "dist")
 
 
 // rootProject.buildDir is specific to this gradle build.
-// TODO(301913541): This is a workaround for KT-61852, change back to the following when the issue
-// has been fixed:
-// buildDir = new File(ext.androidHostOut, "build/root")
-buildDir = new File(System.getenv('BUILD_DIR') ?: rootDir, "build/root")
+buildDir = new File(ext.androidHostOut, "build/root")
 
 
 ext.localRepo = project.hasProperty('localRepo') ? localRepo : "$ext.androidHostOut/repo"
