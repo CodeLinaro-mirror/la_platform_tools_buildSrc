@@ -41,12 +41,14 @@ test {
 }
 
 afterEvaluate {
-    compileJava.options.annotationProcessorGeneratedSourcesDirectory project.
+    compileJava.options.getGeneratedSourceOutputDirectory().set(
+        project.
             layout.
             buildDirectory.
             dir("generated/src/main/annotationProcessor").
             get().
             asFile
+    )
 }
 
 sourceSets {
