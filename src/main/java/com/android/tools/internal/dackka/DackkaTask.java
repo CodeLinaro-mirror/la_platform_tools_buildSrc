@@ -156,6 +156,7 @@ public abstract class DackkaTask extends DefaultTask {
                                 "annotationsNotToDisplay", hiddenAnnotations,
                                 "annotationsNotToDisplayJava", hiddenAnnotationsJava,
                                 "annotationsNotToDisplayKotlin", hiddenAnnotationsKotlin,
+                                "baseSourceLink", "https://cs.android.com/search?" + "q=file:%s+class:%s",
                                 "versionMetadataFilenames", getVersionMetadataFiles().getFiles().stream().toList()
                             )
                         )
