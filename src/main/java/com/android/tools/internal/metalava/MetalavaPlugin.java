@@ -53,11 +53,22 @@ public class MetalavaPlugin implements Plugin<Project> {
 
         project.getPlugins().withType(JavaBasePlugin.class, javaBasePlugin -> {
             SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
+            SourceSet main = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME);
             TaskContainer tasks = project.getTasks();
             String buildVersion = project.getRootProject().getExtensions().getExtraProperties().get("releaseBuildVersion").toString();
 
+            TaskProvider<GenerateOldApisTask> generateOldApiTask = tasks.register("generateOldApis", GenerateOldApisTask.class, task -> {
+                task.getJdkHome().set(Jvm.current().getJavaHome());
+                task.getJdkHome().disallowChanges();
+                task.getClasspath().from(main.getCompileClasspath());
+                task.getClasspath().disallowChanges();
+                task.getMetalavaClasspath().from(metalavaClasspath);
+                task.getMetalavaClasspath().disallowChanges();
+                task.getOutputDirectory().set(project.getLayout().getProjectDirectory().dir("previous-gradle-apis"));
+                task.getOutputDirectory().disallowChanges();
+            });
+
             TaskProvider<GenerateApiTask> generateApi = tasks.register("generateApi", GenerateApiTask.class, task -> {
-                SourceSet main = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME);
                 task.getSourcePaths().from(main.getAllJava().getSourceDirectories());
                 task.getSourcePaths().disallowChanges();
                 task.getJdkHome().set(Jvm.current().getJavaHome());

@@ -85,4 +85,8 @@ public class AgpVersion implements Comparable<AgpVersion> {
         }
         return null;
     }
+
+    public boolean isStable() {
+        return preview == null;
+    }
 }

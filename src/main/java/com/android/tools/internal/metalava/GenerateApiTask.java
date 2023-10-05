@@ -17,6 +17,7 @@
 package com.android.tools.internal.metalava;
 
 import com.android.tools.internal.AgpVersion;
+import com.android.tools.internal.TaskUtils;
 import com.google.common.collect.Lists;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.file.*;
@@ -70,17 +71,17 @@ public abstract class GenerateApiTask extends DefaultTask {
                 "UnresolvedImport",
                 "--delete-empty-removed-signatures",
                 "--source-path",
-                asArg(getSourcePaths()),
+                TaskUtils.asArg(getSourcePaths()),
                 "--format=v4",
                 "--warnings-as-errors",
                 "--jdk-home",
-                asArg(getJdkHome()),
+                TaskUtils.asArg(getJdkHome()),
                 "--classpath",
-                asArg(getClasspath()),
+                TaskUtils.asArg(getClasspath()),
                 "--api",
-                asArg(getOutputDirectory()) + "/current.txt",
+                TaskUtils.asArg(getOutputDirectory()) + "/current.txt",
                 "--removed-api",
-                asArg(getOutputDirectory()) + "/removed_current.txt"
+                TaskUtils.asArg(getOutputDirectory()) + "/removed_current.txt"
         );
 
         args.addAll(getGenerateApiLevelsArgs(getFilesForApiLevels(getOldApiFiles().getFiles()), getAgpVersion()));
@@ -95,15 +96,7 @@ public abstract class GenerateApiTask extends DefaultTask {
         );
     }
 
-    private static String asArg(FileCollection files) {
-        return files.getFiles().stream()
-            .filter(File::exists).map(File::getPath)
-            .collect(Collectors.joining(File.pathSeparator));
-    }
 
-    private static String asArg(FileSystemLocationProperty<?> file) {
-        return file.get().getAsFile().getPath();
-    }
 
     private List<String> getGenerateApiLevelsArgs(SortedMap<AgpVersion, File> apiFiles, Property<String> currentVersion) {
         if (apiFiles.isEmpty()) return Collections.emptyList();
@@ -114,7 +107,7 @@ public abstract class GenerateApiTask extends DefaultTask {
         List<String> args =
             Lists.newArrayList(
                 "--generate-api-version-history",
-                asArg(getOutputDirectory()) + "/" + API_LEVELS_FILE,
+                TaskUtils.asArg(getOutputDirectory()) + "/" + API_LEVELS_FILE,
                 "--api-version-names",
                 apiVersionNames
             );
