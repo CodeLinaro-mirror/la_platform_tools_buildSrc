@@ -76,7 +76,7 @@ include ':base:utp:android-test-plugin-host-logcat'
 include ':base:utp:android-test-plugin-host-emulator-control'
 include ':base:utp:android-test-plugin-host-retention'
 include ':base:utp:android-test-plugin-result-listener-gradle'
-include ':base:utp:common'
+include ':base:utp:utp-common'
 include ':base:perf-logger'
 
 include ':base:firebase:testlab:testlab-gradle-plugin'
