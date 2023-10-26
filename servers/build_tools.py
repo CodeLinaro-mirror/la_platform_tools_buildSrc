@@ -88,6 +88,11 @@ def main(argv):
         help="Build the emulator with the gfxstream libraries",
     )
     parser.add_argument(
+        "--enable_system_rust",
+        action="store_true",
+        help="Build the emulator with the System Rust on the host machine",
+    )
+    parser.add_argument(
         "--gfxstream_only", action="store_true", help="Build gfxstream libraries only"
     )
     parser.add_argument("--crosvm", action="store_true", help="Build crosvm")
@@ -143,6 +148,8 @@ def main(argv):
         cmd.append(gfxstream_arg)
     if args.crosvm:
         cmd.append(crosvm_arg)
+    if args.enable_system_rust:
+        cmd = cmd + ["--feature", "enable_system_rust"]
     if args.with_debug:
         cmd = cmd + ["--config", "debug"]
 
