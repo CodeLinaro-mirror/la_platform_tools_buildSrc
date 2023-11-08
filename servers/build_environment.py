@@ -18,7 +18,7 @@ import platform
 import time
 
 try:
-    import _winreg as winreg
+    import winreg
 except ModuleNotFoundError:
     # Winreg is a windows only thing..
     pass
