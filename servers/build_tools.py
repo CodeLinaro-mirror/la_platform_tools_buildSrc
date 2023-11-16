@@ -88,6 +88,13 @@ def main(argv):
         help="Build the emulator with the gfxstream libraries",
     )
     parser.add_argument(
+        "--prebuilts",
+        dest="prebuilts",
+        action="store",
+        nargs="*",
+        help="Builds the specified prebuilts (i.e. --prebuilts qt ffmpeg), or all prebuilts if no argument is provided",
+    )
+    parser.add_argument(
         "--enable_system_rust",
         action="store_true",
         help="Build the emulator with the System Rust on the host machine",
@@ -152,6 +159,8 @@ def main(argv):
         cmd = cmd + ["--feature", "enable_system_rust"]
     if args.with_debug:
         cmd = cmd + ["--config", "debug"]
+    if args.prebuilts is not None:
+        cmd = cmd + ["--prebuilts"] + args.prebuilts
 
     # Make sure the dist directory exists.
     os.makedirs(args.dist_dir, exist_ok=True)
