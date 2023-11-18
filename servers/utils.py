@@ -37,7 +37,7 @@ class CommandFailedException(Exception):
     """Exception raised when the command fails."""
 
 
-def run(cmd, env, cwd=AOSP_ROOT, throw_on_failure=True):
+def run(cmd, env, cwd=AOSP_ROOT, throw_on_failure=True, timeout=600):
     """
     Run a command with the provided environment settings.
 
@@ -70,6 +70,19 @@ def run(cmd, env, cwd=AOSP_ROOT, throw_on_failure=True):
     log_handler = LogHandler()
     log_handler.start_log_proc(proc)
 
-    proc.wait()
-    if proc.returncode != 0 and throw_on_failure:
-        raise CommandFailedException(f"{' '.join(cmd)} Status: {proc.returncode} != 0")
+    try:
+        proc.wait(timeout=timeout)
+        if proc.returncode != 0 and throw_on_failure:
+            raise CommandFailedException(
+                f"Failed to run {' '.join(cmd)}, exit code: {proc.returncode}"
+            )
+        else:
+            return proc.returncode
+    except subprocess.TimeoutExpired as timeout_exception:
+        logging.error(
+            "The command %s timed out after %s seconds, terminating",
+            " ".join(cmd),
+            timeout_exception.timeout,
+        )
+        proc.terminate()
+        raise timeout_exception

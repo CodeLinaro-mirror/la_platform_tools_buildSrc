@@ -14,10 +14,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import logging
 import platform
-from log_handler import config_logging
+import datetime
+import time
+from pathlib import Path
+
 from build_environment import BuildEnvironment
-from utils import BAZEL, AOSP_ROOT, run
+from log_handler import config_logging
+from utils import AOSP_ROOT, BAZEL, run
 
 
 def main():
@@ -53,11 +58,26 @@ def main():
 
     # Test targets you wish to run,
     list_of_targets = ["@zlib//:all"]
+    zip_name = f"sdk-repo-{args.target}-qemu-{args.build_id}.zip"
 
+    dist = Path(args.dist)
+    dist.mkdir(exist_ok=True, parents=True)
+
+    bld_dir = Path("out")
+    bld_dir.mkdir(exist_ok=True, parents=True)
     with BuildEnvironment(args) as cfg:
-        command = [BAZEL, "test"] + list_of_targets
+        command = [
+            AOSP_ROOT / "external" / "qemu" / "google" / "toolchain" / "build-qemu",
+            bld_dir,
+            dist / zip_name,
+        ]
         run(command, cfg.get_env(), AOSP_ROOT)
 
 
 if __name__ == "__main__":
-    main()
+    start_time = time.monotonic()
+    try:
+        main()
+    finally:
+        end_time = time.monotonic()
+        logging.info("Completed in: %s", datetime.timedelta(seconds=end_time - start_time))

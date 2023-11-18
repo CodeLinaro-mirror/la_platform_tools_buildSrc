@@ -63,6 +63,7 @@ class BuildEnvironment:
         self.target = platform.system().lower()
         self.start_time = time.time()
         self.cmd_env = os.environ.copy()
+        self.cmd_env["PYTHONUNBUFFERED"] = "1"
 
     def get_env(self):
         """Gets the OS environment that should be used when running a program."""
