@@ -19,6 +19,7 @@ package com.android.tools.internal.metalava;
 import com.android.tools.internal.AgpVersion;
 import com.android.tools.internal.TaskUtils;
 import com.google.common.collect.Lists;
+import org.apache.commons.io.FileUtils;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
@@ -33,6 +34,7 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.workers.WorkerExecutor;
 import javax.inject.Inject;
 import java.io.File;
+import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -60,7 +62,8 @@ public abstract class GenerateOldApisTask extends DefaultTask {
     public abstract WorkerExecutor getWorkerExecutor();
 
     @TaskAction
-    public void generateApi() {
+    public void generateApi() throws IOException {
+        FileUtils.cleanDirectory(getOutputDirectory().get().getAsFile());
         String groupId = getProject().getGroup().toString();
         String artifactId = getProject().getName();
         File prebuiltsDir = getProject().getRootProject().file("../prebuilts/tools/common/m2/repository");
