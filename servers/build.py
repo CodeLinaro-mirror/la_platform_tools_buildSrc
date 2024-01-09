@@ -55,19 +55,23 @@ def main():
     )
 
     args = parser.parse_args()
+    toolchain = AOSP_ROOT / "external" / "qemu" / "google" / "toolchain"
 
-    # Test targets you wish to run,
-    list_of_targets = ["@zlib//:all"]
+    if "trusty" in args.target:
+        build = toolchain / "build-qemu-trusty"
+    else:
+        build = toolchain / "build-qemu"
+
     zip_name = f"sdk-repo-{args.target}-qemu-{args.build_id}.zip"
 
     dist = Path(args.dist)
     dist.mkdir(exist_ok=True, parents=True)
-
     bld_dir = Path("out")
     bld_dir.mkdir(exist_ok=True, parents=True)
+
     with BuildEnvironment(args) as cfg:
         command = [
-            AOSP_ROOT / "external" / "qemu" / "google" / "toolchain" / "build-qemu",
+            build,
             bld_dir,
             dist / zip_name,
         ]
@@ -80,4 +84,6 @@ if __name__ == "__main__":
         main()
     finally:
         end_time = time.monotonic()
-        logging.info("Completed in: %s", datetime.timedelta(seconds=end_time - start_time))
+        logging.info(
+            "Completed in: %s", datetime.timedelta(seconds=end_time - start_time)
+        )
