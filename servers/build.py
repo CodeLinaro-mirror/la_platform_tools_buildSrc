@@ -17,6 +17,7 @@ import argparse
 import logging
 import platform
 import datetime
+import sys
 import time
 from pathlib import Path
 
@@ -82,6 +83,9 @@ if __name__ == "__main__":
     start_time = time.monotonic()
     try:
         main()
+    except Exception as e:
+        logging.fatal("Build failed due to %s", e)
+        sys.exit(1)
     finally:
         end_time = time.monotonic()
         logging.info(
