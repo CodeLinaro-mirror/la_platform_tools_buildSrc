@@ -26,11 +26,11 @@ from build_environment import BuildEnvironment
 from log_handler import config_logging
 from utils import AOSP_ROOT, BAZEL, run
 
-def copy_zip_files(src_dir: Path, dst_dir: Path):
+def copy_zip_files(src_dir: Path, dst_dir: Path, match: str):
     """Copies all ZIP files from the source directory and its subdirectories to the destination directory."""
 
     # Find all ZIP files in the source directory and its subdirectories
-    zip_files = src_dir.rglob("*.zip")
+    zip_files = src_dir.rglob(match)
 
     for zip_file in zip_files:
         shutil.copy2(zip_file, dst_dir)  # Use shutil for the actual copy
@@ -78,7 +78,7 @@ def build_aemu(args):
 
         # Finally binplace the generated zip.
         res = AOSP_ROOT / "bazel-bin" / "hardware" / "generic" / "goldfish" / "emulator"
-        copy_zip_files(res, Path(args.dist))
+        copy_zip_files(res, Path(args.dist), f"*{args.build_id}*.zip")
 
 
 def main():
