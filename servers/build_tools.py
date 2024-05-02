@@ -119,6 +119,10 @@ def main(argv):
     if args.target:
         target = args.target.lower()
 
+    # to avoid running into path length 260 on windows
+    # use C:\buildbot\src\out instead of C:\buildbot\src\googleplex-android\emu-main-dev\out
+    args.out_dir = os.path.normpath(os.path.join(AOSP_ROOT, "..", "..", args.out_dir))
+
     if not os.path.isabs(args.out_dir):
         args.out_dir = os.path.join(AOSP_ROOT, args.out_dir)
 
