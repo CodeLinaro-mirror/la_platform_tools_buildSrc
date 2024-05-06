@@ -186,7 +186,7 @@ def main(argv):
 
         # Let's run the e2e tests.
         if (presubmit  # We disable the IntegrationTests due to stability issues.
-            and target == "linux"
+            and (target == "linux" or target == "darwin_aarch64")
             and not args.gfxstream_only
         ):
             run(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), "tst")
