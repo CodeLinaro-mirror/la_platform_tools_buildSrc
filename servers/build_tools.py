@@ -119,6 +119,10 @@ def main(argv):
     if args.target:
         target = args.target.lower()
 
+    # to avoid running into path length 260 on windows
+    # use C:\buildbot\src\out instead of C:\buildbot\src\googleplex-android\emu-main-dev\out
+    args.out_dir = os.path.normpath(os.path.join(AOSP_ROOT, "..", "..", args.out_dir))
+
     if not os.path.isabs(args.out_dir):
         args.out_dir = os.path.join(AOSP_ROOT, args.out_dir)
 
@@ -182,7 +186,7 @@ def main(argv):
 
         # Let's run the e2e tests.
         if (presubmit  # We disable the IntegrationTests due to stability issues.
-            and target == "linux"
+            and (target == "linux" or target == "darwin_aarch64")
             and not args.gfxstream_only
         ):
             run(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), "tst")
