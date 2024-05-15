@@ -37,7 +37,7 @@ class CommandFailedException(Exception):
     """Exception raised when the command fails."""
 
 
-def run(cmd, env, cwd=AOSP_ROOT, throw_on_failure=True, timeout=600):
+def run(cmd, env, cwd=AOSP_ROOT, throw_on_failure=True, timeout=3600):
     """
     Run a command with the provided environment settings.
 

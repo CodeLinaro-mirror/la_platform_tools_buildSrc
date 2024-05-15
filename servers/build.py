@@ -54,7 +54,7 @@ def build_trusty(args):
             bld_dir,
             dist / zip_name,
         ]
-        run(command, cfg.get_env(), AOSP_ROOT)
+        run(command, cfg.get_env(), AOSP_ROOT, timeout=1200)
 
 
 def build_aemu(args):
@@ -74,7 +74,7 @@ def build_aemu(args):
             "--verbose_explanations",
             f"--//hardware/generic/goldfish/emulator:build_id={args.build_id}"
         ] + targets
-        run(command, cfg.get_env(), AOSP_ROOT)
+        run(command, cfg.get_env(), AOSP_ROOT, timeout=3600)
 
         # Finally binplace the generated zip.
         res = AOSP_ROOT / "bazel-bin" / "hardware" / "generic" / "goldfish" / "emulator"
