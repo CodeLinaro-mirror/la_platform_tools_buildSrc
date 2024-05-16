@@ -103,6 +103,15 @@ public class MetalavaPlugin implements Plugin<Project> {
                 configuration.getOutgoing().artifact(apiLevelsFile);
             });
 
+            tasks.register("generateApiReleaseNotes", GenerateApiReleaseNotes.class, task -> {
+                task.getInputDirectory().set(generateApiOutput);
+                task.getInputDirectory().disallowChanges();
+                task.getOldApiFiles().from(project.getLayout().getProjectDirectory().dir("previous-gradle-apis").getAsFileTree());
+                task.getOldApiFiles().disallowChanges();
+                task.getOutputDirectory().set(project.getLayout().getBuildDirectory().dir("metalava/reports"));
+                task.getOutputDirectory().disallowChanges();
+            });
+
             tasks.register("distMetalavaApiZip", Zip.class, task -> {
                 task.from(generateApiOutput, copySpec -> copySpec.rename(path -> "current/" + path));
                 File dist = new File(project.getRootProject().getExtensions().getExtraProperties().get("androidHostDist").toString());

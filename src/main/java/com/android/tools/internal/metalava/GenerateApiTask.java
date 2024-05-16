@@ -96,8 +96,6 @@ public abstract class GenerateApiTask extends DefaultTask {
         );
     }
 
-
-
     private List<String> getGenerateApiLevelsArgs(SortedMap<AgpVersion, File> apiFiles, Property<String> currentVersion) {
         if (apiFiles.isEmpty()) return Collections.emptyList();
 
