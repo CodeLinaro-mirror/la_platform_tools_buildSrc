@@ -26,6 +26,7 @@ from build_environment import BuildEnvironment
 from log_handler import config_logging
 from utils import AOSP_ROOT, BAZEL, run
 
+
 def copy_zip_files(src_dir: Path, dst_dir: Path, match: str):
     """Copies all ZIP files from the source directory and its subdirectories to the destination directory."""
 
@@ -35,7 +36,6 @@ def copy_zip_files(src_dir: Path, dst_dir: Path, match: str):
     for zip_file in zip_files:
         shutil.copy2(zip_file, dst_dir)  # Use shutil for the actual copy
         logging.info("Copied '%s' to '%s'", zip_file, dst_dir)
-
 
 
 def build_trusty(args):
@@ -58,9 +58,7 @@ def build_trusty(args):
 
 
 def build_aemu(args):
-    targets = [
-        "//hardware/generic/goldfish/emulator:release"
-    ]
+    targets = ["//hardware/generic/goldfish/emulator:release"]
     system = f"{platform.system().lower()}-x86_64"
     bazel = AOSP_ROOT / "prebuilts" / "bazel" / system / "bazel"
     bazel_explain_file = Path(args.dist) / "logs" / "bazel_explain.log"
@@ -68,11 +66,20 @@ def build_aemu(args):
     with BuildEnvironment(args) as cfg:
         command = [
             bazel,
+            "test",
+            "--verbose_failures",
+            "//hardware/generic/goldfish/emulator:emulator_unit_tests",
+        ]
+        # Skip tests on windows, we still need to figure out some build issues.
+        if not platform.system() == "Windows":
+            run(command, cfg.get_env(), AOSP_ROOT, timeout=3600)
+        command = [
+            bazel,
             "build",
             "--verbose_failures",
             f"--explain={bazel_explain_file}",
             "--verbose_explanations",
-            f"--//hardware/generic/goldfish/emulator:build_id={args.build_id}"
+            f"--//hardware/generic/goldfish/emulator:build_id={args.build_id}",
         ] + targets
         run(command, cfg.get_env(), AOSP_ROOT, timeout=3600)
 
