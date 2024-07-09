@@ -188,6 +188,7 @@ def main(argv):
         if (presubmit  # We disable the IntegrationTests due to stability issues.
             and (target == "linux" or target == "darwin_aarch64")
             and not args.gfxstream_only
+            and not args.prebuilts
         ):
             run(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), "tst")
 
