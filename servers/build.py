@@ -67,7 +67,9 @@ def build_aemu(args):
             bazel,
             "test",
             "--config",
-            "release",
+            "debug",
+            "--test_output=errors",
+            "--test_summary=detailed",
             "--verbose_failures",
             "//hardware/generic/goldfish/emulator:emulator_unit_tests",
         ]
