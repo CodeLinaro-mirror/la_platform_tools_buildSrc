@@ -124,6 +124,7 @@ def run(cmd, env, log_prefix, cwd=AOSP_ROOT, throw_on_failure=True):
     currentThread().setName(log_prefix)
     cmd_env = os.environ.copy()
     cmd_env.update(env)
+    cmd = [str(x) for x in cmd]
     is_windows = platform.system() == "Windows"
 
     logging.info("=" * 140)

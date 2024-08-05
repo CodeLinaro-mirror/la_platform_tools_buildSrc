@@ -23,6 +23,7 @@ import platform
 import sys
 
 from server_config import ServerConfig
+from pyrunner import AospPyRunner
 
 from utils import (
     PYTHON_EXE,
@@ -127,8 +128,10 @@ def main(argv):
         args.out_dir = os.path.join(AOSP_ROOT, args.out_dir)
 
     # This how we are going to launch the python build script
+
+    repo = os.path.join(AOSP_ROOT, "external", "adt-infra", "devpi", "repo", "simple")
+    pyrun = AospPyRunner(repo)
     launcher = [
-        PYTHON_EXE,
         os.path.join(
             AOSP_ROOT, "external", "qemu", "android", "build", "python", "cmake.py"
         ),
@@ -182,22 +185,20 @@ def main(argv):
             # sccache does not (yet?) make life better on windows in gce.
             cmd = cmd + ["--ccache", cfg.sccache]
 
-        run(launcher + cmd, cfg.get_env(), "bld")
+        pyrun.run(launcher + cmd, cfg.get_env(), timeout=3600, log_prefix="bld")
 
         # Let's run the e2e tests.
-        if (presubmit  # We disable the IntegrationTests due to stability issues.
+        if (
+            presubmit  # We disable the IntegrationTests due to stability issues.
             and (target == "linux" or target == "darwin_aarch64")
             and not args.gfxstream_only
             and not args.prebuilts
         ):
-            run(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), "tst")
+            pyrun.run(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), timeout=3600, log_prefix="tst")
 
     logging.info("Build completed!")
 
 
 if __name__ == "__main__":
-    try:
-        main(sys.argv)
-        sys.exit(0)
-    except (Exception, KeyboardInterrupt) as exc:
-        sys.exit(exc)
+    main(sys.argv)
+    sys.exit(0)
