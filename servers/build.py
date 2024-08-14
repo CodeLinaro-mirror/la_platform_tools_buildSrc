@@ -22,9 +22,8 @@ import sys
 import time
 from pathlib import Path
 
-from build_environment import BuildEnvironment
+from build_environment import BuildEnvironment, AOSP_ROOT
 from log_handler import config_logging
-from utils import AOSP_ROOT, BAZEL, run
 
 
 def copy_zip_files(src_dir: Path, dst_dir: Path, match: str):
@@ -48,13 +47,13 @@ def build_trusty(args):
     bld_dir = Path("out")
     bld_dir.mkdir(exist_ok=True, parents=True)
 
-    with BuildEnvironment(args) as cfg:
+    with BuildEnvironment(args) as env:
         command = [
             build,
             bld_dir,
             dist / zip_name,
         ]
-        run(command, cfg.get_env(), AOSP_ROOT, timeout=1200)
+        env.run(command, timeout=1200)
 
 
 def build_aemu(args):
@@ -62,7 +61,7 @@ def build_aemu(args):
     system = f"{platform.system().lower()}-x86_64"
     bazel = AOSP_ROOT / "prebuilts" / "bazel" / system / "bazel"
     Path(args.dist, "logs").mkdir(parents=True, exist_ok=True)
-    with BuildEnvironment(args) as cfg:
+    with BuildEnvironment(args) as env:
         command = [
             bazel,
             "test",
@@ -74,8 +73,8 @@ def build_aemu(args):
             "//hardware/generic/goldfish/emulator:emulator_unit_tests",
         ]
         # Skip tests on windows, we still need to figure out some build issues.
-        if not platform.system() == "Windows":
-            run(command, cfg.get_env(), AOSP_ROOT, timeout=3600)
+        if not env.is_windows:
+            env.run(command, timeout=3600)
 
         # Build all the configurations of interest
         for config in ["debug", "release"]:
@@ -92,10 +91,17 @@ def build_aemu(args):
                 "--verbose_explanations",
                 f"--//hardware/generic/goldfish/emulator:build_id={args.build_id}",
             ] + targets
-            run(command, cfg.get_env(), AOSP_ROOT, timeout=3600)
+            env.run(command, timeout=3600)
 
             # Finally binplace the generated zip.
-            res = AOSP_ROOT / "bazel-bin" / "hardware" / "generic" / "goldfish" / "emulator"
+            res = (
+                AOSP_ROOT
+                / "bazel-bin"
+                / "hardware"
+                / "generic"
+                / "goldfish"
+                / "emulator"
+            )
             copy_zip_files(res, Path(args.dist), f"*{args.build_id}*.zip")
 
 

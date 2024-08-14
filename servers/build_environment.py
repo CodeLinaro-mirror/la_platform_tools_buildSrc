@@ -11,17 +11,27 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import argparse
 import json
 import logging
 import os
 import platform
+import subprocess
 import time
+import pathlib
+from typing import Dict, List, Union
+
+from log_handler import LogHandler
 
 try:
     import winreg
 except ModuleNotFoundError:
     # Winreg is a windows only thing..
     pass
+
+current_file = pathlib.Path(__file__).resolve()
+
+AOSP_ROOT = current_file.parents[3]
 
 
 def disable_debug_policy():
@@ -54,38 +64,116 @@ def disable_debug_policy():
             logging.error("Failed to remove key, error: %s.", err)
 
 
+class CommandFailedException(Exception):
+    """Exception raised when the command fails."""
+
+
 class BuildEnvironment:
     """Class that configures the environment and tracks the time it takes to run the build."""
 
+    args: argparse.Namespace
+    is_presubmit: bool
+    target: str
+    is_windows: bool
+    _start_time: float
+    _cmd_env: Dict[str, str]
+    _log_handler: LogHandler
+
     def __init__(self, args):
         self.args = args
-        self.presubmit = args.build_id.startswith("P")
+        self.is_presubmit = args.build_id.startswith("P")
         self.target = platform.system().lower()
-        self.start_time = time.time()
-        self.cmd_env = os.environ.copy()
-        self.cmd_env["PYTHONUNBUFFERED"] = "1"
+        self.is_windows = self.target == "windows"
+        self._start_time = time.time()
+        self._cmd_env = os.environ.copy()
+        self._cmd_env["PYTHONUNBUFFERED"] = "1"
+        self._log_handler = LogHandler()
 
     def get_env(self):
         """Gets the OS environment that should be used when running a program."""
-        return self.cmd_env
+        return self._cmd_env
 
     def __enter__(self):
         """Configure windows policy if needed."""
         # On windows we do not want debug ui to be activated.
-        if self.target == "windows":
+        if self.is_windows:
             disable_debug_policy()
 
         logging.info("=" * 140)
-        logging.info(json.dumps(self.cmd_env, sort_keys=True))
+        logging.info(json.dumps(self._cmd_env, sort_keys=True))
         logging.info("=" * 140)
 
-        self.start_time = time.time()
+        self._start_time = time.time()
         return self
 
     def __exit__(self, exc_type, exc_value, tb):
         end_time = time.time()
-        execution_time = end_time - self.start_time
+        execution_time = end_time - self._start_time
 
         # Format the execution time nicely
         formatted_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
         logging.info("Completed build in %s", formatted_time)
+
+    def run(
+        self,
+        cmd: List[str],
+        env: Dict[str, str] = None,
+        cwd: Union[pathlib.Path, str] = AOSP_ROOT,
+        throw_on_failure: bool = True,
+        timeout: Union[float, None] = 3600,
+    ):
+        """
+        Run a command with the build environment settings.
+
+        Args:
+            cmd: The command to be executed.
+            env: Extra environment variables.
+            cwd: The current working directory. Defaults to AOSP_ROOT.
+            throw_on_failure: Whether to raise an exception on command failure.
+            timeout: Timeout of the command.
+
+        Raises:
+            CommandFailedException: If the command fails and throw_on_failure is True.
+        """
+        if not env:
+            env = {}
+        env.update(self.get_env())
+
+        cmd = [str(x) for x in cmd]
+        logging.info("%s $> %s", cwd, " ".join(cmd))
+
+        proc = subprocess.Popen(
+            cmd,
+            encoding="utf-8",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            shell=self.is_windows,  # Make sure Windows propagates ENV vars properly.
+            cwd=cwd,
+            env=env,
+        )
+        self._log_handler.start_log_proc(proc)
+
+        try:
+            proc.wait(timeout=timeout)
+            if proc.returncode != 0 and throw_on_failure:
+                raise CommandFailedException(
+                    f"Failed to run {' '.join(cmd)}, exit code: {proc.returncode}"
+                )
+            return proc.returncode
+        except subprocess.TimeoutExpired as timeout1:
+            logging.error(
+                "The command %s timed out after %s seconds, terminating",
+                " ".join(cmd),
+                timeout1.timeout,
+            )
+            proc.terminate()
+            try:
+                proc.wait(timeout=30)
+            except subprocess.TimeoutExpired as timeout2:
+                logging.error(
+                    "Command %s did not terminate after %s seconds, killing",
+                    " ".join(cmd),
+                    timeout2.timeout,
+                )
+                proc.kill()
+            raise
