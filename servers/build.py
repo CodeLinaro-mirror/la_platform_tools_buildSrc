@@ -66,8 +66,8 @@ def build_aemu(args):
         command = [
             bazel,
             "test",
-            "--config",
-            "debug",
+            "--config=ci",
+            "--config=debug",
             "--test_output=errors",
             "--test_summary=detailed",
             "--verbose_failures",
@@ -78,15 +78,15 @@ def build_aemu(args):
             run(command, cfg.get_env(), AOSP_ROOT, timeout=3600)
 
         # Build all the configurations of interest
-        for config in ["release", "debug"]:
+        for config in ["debug", "release"]:
             bazel_explain_file = (
                 Path(args.dist) / "logs" / f"bazel_{config}_explain.log"
             )
             command = [
                 bazel,
                 "build",
-                "--config",
-                config,
+                "--config=ci",
+                f"--config={config}",
                 "--verbose_failures",
                 f"--explain={bazel_explain_file}",
                 "--verbose_explanations",
