@@ -99,7 +99,17 @@ public abstract class DackkaTask extends DefaultTask {
             // This annotations is not useful for developers but right now is @ShowAnnotation?
             "kotlin.js.JsName",
             // This annotation is intended to target the compiler and is general not useful for devs.
-            "java.lang.Override"
+            "java.lang.Override",
+            // These annotations are for the Gradle runtime when generating declarative schema
+            "org.gradle.declarative.dsl.model.annotations.AccessFromCurrentReceiverOnly",
+            "org.gradle.declarative.dsl.model.annotations.Adding",
+            "org.gradle.declarative.dsl.model.annotations.Builder",
+            "org.gradle.declarative.dsl.model.annotations.Configuring",
+            "org.gradle.declarative.dsl.model.annotations.HasDefaultValue",
+            "org.gradle.declarative.dsl.model.annotations.HiddenInDeclarativeDsl",
+            "org.gradle.declarative.dsl.model.annotations.Restricted",
+            "org.gradle.api.internal.plugins.software.RegistersSoftwareTypes",
+            "org.gradle.api.internal.plugins.software.SoftwareType"
     );
 
     // Annotations which should not be displayed in the Kotlin docs, in addition to hiddenAnnotations
