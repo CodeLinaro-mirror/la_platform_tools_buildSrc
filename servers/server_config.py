@@ -20,7 +20,7 @@ import logging
 import os
 import platform
 import socket
-from distutils.spawn import find_executable
+import shutil
 from utils import AOSP_ROOT, run
 
 try:
@@ -100,7 +100,7 @@ class ServerConfig(object):
             "sccache",
             "{}-x86_64".format(self.target),
         )
-        self.sccache = find_executable("sccache", search_dir)
+        self.sccache = shutil.which("sccache", path=search_dir)
 
     def get_env(self):
         return self.env
