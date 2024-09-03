@@ -13,96 +13,98 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import argparse
 import datetime
 import logging
 import platform
 import shutil
 import sys
+from typing import Iterable
+import build_environment
+import bazel
 import time
 from pathlib import Path
 
-from build_environment import BuildEnvironment, AOSP_ROOT
 from log_handler import config_logging
 
 
-def copy_zip_files(src_dir: Path, dst_dir: Path, match: str):
-    """Copies all ZIP files from the source directory and its subdirectories to the destination directory."""
-
-    # Find all ZIP files in the source directory and its subdirectories
-    zip_files = src_dir.rglob(match)
-
-    for zip_file in zip_files:
-        shutil.copy2(zip_file, dst_dir)  # Use shutil for the actual copy
-        logging.info("Copied '%s' to '%s'", zip_file, dst_dir)
+def copy_all(srcs: Iterable[Path], dest: Path):
+    for f in srcs:
+        f_dest = shutil.copy2(f, dest)
+        logging.info("Copied '%s' to '%s'", f, f_dest)
 
 
 def build_trusty(args):
-    toolchain = AOSP_ROOT / "external" / "qemu" / "google" / "toolchain"
-    build = toolchain / "build-qemu-trusty"
     zip_name = f"sdk-repo-{args.target}-qemu-{args.build_id}.zip"
 
-    dist = Path(args.dist)
-    dist.mkdir(exist_ok=True, parents=True)
     bld_dir = Path("out")
     bld_dir.mkdir(exist_ok=True, parents=True)
 
-    with BuildEnvironment(args) as env:
+    with build_environment.BuildEnvironment(args) as env:
+        toolchain = env.repo_root / "external" / "qemu" / "google" / "toolchain"
+        build = toolchain / "build-qemu-trusty"
         command = [
             build,
             bld_dir,
-            dist / zip_name,
+            env.dist_dir / zip_name,
         ]
         env.run(command, timeout=1200)
 
 
 def build_aemu(args):
-    targets = ["//hardware/generic/goldfish/emulator:release"]
-    system = f"{platform.system().lower()}-x86_64"
-    bazel = AOSP_ROOT / "prebuilts" / "bazel" / system / "bazel"
-    Path(args.dist, "logs").mkdir(parents=True, exist_ok=True)
-    with BuildEnvironment(args) as env:
-        command = [
-            bazel,
-            "test",
-            "--config=ci",
-            "--config=debug",
-            "--test_output=errors",
-            "--test_summary=detailed",
-            "--verbose_failures",
-            "//hardware/generic/goldfish/emulator:emulator_unit_tests",
-        ]
+    bazel_build_targets = ["//hardware/generic/goldfish/emulator:release"]
+    bazel_test_targets = ["//hardware/generic/goldfish/emulator:emulator_unit_tests"]
+
+    with build_environment.BuildEnvironment(args) as env:
+        logs_dir = env.dist_dir / "logs"
+        logs_dir.mkdir(exist_ok=True)
+        bzl = bazel.BazelCmd(env)
+
+        bzl_debug = bzl.with_build_flags(
+            [
+                "--config=ci",
+                "--config=debug",
+                f"--//hardware/generic/goldfish/emulator:build_id={env.build_id}",
+            ]
+        )
+        targets = bazel_build_targets[:]
         # Skip tests on windows, we still need to figure out some build issues.
         if not env.is_windows:
-            env.run(command, timeout=3600)
-
-        # Build all the configurations of interest
-        for config in ["debug", "release"]:
-            bazel_explain_file = (
-                Path(args.dist) / "logs" / f"bazel_{config}_explain.log"
-            )
-            command = [
-                bazel,
-                "build",
-                "--config=ci",
-                f"--config={config}",
+            targets += bazel_test_targets
+        bzl_debug.test(
+            targets,
+            invocation_flags=[
+                "--test_output=errors",
+                "--test_summary=detailed",
                 "--verbose_failures",
-                f"--explain={bazel_explain_file}",
                 "--verbose_explanations",
-                f"--//hardware/generic/goldfish/emulator:build_id={args.build_id}",
-            ] + targets
-            env.run(command, timeout=3600)
+                f"--explain={logs_dir / 'bazel_test_debug_explain.log'}",
+            ],
+            allow_analysis_cache_discard=True,
+            allow_no_test=env.is_windows
+        )
+        artifacts = bzl_debug.query_artifacts(bazel_build_targets)
+        copy_all(artifacts, env.dist_dir)
 
-            # Finally binplace the generated zip.
-            res = (
-                AOSP_ROOT
-                / "bazel-bin"
-                / "hardware"
-                / "generic"
-                / "goldfish"
-                / "emulator"
-            )
-            copy_zip_files(res, Path(args.dist), f"*{args.build_id}*.zip")
+        bzl_release = bzl.with_build_flags(
+            [
+                "--config=ci",
+                "--config=release",
+                f"--//hardware/generic/goldfish/emulator:build_id={env.build_id}",
+            ]
+        )
+        bzl_release.build(
+            bazel_build_targets,
+            invocation_flags=[
+                "--verbose_failures",
+                "--verbose_explanations",
+                f"--explain={logs_dir / 'bazel_release_explain.log'}",
+            ],
+            allow_analysis_cache_discard=True,
+        )
+        artifacts = bzl_release.query_artifacts(bazel_build_targets)
+        copy_all(artifacts, env.dist_dir)
 
 
 def main():

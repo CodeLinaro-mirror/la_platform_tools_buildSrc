@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import argparse
+import getpass
 import json
 import logging
 import os
@@ -19,7 +20,7 @@ import platform
 import subprocess
 import time
 import pathlib
-from typing import Dict, List, Union
+from typing import Dict, List, Optional, Union
 
 from log_handler import LogHandler
 
@@ -29,9 +30,28 @@ except ModuleNotFoundError:
     # Winreg is a windows only thing..
     pass
 
-current_file = pathlib.Path(__file__).resolve()
+_REPO_MARKERS = ("MODULE.bazel", "REPO.bazel", "WORKSPACE", "WORKSPACE.bazel")
 
-AOSP_ROOT = current_file.parents[3]
+
+def find_repo_root(env: Dict[str, str]) -> pathlib.Path:
+    # Fast path when building on CI
+    if "BUILD_WORKSPACE_DIRECTORY" in env:
+        return pathlib.Path(env["BUILD_WORKSPACE_DIRECTORY"])
+    root = pathlib.Path(__file__).resolve().parent
+    while not any((root / x).exists() for x in _REPO_MARKERS):
+        root = root.parent
+    return root
+
+
+def _getuser() -> str:
+    """Gets the logged in user.
+
+    Fallback to os.getlogin() since getpass on Windows may raise an exception.
+    """
+    try:
+        return getpass.getuser()
+    except:
+        return os.getlogin()
 
 
 def disable_debug_policy():
@@ -71,21 +91,41 @@ class CommandFailedException(Exception):
 class BuildEnvironment:
     """Class that configures the environment and tracks the time it takes to run the build."""
 
-    args: argparse.Namespace
+    build_id: str
+    build_target: Optional[str]
     is_presubmit: bool
-    target: str
+    host_platform: str
+    target_platform: str
     is_windows: bool
+    repo_root: pathlib.Path
+    user: str
+    dist_dir: pathlib.Path
+    tmp_dir: Optional[pathlib.Path]
+
     _start_time: float
     _cmd_env: Dict[str, str]
     _log_handler: LogHandler
 
-    def __init__(self, args):
-        self.args = args
-        self.is_presubmit = args.build_id.startswith("P")
-        self.target = platform.system().lower()
-        self.is_windows = self.target == "windows"
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        env: Dict[str, str] = os.environ,
+        repo_root: pathlib.Path = find_repo_root(os.environ),
+        user: str = _getuser(),
+    ):
+        self.build_id = args.build_id
+        self.build_target = env.get("BUILD_TARGET_NAME")
+        self.is_presubmit = self.build_id.startswith("P")
+        self.host_platform = platform.system().lower()
+        self.target_platform = args.target
+        self.is_windows = self.host_platform == "windows"
+        self.repo_root = repo_root
+        self.user = user
+        self.dist_dir = pathlib.Path(args.dist)
+        self.tmp_dir = os.environ.get("TMPDIR")
+
         self._start_time = time.time()
-        self._cmd_env = os.environ.copy()
+        self._cmd_env = env.copy()
         self._cmd_env["PYTHONUNBUFFERED"] = "1"
         self._log_handler = LogHandler()
 
@@ -103,6 +143,7 @@ class BuildEnvironment:
         logging.info(json.dumps(self._cmd_env, sort_keys=True))
         logging.info("=" * 140)
 
+        self.dist_dir.mkdir(exist_ok=True, parents=True)
         self._start_time = time.time()
         return self
 
@@ -117,18 +158,22 @@ class BuildEnvironment:
     def run(
         self,
         cmd: List[str],
+        *,
+        capture_output: bool = False,
         env: Dict[str, str] = None,
-        cwd: Union[pathlib.Path, str] = AOSP_ROOT,
+        cwd: Optional[Union[pathlib.Path, str]] = None,
         throw_on_failure: bool = True,
         timeout: Union[float, None] = 3600,
-    ):
+    ) -> subprocess.CompletedProcess:
         """
         Run a command with the build environment settings.
 
         Args:
             cmd: The command to be executed.
+            capture_output: Whether to capture stdout and stderr, instead of
+                logging them.
             env: Extra environment variables.
-            cwd: The current working directory. Defaults to AOSP_ROOT.
+            cwd: The current working directory. Defaults to the repo root.
             throw_on_failure: Whether to raise an exception on command failure.
             timeout: Timeout of the command.
 
@@ -138,6 +183,8 @@ class BuildEnvironment:
         if not env:
             env = {}
         env.update(self.get_env())
+        if not cwd:
+            cwd = self.repo_root
 
         cmd = [str(x) for x in cmd]
         logging.info("%s $> %s", cwd, " ".join(cmd))
@@ -151,15 +198,19 @@ class BuildEnvironment:
             cwd=cwd,
             env=env,
         )
-        self._log_handler.start_log_proc(proc)
 
         try:
-            proc.wait(timeout=timeout)
-            if proc.returncode != 0 and throw_on_failure:
-                raise CommandFailedException(
-                    f"Failed to run {' '.join(cmd)}, exit code: {proc.returncode}"
+            if capture_output:
+                stdout, stderr = proc.communicate(timeout=timeout)
+                result = subprocess.CompletedProcess(
+                    args=cmd, returncode=proc.returncode, stdout=stdout, stderr=stderr
                 )
-            return proc.returncode
+            else:
+                self._log_handler.start_log_proc(proc)
+                proc.wait(timeout=timeout)
+                result = subprocess.CompletedProcess(
+                    args=cmd, returncode=proc.returncode
+                )
         except subprocess.TimeoutExpired as timeout1:
             logging.error(
                 "The command %s timed out after %s seconds, terminating",
@@ -177,3 +228,12 @@ class BuildEnvironment:
                 )
                 proc.kill()
             raise
+
+        if result.returncode != 0 and throw_on_failure:
+            msg = [f"Failed to run {' '.join(cmd)}, exit code: {result.returncode}"]
+            if result.stdout:
+                msg.append(f"STDOUT: {result.stdout}")
+            if result.stderr:
+                msg.append(f"STDERR: {result.stderr}")
+            raise CommandFailedException("\n".join(msg))
+        return result
