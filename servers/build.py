@@ -59,13 +59,14 @@ def build_aemu(args):
     with build_environment.BuildEnvironment(args) as env:
         logs_dir = env.dist_dir / "logs"
         logs_dir.mkdir(exist_ok=True)
+        build_id = 'snapshot' if env.is_presubmit else env.build_id
         bzl = bazel.BazelCmd(env)
 
         bzl_debug = bzl.with_build_flags(
             [
                 "--config=ci",
                 "--config=debug",
-                f"--//hardware/generic/goldfish/emulator:build_id={env.build_id}",
+                f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
             ]
         )
         targets = bazel_build_targets[:]
@@ -82,7 +83,7 @@ def build_aemu(args):
                 f"--explain={logs_dir / 'bazel_test_debug_explain.log'}",
             ],
             allow_analysis_cache_discard=True,
-            allow_no_test=env.is_windows
+            allow_no_test=env.is_windows,
         )
         artifacts = bzl_debug.query_artifacts(bazel_build_targets)
         copy_all(artifacts, env.dist_dir)
@@ -91,7 +92,7 @@ def build_aemu(args):
             [
                 "--config=ci",
                 "--config=release",
-                f"--//hardware/generic/goldfish/emulator:build_id={env.build_id}",
+                f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
             ]
         )
         bzl_release.build(
@@ -125,7 +126,7 @@ def main():
     parser.add_argument(
         "--build-id",
         type=str,
-        required=True,
+        default="dev",
         dest="build_id",
         help="The build number used. Presubmit builds should start with the letter P.",
     )
