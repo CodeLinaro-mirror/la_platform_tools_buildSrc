@@ -130,7 +130,8 @@ def main(argv):
     # This how we are going to launch the python build script
 
     repo = os.path.join(AOSP_ROOT, "external", "adt-infra", "devpi", "repo", "simple")
-    pyrun = AospPyRunner(repo)
+    skip_display_init = True if args.prebuilts is not None else False
+    pyrun = AospPyRunner(repo=repo, skip_display_init=skip_display_init)
     launcher = [
         os.path.join(
             AOSP_ROOT, "external", "qemu", "android", "build", "python", "cmake.py"

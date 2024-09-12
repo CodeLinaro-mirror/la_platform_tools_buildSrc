@@ -59,14 +59,14 @@ class PyRunner:
         py_exe (str): The path to the python interpreter.
     """
 
-    def __init__(self):
+    def __init__(self, skip_display_init):
         """Initialize PyRunner with the environment variables required
         for running the Python command.
 
         The environment variables include `ANDROID_SDK_ROOT`, `ANDROID_HOME` and `JAVA_HOME`.
         If the platform is Linux,  an attempt will be made to find or
         launch a vnc server and set its display as the value for the `DISPLAY`
-        environment variable.
+        environment variable, unless `skip_display_init` is True.
         """
         self.env = {
             "ANDROID_SDK_ROOT": str(ANDROID_SDK_ROOT),
@@ -79,18 +79,19 @@ class PyRunner:
         }
         self.py_exe = shutil.which("python")
 
-        if platform.system() == "Linux":
-            try:
-                display = self._get_X_Display()
-            except NoXServer as xerr:
-                logging.warning(
-                    "No X server available (%s), attemtping to launch a vnc server",
-                    xerr,
-                )
-                subprocess.check_call("vncserver")
-                display = self._get_X_Display()
+        if not skip_display_init:
+            if platform.system() == "Linux":
+                try:
+                    display = self._get_X_Display()
+                except NoXServer as xerr:
+                    logging.warning(
+                        "No X server available (%s), attempting to launch a vnc server",
+                        xerr,
+                    )
+                    subprocess.check_call("vncserver")
+                    display = self._get_X_Display()
 
-            self.env["DISPLAY"] = display
+                self.env["DISPLAY"] = display
 
         logging.info("Using environment: %s", self.env)
 
@@ -228,8 +229,8 @@ class AospPyRunner(PyRunner):
     - Patch the windows interpreter to work with the pytests.
     """
 
-    def __init__(self, repo, in_directory=None):
-        super().__init__()
+    def __init__(self, repo, skip_display_init=False, in_directory=None):
+        super().__init__(skip_display_init)
         self.repo = repo
         self.in_directory = in_directory
         if not in_directory:
