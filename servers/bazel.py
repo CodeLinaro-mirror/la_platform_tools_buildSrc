@@ -239,7 +239,7 @@ class BazelCmd:
             "test", targets, invocation_flags, allow_analysis_cache_discard
         )
         result = self._env.run(cmd, throw_on_failure=False, timeout=timeout)
-        normal_return_codes = [BuildExitCode.SUCCESS]
+        normal_return_codes = [BuildExitCode.SUCCESS, BuildExitCode.TESTS_FAILED]
         if allow_no_test:
             normal_return_codes.append(BuildExitCode.TESTS_NOT_FOUND)
         if result.returncode not in normal_return_codes:
