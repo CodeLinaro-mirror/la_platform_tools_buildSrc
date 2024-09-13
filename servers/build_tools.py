@@ -137,11 +137,11 @@ def main(argv):
         repo = os.path.join(AOSP_ROOT, "external", "adt-infra", "devpi", "repo", "simple")
         pyrun = AospPyRunner(repo=repo, skip_display_init=skip_display_init)
 
-    def run_env(run_args, env, timeout, log_prefix):
+    def run_python(run_args, env, timeout, log_prefix):
         if args.prebuilts is None:
             pyrun.run(run_args, env, timeout=timeout, log_prefix=log_prefix)
         else:
-            run(cmd=run_args, env=env, log_prefix=log_prefix)
+            run(cmd=[PYTHON_EXE] + run_args, env=env, log_prefix=log_prefix)
 
     launcher = [
         os.path.join(
@@ -197,7 +197,7 @@ def main(argv):
             # sccache does not (yet?) make life better on windows in gce.
             cmd = cmd + ["--ccache", cfg.sccache]
 
-        run_env(launcher + cmd, cfg.get_env(), timeout=3600, log_prefix="bld")
+        run_python(launcher + cmd, cfg.get_env(), timeout=3600, log_prefix="bld")
 
         # Let's run the e2e tests.
         if (
@@ -206,7 +206,7 @@ def main(argv):
             and not args.gfxstream_only
             and not args.prebuilts
         ):
-            run_env(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), timeout=3600, log_prefix="tst")
+            run_python(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), timeout=3600, log_prefix="tst")
 
     logging.info("Build completed!")
 
