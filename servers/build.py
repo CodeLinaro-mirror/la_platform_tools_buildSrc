@@ -82,6 +82,8 @@ def build_aemu(args):
                 "--verbose_explanations",
                 f"--explain={logs_dir / 'bazel_test_debug_explain.log'}",
                 "--build_metadata=test_definition_name=android_emulator/test_debug",
+                f"--build_metadata=ab_build_id={env.build_id}",
+                f"--build_metadata=ab_target={env.build_target}",
             ],
             allow_analysis_cache_discard=True,
             allow_no_test=env.is_windows,
@@ -103,6 +105,8 @@ def build_aemu(args):
                 "--verbose_explanations",
                 f"--explain={logs_dir / 'bazel_release_explain.log'}",
                 "--build_metadata=test_definition_name=android_emulator/release",
+                f"--build_metadata=ab_build_id={env.build_id}",
+                f"--build_metadata=ab_target={env.build_target}",
             ],
             allow_analysis_cache_discard=True,
         )
