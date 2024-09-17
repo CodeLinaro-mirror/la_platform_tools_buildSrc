@@ -204,7 +204,7 @@ def main(argv):
             presubmit  # We disable the IntegrationTests due to stability issues.
             and (target == "linux" or target == "darwin_aarch64")
             and not args.gfxstream_only
-            and not args.prebuilts
+            and (args.prebuilts is None)
         ):
             run_python(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), timeout=3600, log_prefix="tst")
 
