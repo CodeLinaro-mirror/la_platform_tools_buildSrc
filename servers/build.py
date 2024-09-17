@@ -53,13 +53,14 @@ def build_trusty(args):
 
 
 def build_aemu(args):
-    bazel_build_targets = ["//hardware/generic/goldfish/emulator:release"]
-    bazel_test_targets = ["//hardware/generic/goldfish/emulator:emulator_unit_tests"]
+    release_targets = ["//hardware/generic/goldfish/emulator:release"]
+    always_test_targets = ["//hardware/generic/goldfish/emulator:release_build_test"]
+    test_targets = ["//hardware/generic/goldfish/emulator:emulator_unit_tests"]
 
     with build_environment.BuildEnvironment(args) as env:
         logs_dir = env.dist_dir / "logs"
         logs_dir.mkdir(exist_ok=True)
-        build_id = 'snapshot' if env.is_presubmit else env.build_id
+        build_id = "snapshot" if env.is_presubmit else env.build_id
         bzl = bazel.BazelCmd(env)
 
         bzl_debug = bzl.with_build_flags(
@@ -69,10 +70,10 @@ def build_aemu(args):
                 f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
             ]
         )
-        targets = bazel_build_targets[:]
+        targets = release_targets + always_test_targets
         # Skip tests on windows, we still need to figure out some build issues.
         if not env.is_windows:
-            targets += bazel_test_targets
+            targets += test_targets
         bzl_debug.test(
             targets,
             invocation_flags=[
@@ -86,9 +87,8 @@ def build_aemu(args):
                 f"--build_metadata=ab_target={env.build_target}",
             ],
             allow_analysis_cache_discard=True,
-            allow_no_test=env.is_windows,
         )
-        artifacts = bzl_debug.query_artifacts(bazel_build_targets)
+        artifacts = bzl_debug.query_artifacts(release_targets)
         copy_all(artifacts, env.dist_dir)
 
         bzl_release = bzl.with_build_flags(
@@ -98,8 +98,8 @@ def build_aemu(args):
                 f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
             ]
         )
-        bzl_release.build(
-            bazel_build_targets,
+        bzl_release.test(
+            release_targets + always_test_targets,
             invocation_flags=[
                 "--verbose_failures",
                 "--verbose_explanations",
@@ -110,7 +110,7 @@ def build_aemu(args):
             ],
             allow_analysis_cache_discard=True,
         )
-        artifacts = bzl_release.query_artifacts(bazel_build_targets)
+        artifacts = bzl_release.query_artifacts(release_targets)
         copy_all(artifacts, env.dist_dir)
 
 
