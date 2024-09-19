@@ -129,9 +129,20 @@ def main(argv):
 
     # This how we are going to launch the python build script
 
-    repo = os.path.join(AOSP_ROOT, "external", "adt-infra", "devpi", "repo", "simple")
     skip_display_init = True if args.prebuilts is not None else False
-    pyrun = AospPyRunner(repo=repo, skip_display_init=skip_display_init)
+    # We can't use AOSP python for prebuilts build because some of the repositories require
+    # downloading things from the internet (git submodules, gclient stuff), and SSL is ripped out
+    # in AOSP python.
+    if args.prebuilts is None:
+        repo = os.path.join(AOSP_ROOT, "external", "adt-infra", "devpi", "repo", "simple")
+        pyrun = AospPyRunner(repo=repo, skip_display_init=skip_display_init)
+
+    def run_python(run_args, env, timeout, log_prefix):
+        if args.prebuilts is None:
+            pyrun.run(run_args, env, timeout=timeout, log_prefix=log_prefix)
+        else:
+            run(cmd=[PYTHON_EXE] + run_args, env=env, log_prefix=log_prefix)
+
     launcher = [
         os.path.join(
             AOSP_ROOT, "external", "qemu", "android", "build", "python", "cmake.py"
@@ -186,16 +197,16 @@ def main(argv):
             # sccache does not (yet?) make life better on windows in gce.
             cmd = cmd + ["--ccache", cfg.sccache]
 
-        pyrun.run(launcher + cmd, cfg.get_env(), timeout=3600, log_prefix="bld")
+        run_python(launcher + cmd, cfg.get_env(), timeout=3600, log_prefix="bld")
 
         # Let's run the e2e tests.
         if (
             presubmit  # We disable the IntegrationTests due to stability issues.
             and (target == "linux" or target == "darwin_aarch64")
             and not args.gfxstream_only
-            and not args.prebuilts
+            and (args.prebuilts is None)
         ):
-            pyrun.run(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), timeout=3600, log_prefix="tst")
+            run_python(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), timeout=3600, log_prefix="tst")
 
     logging.info("Build completed!")
 

@@ -142,4 +142,4 @@ class ServerConfig(object):
     def __exit__(self, exc_type, exc_value, tb):
         """Report cache statistics and stop the server."""
         if self.sccache:
-            run([self.sccache, "--stop-server"], self.env, "scc")
+            run([self.sccache, "--stop-server"], self.env, "scc", AOSP_ROOT, False)
