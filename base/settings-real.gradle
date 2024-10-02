@@ -85,4 +85,4 @@ include ':base:perf-logger'
 include ':base:firebase:testlab:testlab-gradle-plugin'
 include ':base:preview:screenshot:screenshot-test-gradle-plugin'
 include ':base:preview:screenshot:screenshot-validation-junit-engine'
-
+include ':base:journeys'
