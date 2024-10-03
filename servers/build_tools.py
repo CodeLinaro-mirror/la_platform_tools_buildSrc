@@ -101,6 +101,10 @@ def main(argv):
         help="Build the emulator with the System Rust on the host machine",
     )
     parser.add_argument(
+        "--change_info",
+        help="Path to the change_info.json file, if any.",
+    )
+    parser.add_argument(
         "--gfxstream_only", action="store_true", help="Build gfxstream libraries only"
     )
     parser.add_argument("--crosvm", action="store_true", help="Build crosvm")
