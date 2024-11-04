@@ -84,6 +84,10 @@ include ':base:utp:utp-common'
 include ':base:perf-logger'
 
 include ':base:firebase:testlab:testlab-gradle-plugin'
+
+include ':base:compose-preview-detector'
+project(':base:compose-preview-detector').projectDir = new File(rootDir, 'base/multipreview-asm')
+
 include ':base:preview:screenshot:screenshot-test-gradle-plugin'
 include ':base:preview:screenshot:screenshot-validation-junit-engine'
 include ':base:journeys'
