@@ -15,6 +15,7 @@ import json
 import logging
 from pathlib import Path
 
+
 class ChangeInfo:
     """
     Parses Android change info JSON data. This information is present
@@ -31,6 +32,7 @@ class ChangeInfo:
     print(commits)
     ```
     """
+
     def __init__(self, filename):
         """
         Initializes ChangeInfo with data from a JSON file.
@@ -42,7 +44,7 @@ class ChangeInfo:
             with open(filename, "r") as f:
                 self.data = json.load(f)
         else:
-            self.data = []
+            self.data = {}
             logging.warning("No change info file provided.")
 
     def get_commits_by_project(self, project):
@@ -57,7 +59,7 @@ class ChangeInfo:
             list: A list of commits hashes associated with the given project path.
         """
         commits = []
-        for change in self.data["changes"]:
+        for change in self.data.get("changes", []):
             if change["project"] == project:
                 for revision in change["revisions"]:
                     commits.append(revision["gitRevision"])

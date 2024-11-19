@@ -25,7 +25,7 @@ import build_environment
 import bazel
 import time
 from pathlib import Path
-
+from change_info import ChangeInfo
 from log_handler import config_logging
 
 
@@ -33,6 +33,31 @@ def copy_all(srcs: Iterable[Path], dest: Path):
     for f in srcs:
         f_dest = shutil.copy2(f, dest)
         logging.info("Copied '%s' to '%s'", f, f_dest)
+
+
+def generate_aemu_bazel(args):
+    with build_environment.BuildEnvironment(args) as env:
+        amc = (
+            env.repo_root
+            / "external"
+            / "qemu"
+            / "google"
+            / "toolchain"
+            / "src"
+            / "amc.py"
+        )
+        command = [
+            env.python,
+            amc,
+            "-v",
+            "bazel",
+            "--aosp",
+            env.repo_root,
+            env.dist_dir,
+            "--buildid",
+            args.build_id,
+        ]
+        env.run(command, timeout=2400)
 
 
 def build_trusty(args):
@@ -150,6 +175,13 @@ def main():
     args = parser.parse_args()
     if "trusty" in args.target:
         return build_trusty(args)
+
+    change_info = ChangeInfo(args.change_info)
+    if args.build_id.startswith("P") and change_info.get_commits_by_project(
+        "platform/external/qemu"
+    ):
+        logging.info("Qemu changes detected, generating bazel build files.")
+        generate_aemu_bazel(args)
     build_aemu(args)
 
 

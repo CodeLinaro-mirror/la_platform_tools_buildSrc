@@ -18,6 +18,7 @@ import logging
 import os
 import platform
 import subprocess
+import sys
 import time
 import pathlib
 from typing import Dict, List, Optional, Union
@@ -128,6 +129,15 @@ class BuildEnvironment:
         self._cmd_env = env.copy()
         self._cmd_env["PYTHONUNBUFFERED"] = "1"
         self._log_handler = LogHandler()
+
+        python_dir = repo_root / "prebuilts" / "python" / f"{self.host_platform}-x86"
+        if self.is_windows:
+            self.python = python_dir / "python.exe"
+        else:
+            self.python = python_dir / "bin" / "python3"
+
+        if not self.python.exists():
+            self.python = Path(sys.executable)
 
     def get_env(self):
         """Gets the OS environment that should be used when running a program."""
