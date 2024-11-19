@@ -142,12 +142,15 @@ def main():
         default=platform.system(),
         help="The build target, defaults to current os.",
     )
+    parser.add_argument(
+        "--change_info",
+        help="Path to the change_info.json file that is provided by the build bots",
+    )
 
     args = parser.parse_args()
     if "trusty" in args.target:
-        build_trusty(args)
-    else:
-        build_aemu(args)
+        return build_trusty(args)
+    build_aemu(args)
 
 
 if __name__ == "__main__":
