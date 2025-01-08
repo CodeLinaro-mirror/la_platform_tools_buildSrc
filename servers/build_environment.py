@@ -281,6 +281,9 @@ class MacOSBuildEnvironment(BuildEnvironment):
         if not self.python.exists():
             self.python = pathlib.Path(sys.executable)
 
+        xcode_path = subprocess.check_output(["xcode-select", "-p"], text=True).strip()
+        self._cmd_env["DEVELOPER_DIR"] = xcode_path
+
 
 def create_build_environment(args: argparse.Namespace) -> BuildEnvironment:
     """Factory function to create the appropriate BuildEnvironment subclass."""
