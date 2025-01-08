@@ -90,14 +90,13 @@ class CommandFailedException(Exception):
 
 
 class BuildEnvironment:
-    """Class that configures the environment and tracks the time it takes to run the build."""
+    """Base class that configures the environment and tracks the time it takes to run the build."""
 
     build_id: str
     build_target: Optional[str]
     is_presubmit: bool
     host_platform: str
     target_platform: str
-    is_windows: bool
     repo_root: pathlib.Path
     user: str
     dist_dir: pathlib.Path
@@ -119,7 +118,6 @@ class BuildEnvironment:
         self.is_presubmit = self.build_id.startswith("P")
         self.host_platform = platform.system().lower()
         self.target_platform = args.target
-        self.is_windows = self.host_platform == "windows"
         self.repo_root = repo_root
         self.user = user
         self.dist_dir = pathlib.Path(args.dist)
@@ -130,25 +128,12 @@ class BuildEnvironment:
         self._cmd_env["PYTHONUNBUFFERED"] = "1"
         self._log_handler = LogHandler()
 
-        python_dir = repo_root / "prebuilts" / "python" / f"{self.host_platform}-x86"
-        if self.is_windows:
-            self.python = python_dir / "python.exe"
-        else:
-            self.python = python_dir / "bin" / "python3"
-
-        if not self.python.exists():
-            self.python = Path(sys.executable)
-
     def get_env(self):
         """Gets the OS environment that should be used when running a program."""
         return self._cmd_env
 
     def __enter__(self):
-        """Configure windows policy if needed."""
-        # On windows we do not want debug ui to be activated.
-        if self.is_windows:
-            disable_debug_policy()
-
+        """Configure platform specific settings if needed."""
         logging.info("=" * 140)
         logging.info(json.dumps(self._cmd_env, sort_keys=True))
         logging.info("=" * 140)
@@ -164,6 +149,9 @@ class BuildEnvironment:
         # Format the execution time nicely
         formatted_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
         logging.info("Completed build in %s", formatted_time)
+
+    def is_windows(self):
+        return False
 
     def run(
         self,
@@ -204,7 +192,7 @@ class BuildEnvironment:
             encoding="utf-8",
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            shell=self.is_windows,  # Make sure Windows propagates ENV vars properly.
+            shell=self.is_windows(),
             cwd=cwd,
             env=env,
         )
@@ -247,3 +235,61 @@ class BuildEnvironment:
                 msg.append(f"STDERR: {result.stderr}")
             raise CommandFailedException("\n".join(msg))
         return result
+
+
+class LinuxBuildEnvironment(BuildEnvironment):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        python_dir = (
+            self.repo_root / "prebuilts" / "python" / f"{self.host_platform}-x86"
+        )
+        self.python = python_dir / "bin" / "python3"
+
+        if not self.python.exists():
+            self.python = pathlib.Path(sys.executable)
+
+
+class WindowsBuildEnvironment(BuildEnvironment):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        python_dir = (
+            self.repo_root / "prebuilts" / "python" / f"{self.host_platform}-x86"
+        )
+        self.python = python_dir / "python.exe"
+
+        if not self.python.exists():
+            self.python = pathlib.Path(sys.executable)
+
+    def __enter__(self):
+        """Configure windows policy if needed."""
+        # On windows we do not want debug ui to be activated.
+        disable_debug_policy()
+        return super().__enter__()
+
+    def is_windows(self):
+        return True
+
+
+class MacOSBuildEnvironment(BuildEnvironment):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        python_dir = (
+            self.repo_root / "prebuilts" / "python" / f"{self.host_platform}-x86"
+        )
+        self.python = python_dir / "bin" / "python3"
+
+        if not self.python.exists():
+            self.python = pathlib.Path(sys.executable)
+
+
+def create_build_environment(args: argparse.Namespace) -> BuildEnvironment:
+    """Factory function to create the appropriate BuildEnvironment subclass."""
+    host_platform = platform.system().lower()
+    if host_platform == "windows":
+        return WindowsBuildEnvironment(args)
+    elif host_platform == "linux":
+        return LinuxBuildEnvironment(args)
+    elif host_platform == "darwin":  # macOS
+        return MacOSBuildEnvironment(args)
+    else:
+        raise ValueError(f"Unsupported platform: {host_platform}")

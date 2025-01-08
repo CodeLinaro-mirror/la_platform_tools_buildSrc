@@ -36,7 +36,7 @@ def copy_all(srcs: Iterable[Path], dest: Path):
 
 
 def generate_aemu_bazel(args):
-    with build_environment.BuildEnvironment(args) as env:
+    with build_environment.create_build_environment(args) as env:
         amc = (
             env.repo_root
             / "external"
@@ -66,7 +66,7 @@ def build_trusty(args):
     bld_dir = Path("out")
     bld_dir.mkdir(exist_ok=True, parents=True)
 
-    with build_environment.BuildEnvironment(args) as env:
+    with build_environment.create_build_environment(args) as env:
         toolchain = env.repo_root / "external" / "qemu" / "google" / "toolchain"
         build = toolchain / "build-qemu-trusty"
         command = [
@@ -82,7 +82,7 @@ def build_aemu(args):
     always_test_targets = ["//hardware/generic/goldfish/emulator:release_build_test"]
     test_targets = ["//hardware/generic/goldfish/emulator:emulator_unit_tests"]
 
-    with build_environment.BuildEnvironment(args) as env:
+    with build_environment.create_build_environment(args) as env:
         logs_dir = env.dist_dir / "logs"
         logs_dir.mkdir(exist_ok=True)
         build_id = "snapshot" if env.is_presubmit else env.build_id
