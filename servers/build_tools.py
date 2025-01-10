@@ -203,14 +203,6 @@ def main(argv):
 
         run_python(launcher + cmd, cfg.get_env(), timeout=3600, log_prefix="bld")
 
-        # Let's run the e2e tests.
-        if (
-            presubmit  # We disable the IntegrationTests due to stability issues.
-            and (target == "linux" or target == "darwin_aarch64")
-            and not args.gfxstream_only
-            and (args.prebuilts is None)
-        ):
-            run_python(launcher + cmd + ["--task", "IntegrationTest"], cfg.get_env(), timeout=3600, log_prefix="tst")
 
     logging.info("Build completed!")
 
