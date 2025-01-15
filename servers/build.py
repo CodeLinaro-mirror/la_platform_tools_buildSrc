@@ -97,7 +97,7 @@ def build_aemu(args):
         )
         targets = release_targets + always_test_targets
         # Skip tests on windows, we still need to figure out some build issues.
-        if not env.is_windows:
+        if not env.is_windows():
             targets += test_targets
         bzl_debug.test(
             targets,
