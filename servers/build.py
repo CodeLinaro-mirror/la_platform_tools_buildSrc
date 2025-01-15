@@ -20,11 +20,13 @@ import logging
 import platform
 import shutil
 import sys
-from typing import Iterable
-import build_environment
-import bazel
 import time
 from pathlib import Path
+from typing import Iterable
+
+import bazel
+import build_environment
+import sym_upload
 from change_info import ChangeInfo
 from log_handler import config_logging
 
@@ -83,6 +85,15 @@ def build_aemu(args):
     test_targets = ["//hardware/generic/goldfish/emulator:emulator_unit_tests"]
 
     with build_environment.create_build_environment(args) as env:
+        if env.is_windows():
+            release_targets += [
+                "//hardware/generic/goldfish/emulator:package_goldfish_pdbs"
+            ]
+        else:
+            release_targets += [
+                "//hardware/generic/goldfish/emulator:package_goldfish_symbols"
+            ]
+
         logs_dir = env.dist_dir / "logs"
         logs_dir.mkdir(exist_ok=True)
         build_id = "snapshot" if env.is_presubmit else env.build_id
@@ -137,6 +148,27 @@ def build_aemu(args):
         )
         artifacts = bzl_release.query_artifacts(release_targets)
         copy_all(artifacts, env.dist_dir)
+
+        if env.crashpad_symbol_server_key:
+            upload_symbols(env, bzl_release)
+        else:
+            logging.warning("No server API key available, not uploading symbols.")
+
+
+def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd):
+    uploader = sym_upload.Symuploader(env, bzl)
+
+    if env.is_windows():
+        symbol_zip_file = bzl.query_artifacts(
+            ["//hardware/generic/goldfish/emulator:release"]
+        )[0]
+        # Ignoring an issue around processing of .dll's for now
+        uploader.upload_from_zip(symbol_zip_file, ignore_failures=True)
+    else:
+        symbol_zip_file = bzl.query_artifacts(
+            ["//hardware/generic/goldfish/emulator:package_goldfish_symbols"]
+        )[0]
+        uploader.upload_from_zip(symbol_zip_file)
 
 
 def main():

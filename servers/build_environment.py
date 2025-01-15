@@ -88,6 +88,10 @@ def disable_debug_policy():
 class CommandFailedException(Exception):
     """Exception raised when the command fails."""
 
+    def __init__(self, msg: str, exit_code):
+        super().__init__(msg)
+        self.exit_code = exit_code
+
 
 class BuildEnvironment:
     """Base class that configures the environment and tracks the time it takes to run the build."""
@@ -101,6 +105,7 @@ class BuildEnvironment:
     user: str
     dist_dir: pathlib.Path
     tmp_dir: Optional[pathlib.Path]
+    crashpad_symbol_server_key: str
 
     _start_time: float
     _cmd_env: Dict[str, str]
@@ -127,6 +132,20 @@ class BuildEnvironment:
         self._cmd_env = env.copy()
         self._cmd_env["PYTHONUNBUFFERED"] = "1"
         self._log_handler = LogHandler()
+        self.crashpad_symbol_server_key = os.environ.get("EMULATOR_SYMBOL_SERVER_KEY")
+        self.crashpad_server = "https://prod-crashsymbolcollector-pa.googleapis.com"
+        if self.is_presubmit:
+            self.crashpad_server = (
+                "https://staging-crashsymbolcollector-pa.googleapis.com"
+            )
+
+        if not self.crashpad_symbol_server_key:
+            key_path = pathlib.Path.home() / ".emulator_symbol_server_key"
+            try:
+                with open(key_path, "r") as f:
+                    self.crashpad_symbol_server_key = f.read().strip()
+            except FileNotFoundError:
+                logging.error("Error: Symbol server key file not found at %s", key_path)
 
     def get_env(self):
         """Gets the OS environment that should be used when running a program."""
@@ -233,7 +252,7 @@ class BuildEnvironment:
                 msg.append(f"STDOUT: {result.stdout}")
             if result.stderr:
                 msg.append(f"STDERR: {result.stderr}")
-            raise CommandFailedException("\n".join(msg))
+            raise CommandFailedException("\n".join(msg), result.returncode)
         return result
 
 

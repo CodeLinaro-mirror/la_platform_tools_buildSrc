@@ -198,7 +198,8 @@ class BazelCmd:
             raise build_environment.CommandFailedException(
                 _bazel_error_msg(
                     cmd, BaseExitCode.try_convert(result.returncode), result.stderr
-                )
+                ),
+                result.returncode,
             )
         info = {}
         for line in result.stdout.splitlines():
@@ -244,7 +245,8 @@ class BazelCmd:
             normal_return_codes.append(BuildExitCode.TESTS_NOT_FOUND)
         if result.returncode not in normal_return_codes:
             raise build_environment.CommandFailedException(
-                _bazel_error_msg(cmd, BuildExitCode.try_convert(result.returncode))
+                _bazel_error_msg(cmd, BuildExitCode.try_convert(result.returncode)),
+                result.returncode,
             )
         return result
 
@@ -276,8 +278,40 @@ class BazelCmd:
         result = self._env.run(cmd, throw_on_failure=False, timeout=timeout)
         if result.returncode != BuildExitCode.SUCCESS:
             raise build_environment.CommandFailedException(
-                _bazel_error_msg(cmd, BuildExitCode.try_convert(result.returncode))
+                _bazel_error_msg(cmd, BuildExitCode.try_convert(result.returncode)),
+                result.returncode,
             )
+        return result
+
+    def run(
+        self,
+        target: str,
+        *,
+        invocation_flags: Iterable[str] = (),
+        params: Iterable[str] = (),
+        allow_analysis_cache_discard: bool = False,
+        timeout: Union[float, None] = 3600,
+    ) -> subprocess.CompletedProcess:
+        """Runs ``bazel run`` and returns the result..
+
+        Args:
+            target: The bazel target to run.
+            invocation_flags: Per-invocation flags
+            allow_analysis_cache_discard: Do not fail the build if analysis
+                cache is being discarded.
+            timeout: Timeout for the entire process.
+            params: The set of params to pass to the target.
+
+        Returns:
+            A ``subprocess.CompletedProcess`` object. It contains only the
+            commandline and the return code. Stderr and stdout are handled by
+            logger.
+        """
+        flags = [target] + params
+        cmd = self._build_cmd(
+            "run", flags, invocation_flags, allow_analysis_cache_discard
+        )
+        result = self._env.run(cmd, throw_on_failure=True, timeout=timeout)
         return result
 
     def cquery(
@@ -320,7 +354,8 @@ class BazelCmd:
             raise build_environment.CommandFailedException(
                 _bazel_error_msg(
                     cmd, QueryExitCode.try_convert(result.returncode), result.stderr
-                )
+                ),
+                result.returncode,
             )
         return result
 
