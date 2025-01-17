@@ -16,11 +16,13 @@
 from __future__ import absolute_import, division, print_function
 
 import argparse
+import datetime
 import logging
 import multiprocessing
 import os
 import platform
 import sys
+import time
 
 from server_config import ServerConfig
 from pyrunner import AospPyRunner
@@ -138,7 +140,9 @@ def main(argv):
     # downloading things from the internet (git submodules, gclient stuff), and SSL is ripped out
     # in AOSP python.
     if args.prebuilts is None:
-        repo = os.path.join(AOSP_ROOT, "external", "adt-infra", "devpi", "repo", "simple")
+        repo = os.path.join(
+            AOSP_ROOT, "external", "adt-infra", "devpi", "repo", "simple"
+        )
         pyrun = AospPyRunner(repo=repo, skip_display_init=skip_display_init)
 
     def run_python(run_args, env, timeout, log_prefix):
@@ -203,10 +207,18 @@ def main(argv):
 
         run_python(launcher + cmd, cfg.get_env(), timeout=3600, log_prefix="bld")
 
-
     logging.info("Build completed!")
 
 
 if __name__ == "__main__":
-    main(sys.argv)
-    sys.exit(0)
+    start_time = time.monotonic()
+    try:
+        main(sys.argv)
+    except Exception as e:
+        logging.fatal("Build failed due to %s", e)
+        sys.exit(1)
+    finally:
+        end_time = time.monotonic()
+        logging.info(
+            "Completed in: %s", datetime.timedelta(seconds=end_time - start_time)
+        )
