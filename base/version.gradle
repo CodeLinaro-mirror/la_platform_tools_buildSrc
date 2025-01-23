@@ -51,8 +51,6 @@ private Map<String, ?> dependencyMapOf(Map<String, ?> sourceMap, prefix) {
 Properties dependencies = new Properties()
 File dependenciesProperties = new File(versionRootDir, "buildSrc/base/dependencies.properties")
 dependenciesProperties.withReader { dependencies.load(it) }
-// Use the proto compiler that matches the protobuf java runtime.
-dependencies.put('proto_compiler', dependencies.getProperty("protobuf").replace('protobuf-java', 'protoc'))
 Map<String, ?> libs = [:]
 
 // TODO(b/143864616): These will be replaced by a version catalog
