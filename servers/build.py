@@ -90,7 +90,7 @@ def build_aemu(args):
 
         bzl_debug = bzl.with_build_flags(
             [
-                "--config=ci",
+                f"--config={args.config}",
                 "--config=debug",
                 f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
             ]
@@ -118,7 +118,7 @@ def build_aemu(args):
 
         bzl_release = bzl.with_build_flags(
             [
-                "--config=ci",
+                f"--config={args.config}",
                 "--config=release",
                 f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
             ]
@@ -143,11 +143,23 @@ def main():
     config_logging()
 
     parser = argparse.ArgumentParser(
-        description="Builds the android emulator by invoking bazel. "
-        + "The build script will invoke as series of bazel commands "
-        + "to construct the emulator distribution. "
-        + "It will use bazel and clang from AOSP"
+        description="""Builds the android emulator by invoking bazel.
+
+        The build script will invoke as series of bazel commands to construct the emulator distribution.
+        It is self contained will use bazel and clang from AOSP
+
+        To run this on a development machine you will have to provide the `--config` parameter.
+        """,
+        epilog="""For example:
+
+        On your darwin development machine:
+
+        ./build.py --dist /tmp/dist --build-id P123 --target mac_aarch64 --config rcache
+
+        """,
+        formatter_class=argparse.RawTextHelpFormatter,
     )
+
     parser.add_argument(
         "--dist",
         type=str,
@@ -164,12 +176,47 @@ def main():
     parser.add_argument(
         "--target",
         type=str,
+        choices=["trusty"] + list(bazel._PLATFORM_TARGETS_BY_NAME.keys()),
         default=platform.system(),
-        help="The build target, defaults to current os.",
+        help=f"""The build target
+        Must be one of:
+        'trusty' - Stock qemu, used by security team
+        Or one of the following emulator releases:
+        {", ".join([f"'{key}'" for key in bazel._PLATFORM_TARGETS_BY_NAME.keys()])}
+        """,
     )
     parser.add_argument(
         "--change_info",
         help="Path to the change_info.json file that is provided by the build bots",
+    )
+    parser.add_argument(
+        "--config",
+        type=str,
+        default="ci",
+        help="""The configuration to use.
+
+        'ci' is intended for use by buildbots.
+
+        'rcache' is intended for use by developers and will attempt to use remote caching.
+        Note: Using rcache may make the build faster or a bit slower, depending on the hit rate.
+        To use 'rcache', you'll need to configure your credentials:
+
+        **glinux workstation:**
+
+        1. Add the following line to `~/.bazelrc`:
+              common --credential_helper=/google/src/head/depot/google3/devtools/blaze/bazel/credhelper/credhelper
+
+        2. Run `gcert`
+
+        **Other machines:**
+
+        1. Add the following line to `~/.bazelrc` (`%%USERPROFILE%%\\.bazelrc` on Windows):
+               common --google_default_credentials
+
+        2. Run:
+               gcloud auth application-default login --project="emulator-builds"
+               gcloud auth application-default set-quota-project emulator-builds
+        """,
     )
 
     args = parser.parse_args()
