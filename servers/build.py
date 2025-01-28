@@ -176,11 +176,11 @@ def main():
     parser.add_argument(
         "--target",
         type=str,
-        choices=["trusty"] + list(bazel._PLATFORM_TARGETS_BY_NAME.keys()),
+        choices=["trusty_x64"] + list(bazel._PLATFORM_TARGETS_BY_NAME.keys()),
         default=platform.system(),
         help=f"""The build target
         Must be one of:
-        'trusty' - Stock qemu, used by security team
+        'trusty_x64' - Stock qemu, used by security team
         Or one of the following emulator releases:
         {", ".join([f"'{key}'" for key in bazel._PLATFORM_TARGETS_BY_NAME.keys()])}
         """,
