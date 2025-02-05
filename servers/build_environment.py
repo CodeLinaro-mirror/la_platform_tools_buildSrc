@@ -1,16 +1,17 @@
 # Copyright 2021 - The Android Open Source Project
 #
-# Licensed under the Apache License, Version 2.0 (the',  help='License');
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an',  help='AS IS' BASIS,
+# distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import argparse
 import getpass
 import json
@@ -24,6 +25,18 @@ import pathlib
 from typing import Dict, List, Optional, Union
 
 from log_handler import LogHandler
+
+_SYSTEM_TO_TARGET = {
+    "linux": "linux_x64",
+    "darwin": "mac_aarch64",
+    "windows": "windows_x64",
+}
+
+
+def default_target() -> str:
+    """Returns the default build target based on the current system."""
+    return _SYSTEM_TO_TARGET[platform.system().lower()]
+
 
 try:
     import winreg
@@ -93,19 +106,28 @@ class CommandFailedException(Exception):
         self.exit_code = exit_code
 
 
-class BuildEnvironment:
-    """Base class that configures the environment and tracks the time it takes to run the build."""
+class BazelEnvironment:
+    """Manages the environment for Bazel builds, including execution and logging.
 
-    build_id: str
+    This class sets up the environment, tracks execution time, and provides
+    a unified interface for running commands with appropriate logging and
+    error handling. It is intended to be used as a context manager.
+
+    Attributes:
+        build_target: The Bazel build target, if available.
+        host_platform: The current operating system (lowercase).
+        target_platform: The build target platform.
+        repo_root: The root directory of the repository.
+        user: The current username.
+        tmp_dir:  System temporary directory (from $TMPDIR, if defined).
+    """
+
     build_target: Optional[str]
-    is_presubmit: bool
     host_platform: str
     target_platform: str
     repo_root: pathlib.Path
     user: str
-    dist_dir: pathlib.Path
     tmp_dir: Optional[pathlib.Path]
-    crashpad_symbol_server_key: str
 
     _start_time: float
     _cmd_env: Dict[str, str]
@@ -118,34 +140,27 @@ class BuildEnvironment:
         repo_root: pathlib.Path = find_repo_root(os.environ),
         user: str = _getuser(),
     ):
-        self.build_id = args.build_id
+        """Initializes the BazelEnvironment.
+
+        Args:
+            args: Parsed command-line arguments.
+            env: The environment variables. Defaults to os.environ.
+            repo_root: The root of the repository. Defaults to finding it.
+            user: The current user. Defaults to the logged-in user.
+        """
         self.build_target = env.get("BUILD_TARGET_NAME")
-        self.is_presubmit = self.build_id.startswith("P")
         self.host_platform = platform.system().lower()
-        self.target_platform = args.target
+        self.target_platform = (
+            args.target if hasattr(args, "target") else default_target()
+        )
         self.repo_root = repo_root
         self.user = user
-        self.dist_dir = pathlib.Path(args.dist)
         self.tmp_dir = os.environ.get("TMPDIR")
 
         self._start_time = time.time()
         self._cmd_env = env.copy()
         self._cmd_env["PYTHONUNBUFFERED"] = "1"
         self._log_handler = LogHandler()
-        self.crashpad_symbol_server_key = os.environ.get("EMULATOR_SYMBOL_SERVER_KEY")
-        self.crashpad_server = "https://prod-crashsymbolcollector-pa.googleapis.com"
-        if self.is_presubmit:
-            self.crashpad_server = (
-                "https://staging-crashsymbolcollector-pa.googleapis.com"
-            )
-
-        if not self.crashpad_symbol_server_key:
-            key_path = pathlib.Path.home() / ".emulator_symbol_server_key"
-            try:
-                with open(key_path, "r") as f:
-                    self.crashpad_symbol_server_key = f.read().strip()
-            except FileNotFoundError:
-                logging.error("Error: Symbol server key file not found at %s", key_path)
 
     def get_env(self):
         """Gets the OS environment that should be used when running a program."""
@@ -157,7 +172,6 @@ class BuildEnvironment:
         logging.info(json.dumps(self._cmd_env, sort_keys=True))
         logging.info("=" * 140)
 
-        self.dist_dir.mkdir(exist_ok=True, parents=True)
         self._start_time = time.time()
         return self
 
@@ -182,8 +196,7 @@ class BuildEnvironment:
         throw_on_failure: bool = True,
         timeout: Union[float, None] = 3600,
     ) -> subprocess.CompletedProcess:
-        """
-        Run a command with the build environment settings.
+        """Runs a command with the configured environment.
 
         Args:
             cmd: The command to be executed.
@@ -256,7 +269,77 @@ class BuildEnvironment:
         return result
 
 
-class LinuxBuildEnvironment(BuildEnvironment):
+class BuildEnvironment(BazelEnvironment):
+    """Extends BazelEnvironment with build-specific settings.
+
+    Adds build-specific attributes like build ID, presubmit status,
+    distribution directory, and Crashpad integration for symbol uploads.
+    Intended to be used as a context manager.
+
+    Attributes:
+        build_id: The ID of the current build (e.g., from Jenkins).
+        is_presubmit: True if the build is a presubmit (CI) build.
+        dist_dir: The directory for build artifacts.
+        crashpad_symbol_server_key: API key for Crashpad symbol server.
+        crashpad_server: URL of the Crashpad symbol server.
+    """
+    build_id: str
+    is_presubmit: bool
+    dist_dir: pathlib.Path
+    crashpad_symbol_server_key: str
+    crashpad_server: str
+
+    def __init__(
+        self,
+        args: argparse.Namespace,
+        env: Dict[str, str] = os.environ,
+        repo_root: pathlib.Path = find_repo_root(os.environ),
+        user: str = _getuser(),
+    ):
+        """Initializes the BuildEnvironment.
+
+        Args:
+            args: Parsed command-line arguments.
+            env: The environment variables. Defaults to os.environ.
+            repo_root: The root of the repository.  Defaults to finding it.
+            user: The current user. Defaults to the logged-in user.
+        """
+        super().__init__(args, env, repo_root, user)
+        self.build_id = args.build_id if hasattr(args, "build_id") else "PNONE"
+        self.build_target = env.get("BUILD_TARGET_NAME")
+        self.is_presubmit = self.build_id.startswith("P")
+        self.dist_dir = (
+            pathlib.Path(args.dist) if hasattr(args, "build_id") else "PNONE"
+        )
+
+        self.crashpad_symbol_server_key = os.environ.get("EMULATOR_SYMBOL_SERVER_KEY")
+        self.crashpad_server = "https://prod-crashsymbolcollector-pa.googleapis.com"
+        if self.is_presubmit:
+            self.crashpad_server = (
+                "https://staging-crashsymbolcollector-pa.googleapis.com"
+            )
+
+        if not self.crashpad_symbol_server_key:
+            key_path = pathlib.Path.home() / ".emulator_symbol_server_key"
+            try:
+                with open(key_path, "r") as f:
+                    self.crashpad_symbol_server_key = f.read().strip()
+            except FileNotFoundError:
+                logging.error("Error: Symbol server key file not found at %s", key_path)
+
+    def __enter__(self):
+        self.dist_dir.mkdir(exist_ok=True, parents=True)
+        return super().__enter__()
+
+
+class LinuxBazelEnvironment(BazelEnvironment):
+    """Linux-specific Bazel environment configuration.
+
+    Attributes:
+        python: Path to the Python executable.
+    """
+    python: pathlib.Path
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         python_dir = (
@@ -268,7 +351,14 @@ class LinuxBuildEnvironment(BuildEnvironment):
             self.python = pathlib.Path(sys.executable)
 
 
-class WindowsBuildEnvironment(BuildEnvironment):
+class WindowsBazelEnvironment(BazelEnvironment):
+    """Windows-specific Bazel environment configuration.
+
+    Attributes:
+        python: Path to the Python executable.
+    """
+    python: pathlib.Path
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         python_dir = (
@@ -289,7 +379,14 @@ class WindowsBuildEnvironment(BuildEnvironment):
         return True
 
 
-class MacOSBuildEnvironment(BuildEnvironment):
+class MacOSBazelEnvironment(BazelEnvironment):
+    """macOS-specific Bazel environment configuration.
+
+    Attributes:
+        python: Path to the Python executable.
+    """
+    python: pathlib.Path
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         python_dir = (
@@ -304,6 +401,27 @@ class MacOSBuildEnvironment(BuildEnvironment):
         self._cmd_env["DEVELOPER_DIR"] = xcode_path
 
 
+class WindowsBuildEnvironment(WindowsBazelEnvironment, BuildEnvironment):
+    """Environment for Windows builds, combining Windows and build settings."""
+    def __init__(self, *args, **kwargs):
+        WindowsBazelEnvironment.__init__(self, *args, **kwargs)
+        BuildEnvironment.__init__(self, *args, **kwargs)
+
+
+class LinuxBuildEnvironment(LinuxBazelEnvironment, BuildEnvironment):
+    """Environment for Linux builds, combining Linux and build settings."""
+    def __init__(self, *args, **kwargs):
+        LinuxBazelEnvironment.__init__(self, *args, **kwargs)
+        BuildEnvironment.__init__(self, *args, **kwargs)
+
+
+class MacOSBuildEnvironment(MacOSBazelEnvironment, BuildEnvironment):
+    """Environment for macOS builds, combining macOS and build settings."""
+    def __init__(self, *args, **kwargs):
+        MacOSBazelEnvironment.__init__(self, *args, **kwargs)
+        BuildEnvironment.__init__(self, *args, **kwargs)
+
+
 def create_build_environment(args: argparse.Namespace) -> BuildEnvironment:
     """Factory function to create the appropriate BuildEnvironment subclass."""
     host_platform = platform.system().lower()
@@ -313,5 +431,18 @@ def create_build_environment(args: argparse.Namespace) -> BuildEnvironment:
         return LinuxBuildEnvironment(args)
     elif host_platform == "darwin":  # macOS
         return MacOSBuildEnvironment(args)
+    else:
+        raise ValueError(f"Unsupported platform: {host_platform}")
+
+
+def create_bazel_environment(args: argparse.Namespace) -> BuildEnvironment:
+    """Factory function to create the appropriate BazelEnvironment subclass."""
+    host_platform = platform.system().lower()
+    if host_platform == "windows":
+        return WindowsBazelEnvironment(args)
+    elif host_platform == "linux":
+        return LinuxBazelEnvironment(args)
+    elif host_platform == "darwin":  # macOS
+        return MacOSBazelEnvironment(args)
     else:
         raise ValueError(f"Unsupported platform: {host_platform}")
