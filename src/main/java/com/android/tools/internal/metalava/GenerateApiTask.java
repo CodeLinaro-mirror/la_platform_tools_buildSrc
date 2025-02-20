@@ -60,9 +60,18 @@ public abstract class GenerateApiTask extends DefaultTask {
     @Inject
     public abstract WorkerExecutor getWorkerExecutor();
 
+    /**
+     * The directory where past API files are stored. Not all files in the directory are used, they
+     * are filtered in [getPastApiFiles].
+     */
+    @Internal abstract DirectoryProperty getProjectApiDirectory();
+
+    /** An ordered list of the API files to use in generating the API level metadata JSON. */
     @InputFiles
     @PathSensitive(PathSensitivity.RELATIVE)
-    public abstract ConfigurableFileCollection getOldApiFiles();
+    public List<File> getPastApiFiles() {
+        return getFilesForApiLevels(getProjectApiDirectory().get().getAsFileTree().getFiles());
+    }
 
     @TaskAction
     public void generateApi() {
@@ -84,7 +93,10 @@ public abstract class GenerateApiTask extends DefaultTask {
                 TaskUtils.asArg(getOutputDirectory()) + "/removed_current.txt"
         );
 
-        args.addAll(getGenerateApiLevelsArgs(getFilesForApiLevels(getOldApiFiles().getFiles()), getAgpVersion()));
+        args.addAll(getGenerateApiLevelsArgs(
+            getProjectApiDirectory().getAsFile().get(),
+            getPastApiFiles(),
+            getAgpVersion()));
 
         getWorkerExecutor().noIsolation().submit(
                 MetalavaWorkAction.class,
@@ -96,27 +108,28 @@ public abstract class GenerateApiTask extends DefaultTask {
         );
     }
 
-    private List<String> getGenerateApiLevelsArgs(SortedMap<AgpVersion, File> apiFiles, Property<String> currentVersion) {
+    private List<String> getGenerateApiLevelsArgs(File apiDir, Collection<File> apiFiles, Property<String> currentVersion) {
         if (apiFiles.isEmpty()) return Collections.emptyList();
 
-        List<AgpVersion> versions = Lists.newArrayList(new TreeSet<>(apiFiles.keySet()));
-        versions.add(AgpVersion.parseOrNull(currentVersion.get()));
-        String apiVersionNames = versions.stream().map(AgpVersion::toString).collect(Collectors.joining(" "));
         List<String> args =
             Lists.newArrayList(
                 "--generate-api-version-history",
                 TaskUtils.asArg(getOutputDirectory()) + "/" + API_LEVELS_FILE,
-                "--api-version-names",
-                apiVersionNames
+                "--api-version-signature-pattern",
+                // Select the version from the files. The `*` wildcard matches and ignores any
+                // pre-release suffix.
+                apiDir + "/{version:major.minor.patch}*.txt",
+                "--current-version",
+                currentVersion.get()
             );
 
-        String apiFilesString = apiFiles.values().stream().map(File::toString).collect(Collectors.joining(File.pathSeparator));
+        String apiFilesString = apiFiles.stream().map(File::toString).collect(Collectors.joining(File.pathSeparator));
         args.addAll(List.of("--api-version-signature-files", apiFilesString));
 
         return args;
     }
 
-    private SortedMap<AgpVersion, File> getFilesForApiLevels(Set<File> files) {
+    private List<File> getFilesForApiLevels(Set<File> files) {
         SortedMap<AgpVersion, File> versionFileMap = new TreeMap<>();
         // create a map from AGP version to the file containing the API surface for that version
         for (File file: files) {
@@ -128,6 +141,6 @@ public abstract class GenerateApiTask extends DefaultTask {
             }
         }
 
-        return versionFileMap;
+        return List.copyOf(versionFileMap.values());
     }
 }

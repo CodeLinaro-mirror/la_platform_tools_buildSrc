@@ -36,10 +36,9 @@ import org.gradle.api.tasks.testing.Test;
 import org.gradle.internal.jvm.Jvm;
 import java.io.File;
 
-
 public class MetalavaPlugin implements Plugin<Project> {
 
-    private static final String METALAVA_MAVEN = "com.android.tools.metalava:metalava:1.0.0-alpha09";
+    private static final String METALAVA_MAVEN = "com.android.tools.metalava:metalava:1.0.0-alpha12";
     protected static final String API_LEVELS_FILE = "apiLevels.json";
 
     @Override
@@ -73,8 +72,8 @@ public class MetalavaPlugin implements Plugin<Project> {
                 task.getSourcePaths().disallowChanges();
                 task.getJdkHome().set(Jvm.current().getJavaHome());
                 task.getJdkHome().disallowChanges();
-                task.getOldApiFiles().from(project.getLayout().getProjectDirectory().dir("previous-gradle-apis").getAsFileTree());
-                task.getOldApiFiles().disallowChanges();
+                task.getProjectApiDirectory().set(project.getLayout().getProjectDirectory().dir("previous-gradle-apis"));
+                task.getProjectApiDirectory().disallowChanges();
                 task.getAgpVersion().set(buildVersion);
                 task.getAgpVersion().disallowChanges();
                 task.getClasspath().from(main.getCompileClasspath());
