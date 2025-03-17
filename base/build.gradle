@@ -4,7 +4,7 @@ buildscript {
     apply from: "$rootDir/buildSrc/base/version.gradle"
 
     repositories {
-        maven { url "$rootDir/../prebuilts/tools/common/m2/repository" }
+        maven { url="$rootDir/../prebuilts/tools/common/m2/repository" }
     }
 
     dependencies {
@@ -23,7 +23,7 @@ cloneArtifacts {
 }
 
 repositories {
-    maven { url "$rootDir/../prebuilts/tools/common/m2/repository" }
+    maven { url="$rootDir/../prebuilts/tools/common/m2/repository" }
 }
 
 if (System.getenv("USE_EXTERNAL_REPO") != null) {
