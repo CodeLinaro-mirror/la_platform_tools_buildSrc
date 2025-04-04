@@ -19,6 +19,23 @@ import build_environment
 import argparse
 import logging
 
+BAZEL_EXTENSIONS = (
+    # standard Bazel files
+    ".bzl",
+    ".bazel",
+    # Starlark configuration language:
+    # https://github.com/bazelbuild/bazel/commit/a0cd355347b57b17f28695a84af168f9fd200ba1
+    ".scl",
+    ".sky",
+    # WORKSPACE.bzlmod
+    ".bzlmod",
+    # These aren't standard Bazel files, but some projects use these extensions
+    # for Bazel files that are not expected to be read by Bazel in that
+    # path, but symlinked elsewhere (e.g. build/bazel/bazel.WORKSPACE, toplevel.WORKSPACE)
+    ".BUILD",
+    ".WORKSPACE",
+)
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -99,23 +116,9 @@ def is_bazel_file(path: Path) -> bool:
         True if the file matches Bazel file naming patterns, False otherwise.
     """
     basename = path.name
-    EXTENSIONS = (
-        # standard Bazel files
-        ".bzl",
-        ".bazel",
-        # Starlark configuration language:
-        # https://github.com/bazelbuild/bazel/commit/a0cd355347b57b17f28695a84af168f9fd200ba1
-        ".scl",
-        ".sky",
-        # WORKSPACE.bzlmod
-        ".bzlmod",
-        # These aren't standard Bazel files, but some projects use these extensions
-        # for Bazel files that are not expected to be read by Bazel in that
-        # path, but symlinked elsewhere (e.g. build/bazel/bazel.WORKSPACE, toplevel.WORKSPACE)
-        ".BUILD",
-        ".WORKSPACE",
-    )
-    return basename in ("BUILD", "WORKSPACE") or path.suffix in EXTENSIONS
+    if not (basename in ("BUILD", "WORKSPACE") or path.suffix in BAZEL_EXTENSIONS):
+        return False
+    return path.exists()
 
 
 if __name__ == "__main__":
