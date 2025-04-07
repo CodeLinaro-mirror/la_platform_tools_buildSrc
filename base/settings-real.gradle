@@ -83,10 +83,8 @@ include ':base:compose-preview-detector'
 project(':base:compose-preview-detector').projectDir = new File(rootDir, 'base/multipreview-asm')
 
 include ':base:preview:screenshot:screenshot-test-gradle-plugin'
-
-// Temporarily exclude screenshot test engine modules due to issues in androidx-studio-integration, b/408293676.
-// include ':base:preview:screenshot:screenshot-validation-api'
-// include ':base:preview:screenshot:screenshot-validation-junit-engine'
+include ':base:preview:screenshot:screenshot-validation-api'
+include ':base:preview:screenshot:screenshot-validation-junit-engine'
 
 include ':base:journeys:journeys-gradle-plugin'
 include ':base:journeys:journeys-junit5-engine'
