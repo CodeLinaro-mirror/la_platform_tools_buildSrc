@@ -86,5 +86,7 @@ include ':base:preview:screenshot:screenshot-test-gradle-plugin'
 include ':base:preview:screenshot:screenshot-validation-api'
 include ':base:preview:screenshot:screenshot-validation-junit-engine'
 
+include ':base:backup-test:backup-test-api'
+
 include ':base:journeys:journeys-gradle-plugin'
 include ':base:journeys:journeys-junit5-engine'
