@@ -100,10 +100,11 @@ def disable_debug_policy():
 
 class CommandFailedException(Exception):
     """Exception raised when the command fails."""
+    result: subprocess.CompletedProcess
 
-    def __init__(self, msg: str, exit_code):
+    def __init__(self, msg: str, result: subprocess.CompletedProcess):
         super().__init__(msg)
-        self.exit_code = exit_code
+        self.result = result
 
 
 class BazelEnvironment:
@@ -265,7 +266,7 @@ class BazelEnvironment:
                 msg.append(f"STDOUT: {result.stdout}")
             if result.stderr:
                 msg.append(f"STDERR: {result.stderr}")
-            raise CommandFailedException("\n".join(msg), result.returncode)
+            raise CommandFailedException("\n".join(msg), result)
         return result
 
 

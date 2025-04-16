@@ -37,7 +37,7 @@ BAZEL_EXTENSIONS = (
 )
 
 
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(
         description="""
         Validates and fixes Bazel files using buildifier.
@@ -68,7 +68,15 @@ def main():
     args = parser.parse_args()
 
     with build_environment.create_bazel_environment(args) as env:
-        bzl = bazel.BazelCmd(env).with_build_flags([])
+        bzl = bazel.BazelCmd(env, capture_output=True).with_build_flags(
+            [
+                "--noshow_loading_progress",
+                "--noshow_progress",
+                "--ui_event_filters=,+error,+fail",
+                "--show_result=0",
+                "--logging=0",
+            ]
+        )
         # Get the list of files from the command line arguments
         abs_files = [Path(x).absolute() for x in args.files]
         files = [str(x) for x in abs_files if is_bazel_file(x)]
@@ -91,6 +99,7 @@ def main():
             )
 
         except build_environment.CommandFailedException as cfe:
+            logging.warning(cfe.result.stderr)
             bzl.run(
                 target="@buildifier_prebuilt//:buildifier",
                 params=[
@@ -100,7 +109,7 @@ def main():
                 + files,
             )
             logging.error("Buildifier fixed Bazel files. Please amend your commit.")
-            sys.exit(1)
+            sys.exit(cfe.result.returncode)
 
 
 def is_bazel_file(path: Path) -> bool:

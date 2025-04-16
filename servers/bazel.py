@@ -125,23 +125,29 @@ class BazelCmd:
     _path: pathlib.Path
     _startup_options: Tuple[str, ...]
     _build_flags: Tuple[str, ...]
+    _capture_output: bool
 
     def __init__(
         self,
         build_env: build_environment.BuildEnvironment,
         *,
+        capture_output: bool = False,
         startup_options: Iterable[str] = (),
     ) -> None:
         """Initializes Bazel command.
 
         Args:
             build_env: The build environment.
+            capture_output: Whether or not build, test and run commands should capture
+                outputs. Queries always capture output.
             startup_options: Startup options for the bazel command.
         """
         self._env = build_env
         self._startup_options = tuple(startup_options)
+        self._build_flags = ()
         system = f"{build_env.host_platform}-x86_64"
         self._path = build_env.repo_root / "prebuilts" / "bazel" / system / "bazel"
+        self._capture_output = capture_output
 
     def with_build_flags(self, flags: Iterable[str]) -> "BazelCmd":
         """Creates a new ``BazelCmd`` instance with build flags attached.
@@ -156,7 +162,11 @@ class BazelCmd:
         Returns:
             A new ``BazelCmd`` object.
         """
-        instance = BazelCmd(self._env, startup_options=self._startup_options)
+        instance = BazelCmd(
+            self._env,
+            capture_output=self._capture_output,
+            startup_options=self._startup_options,
+        )
         instance._build_flags = tuple(flags)
         return instance
 
@@ -199,7 +209,7 @@ class BazelCmd:
                 _bazel_error_msg(
                     cmd, BaseExitCode.try_convert(result.returncode), result.stderr
                 ),
-                result.returncode,
+                result,
             )
         info = {}
         for line in result.stdout.splitlines():
@@ -232,21 +242,25 @@ class BazelCmd:
             timeout: Timeout for the entire process.
 
         Returns:
-            A ``subprocess.CompletedProcess`` object. It contains only the
-            commandline and the return code. Stderr and stdout are handled by
-            logger.
+            A ``subprocess.CompletedProcess`` object. When capture_output == False,
+            it contains only the commandline and the return code.
         """
         cmd = self._build_cmd(
             "test", targets, invocation_flags, allow_analysis_cache_discard
         )
-        result = self._env.run(cmd, throw_on_failure=False, timeout=timeout)
+        result = self._env.run(
+            cmd,
+            capture_output=self._capture_output,
+            throw_on_failure=False,
+            timeout=timeout,
+        )
         normal_return_codes = [BuildExitCode.SUCCESS, BuildExitCode.TESTS_FAILED]
         if allow_no_test:
             normal_return_codes.append(BuildExitCode.TESTS_NOT_FOUND)
         if result.returncode not in normal_return_codes:
             raise build_environment.CommandFailedException(
                 _bazel_error_msg(cmd, BuildExitCode.try_convert(result.returncode)),
-                result.returncode,
+                result,
             )
         return result
 
@@ -268,18 +282,22 @@ class BazelCmd:
             timeout: Timeout for the entire process.
 
         Returns:
-            A ``subprocess.CompletedProcess`` object. It contains only the
-            commandline and the return code. Stderr and stdout are handled by
-            logger.
+            A ``subprocess.CompletedProcess`` object. When capture_output == False,
+            it contains only the commandline and the return code.
         """
         cmd = self._build_cmd(
             "build", targets, invocation_flags, allow_analysis_cache_discard
         )
-        result = self._env.run(cmd, throw_on_failure=False, timeout=timeout)
+        result = self._env.run(
+            cmd,
+            capture_output=self._capture_output,
+            throw_on_failure=False,
+            timeout=timeout,
+        )
         if result.returncode != BuildExitCode.SUCCESS:
             raise build_environment.CommandFailedException(
                 _bazel_error_msg(cmd, BuildExitCode.try_convert(result.returncode)),
-                result.returncode,
+                result,
             )
         return result
 
@@ -303,15 +321,19 @@ class BazelCmd:
             params: The set of params to pass to the target.
 
         Returns:
-            A ``subprocess.CompletedProcess`` object. It contains only the
-            commandline and the return code. Stderr and stdout are handled by
-            logger.
+            A ``subprocess.CompletedProcess`` object. When capture_output == False,
+            it contains only the commandline and the return code.
         """
         flags = [target] + params
         cmd = self._build_cmd(
             "run", flags, invocation_flags, allow_analysis_cache_discard
         )
-        result = self._env.run(cmd, throw_on_failure=True, timeout=timeout)
+        result = self._env.run(
+            cmd,
+            capture_output=self._capture_output,
+            throw_on_failure=True,
+            timeout=timeout,
+        )
         return result
 
     def cquery(
@@ -355,7 +377,7 @@ class BazelCmd:
                 _bazel_error_msg(
                     cmd, QueryExitCode.try_convert(result.returncode), result.stderr
                 ),
-                result.returncode,
+                result,
             )
         return result
 
@@ -381,6 +403,29 @@ class BazelCmd:
             line = line.strip()
             artifacts.append(exec_root / line)
         return artifacts
+
+    def mod(
+        self, args: Iterable[str], *, timeout: Union[float, None] = 300
+    ) -> subprocess.CompletedProcess:
+        """Runs bazel mod command.
+
+        Just a plain "bazel mod" followed by the args. The start-up options and the
+        build flags are still honored.
+        """
+        cmd = (
+            [self._path]
+            + list(self._startup_options)
+            + ["mod"]
+            + list(self._build_flags)
+            + list(args)
+        )
+        result = self._env.run(
+            cmd,
+            capture_output=self._capture_output,
+            throw_on_failure=True,
+            timeout=timeout,
+        )
+        return result
 
 
 def quote(s: str) -> str:

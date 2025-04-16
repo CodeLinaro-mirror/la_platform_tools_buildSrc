@@ -15,7 +15,7 @@
 # limitations under the License.
 import logging
 import tempfile
-import time
+from typing import List
 import zipfile
 from pathlib import Path
 
@@ -28,7 +28,9 @@ class Symuploader:
     A class for uploading symbol files (.sym or .pdb) to a crashpad server.
     """
 
-    def __init__(self, env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd):
+    def __init__(
+        self, env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd
+    ) -> None:
         """
         Initializes the Symuploader.
 
@@ -39,7 +41,7 @@ class Symuploader:
         self.env = env
         self.bzl = bzl
 
-    def upload_artifact(self, symbol_or_exe: Path):
+    def upload_artifact(self, symbol_or_exe: Path) -> None:
         """
         Uploads a single symbol or windows exectuable file to the crashpad server.
 
@@ -71,12 +73,12 @@ class Symuploader:
                 params=params,
             )
         except build_environment.CommandFailedException as cfe:
-            if cfe.exit_code == 2:
+            if cfe.result.returncode == 2:
                 logging.debug("Symbols already present in the server.")
             else:
                 raise
 
-    def upload_artifacts(self, artifacts: [str]):
+    def upload_artifacts(self, artifacts: List[str]) -> None:
         """
         Uploads multiple symbol files from a list of bazel targets.
 
@@ -86,7 +88,7 @@ class Symuploader:
         for symbol_or_exe in self.bzl.query_artifacts(artifacts):
             self.upload_artifact(symbol_or_exe)
 
-    def upload_from_zip(self, zip: Path, ignore_failures: bool = False):
+    def upload_from_zip(self, zip: Path, ignore_failures: bool = False) -> None:
         """
         Uploads symbol files (.sym or .exe/.dll) extracted from a zip archive.
 
@@ -114,5 +116,6 @@ class Symuploader:
                         if not ignore_failures:
                             raise
                         else:
-                            logging.warning("Failed to process %s, due to %s", symbol_file, cfe)
-
+                            logging.warning(
+                                "Failed to process %s, due to %s", symbol_file, cfe
+                            )
