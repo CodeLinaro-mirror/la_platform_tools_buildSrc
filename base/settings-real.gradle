@@ -86,6 +86,8 @@ include ':base:preview:screenshot:screenshot-test-gradle-plugin'
 include ':base:preview:screenshot:screenshot-validation-api'
 include ':base:preview:screenshot:screenshot-validation-junit-engine'
 
+include ':base:backup-test:android-backup-runner'
+include ':base:backup-test:backup-junit-engine'
 include ':base:backup-test:backup-test-api'
 
 include ':base:journeys:journeys-gradle-plugin'
