@@ -91,4 +91,4 @@ include ':base:backup-test:backup-junit-engine'
 include ':base:backup-test:backup-test-api'
 
 include ':base:journeys:journeys-gradle-plugin'
-include ':base:journeys:journeys-junit5-engine'
+include ':base:journeys:journeys-junit-engine'
