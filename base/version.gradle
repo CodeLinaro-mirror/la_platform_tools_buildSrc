@@ -18,6 +18,10 @@ String releaseProperty = project.providers.gradleProperty("release").getOrElse("
 boolean release = releaseProperty.equalsIgnoreCase("true")
 if (!release && !releaseProperty.equalsIgnoreCase("false")) throw new IllegalStateException("Expected release property to be true or false, but was '$releaseProperty'")
 
+String nextMajorProperty = project.providers.gradleProperty("nextMajor").getOrElse("false")
+boolean nextMajor = nextMajorProperty.equalsIgnoreCase("true")
+if (!nextMajor && !nextMajorProperty.equalsIgnoreCase("false")) throw new IllegalStateException("Expected release property to be true or false, but was '$nextMajorProperty'")
+
 String releaseBaseVersion = properties.getProperty('BASE_VERSION') - '"' - '"'
 String releaseBuildVersion = properties.getProperty('BUILD_VERSION') - '"' - '"'
 
@@ -25,8 +29,18 @@ String dev(String release) {
     release.split('-')[0] + '-dev'
 }
 
-project.ext['baseVersion'] = release ? releaseBaseVersion : dev(releaseBaseVersion)
-project.ext['buildVersion'] = release ? releaseBuildVersion : dev(releaseBuildVersion)
+String bazelBaseVersion = release ? releaseBaseVersion : dev(releaseBaseVersion)
+project.ext['baseVersion'] = bazelBaseVersion
+
+String bazelBuildVersion = release ? releaseBuildVersion : dev(releaseBuildVersion)
+
+String baseMajorVersionString = bazelBaseVersion.split('\\.')[0]
+int currentMajor = baseMajorVersionString.toInteger()
+
+int nextMajorIncrementedValue = currentMajor + 1
+
+project.ext['buildVersion'] = nextMajor ? "${nextMajorIncrementedValue}.0.0-dev" : (bazelBuildVersion)
+
 project.ext['releaseBuildVersion'] = releaseBuildVersion
 // This will be replaced with a dependency catalog soon.
 
@@ -56,7 +70,7 @@ Map<String, ?> libs = [:]
 // TODO(b/143864616): These will be replaced by a version catalog
 libs['versions'] = [
         'base': provider { project.ext['baseVersion'] },
-        'build': provider { project.ext['buildVersion'] }
+        'build': provider { bazelBuildVersion }
 ]
 for (name in dependencies.stringPropertyNames()) {
     // Use . separated names in preparation for migration to a version catalog
