@@ -1,90 +1,93 @@
 rootProject.name = 'tools-gradle'
-include ':base:api-generator'
-include ':base:bazel:avd'
-include ':base:layoutlib-extensions'
-include ':base:lint'
-include ':base:manifest-merger'
-include ':base:mlkit-common'
-include ':base:vector-drawable-tool'
-include ':base:profgen'
-include ':base:profgen-cli'
 
-include ':base:profile'
-include ':base:builder-model'
-include ':base:builder-test-api'
-include ':base:builder'
-include ':base:gradle-api'
-include ':base:build-analyzer:common'
-include ':base:build-system:gradle-core'
-include ':base:build-system:gradle-kotlin'
-include ':base:build-system:gradle-dcl-ecosystem'
-include ':base:build-system:gradle-settings'
-include ':base:build-system:gradle-settings-api'
-include ':base:build-system:gradle-common-api'
-include ':base:build-system:aapt2'
-include ':base:build-system:aapt2-proto'
-include ':base:build-system:aaptcompiler'
-include ':base:build-system:docs'
-include ':base:build-system:integration-test'
-include ':base:build-system:integration-test:framework'
-include ':base:build-system:integration-test:api'
-include ':base:build-system:integration-test:application'
-include ':base:build-system:integration-test:connected'
-include ':base:build-system:integration-test:databinding'
-include ':base:build-system:integration-test:databinding:incremental'
-include ':base:build-system:integration-test:lint'
-include ':base:build-system:integration-test:managed-devices'
-include ':base:build-system:integration-test:native'
-include ':base:build-system:integration-test:utp'
-include ':base:build-system:builder-r8'
-include ':base:build-system:shrinker'
-include ':base:project-test-lib'
-include ':base:project-test'
-include ':base:kotlin-multiplatform-models'
+def projects = [
+        [projectName: ':base:api-generator', projectPath: 'base/misc/api-generator'],
+        [projectName: ':base:bazel:avd', projectPath: ''],
+        [projectName: ':base:layoutlib-extensions', projectPath: ''],
+        [projectName: ':base:lint', projectPath: ''],
+        [projectName: ':base:manifest-merger', projectPath: 'base/build-system/manifest-merger'],
+        [projectName: ':base:mlkit-common', projectPath: ''],
+        [projectName: ':base:vector-drawable-tool', projectPath: ''],
+        [projectName: ':base:profgen', projectPath: 'base/profgen/profgen'],
+        [projectName: ':base:profgen-cli', projectPath: 'base/profgen/profgen-cli'],
+        [projectName: ':base:profile', projectPath: 'base/build-system/profile'],
+        [projectName: ':base:builder-model', projectPath: 'base/build-system/builder-model'],
+        [projectName: ':base:builder-test-api', projectPath: 'base/build-system/builder-test-api'],
+        [projectName: ':base:builder', projectPath: 'base/build-system/builder'],
+        [projectName: ':base:gradle-api', projectPath: 'base/build-system/gradle-api'],
+        [projectName: ':base:build-analyzer:common', projectPath: ''],
+        [projectName: ':base:build-system:gradle-core', projectPath: ''],
+        [projectName: ':base:build-system:gradle-kotlin', projectPath: ''],
+        [projectName: ':base:build-system:gradle-dcl-ecosystem', projectPath: ''],
+        [projectName: ':base:build-system:gradle-settings', projectPath: ''],
+        [projectName: ':base:build-system:gradle-settings-api', projectPath: ''],
+        [projectName: ':base:build-system:gradle-common-api', projectPath: ''],
+        [projectName: ':base:build-system:aapt2', projectPath: ''],
+        [projectName: ':base:build-system:aapt2-proto', projectPath: ''],
+        [projectName: ':base:build-system:aaptcompiler', projectPath: ''],
+        [projectName: ':base:build-system:docs', projectPath: ''],
+        [projectName: ':base:build-system:integration-test', projectPath: ''],
+        [projectName: ':base:build-system:integration-test:framework', projectPath: ''],
+        [projectName: ':base:build-system:integration-test:api', projectPath: ''],
+        [projectName: ':base:build-system:integration-test:application', projectPath: ''],
+        [projectName: ':base:build-system:integration-test:connected', projectPath: ''],
+        [projectName: ':base:build-system:integration-test:databinding', projectPath: ''],
+        [projectName: ':base:build-system:integration-test:databinding:incremental', projectPath: ''],
+        [projectName: ':base:build-system:integration-test:lint', projectPath: ''],
+        [projectName: ':base:build-system:integration-test:managed-devices', projectPath: ''],
+        [projectName: ':base:build-system:integration-test:native', projectPath: ''],
+        [projectName: ':base:build-system:integration-test:utp', projectPath: ''],
+        [projectName: ':base:build-system:builder-r8', projectPath: ''],
+        [projectName: ':base:build-system:shrinker', projectPath: ''],
+        [projectName: ':base:project-test-lib', projectPath: 'base/build-system/project-test-lib'],
+        [projectName: ':base:project-test', projectPath: 'base/build-system/project-test'],
+        [projectName: ':base:kotlin-multiplatform-models', projectPath: ''],
+        [projectName: ':base:testing-infrastructure:device-pool:device-provider', projectPath: ''],
+        [projectName: ':external:fat32lib', projectPath: ''],
+        [projectName: ':data-binding', projectPath: ''],
+        [projectName: ':base:utp:android-device-provider-ddmlib', projectPath: ''],
+        [projectName: ':base:utp:android-device-provider-profile', projectPath: ''],
+        [projectName: ':base:utp:android-test-plugin-host-additional-test-output', projectPath: ''],
+        [projectName: ':base:utp:android-test-plugin-host-apk-installer', projectPath: ''],
+        [projectName: ':base:utp:android-test-plugin-host-coverage', projectPath: ''],
+        [projectName: ':base:utp:android-test-plugin-host-device-info', projectPath: ''],
+        [projectName: ':base:utp:android-test-plugin-host-logcat', projectPath: ''],
+        [projectName: ':base:utp:android-test-plugin-host-emulator-control', projectPath: ''],
+        [projectName: ':base:utp:android-test-plugin-result-listener-gradle', projectPath: ''],
+        [projectName: ':base:utp:utp-common', projectPath: ''],
+        [projectName: ':base:perf-logger', projectPath: ''],
+        [projectName: ':base:firebase:testlab:testlab-gradle-plugin', projectPath: ''],
+        [projectName: ':base:compose-preview-detector', projectPath: 'base/multipreview-asm'],
+        [projectName: ':base:preview:screenshot:screenshot-test-gradle-plugin', projectPath: ''],
+        [projectName: ':base:preview:screenshot:screenshot-validation-api', projectPath: ''],
+        [projectName: ':base:preview:screenshot:screenshot-validation-junit-engine', projectPath: ''],
+        [projectName: ':base:backup-test:android-backup-runner', projectPath: ''],
+        [projectName: ':base:backup-test:backup-junit-engine', projectPath: ''],
+        [projectName: ':base:backup-test:backup-test-api', projectPath: ''],
+        [projectName: ':base:journeys:journeys-gradle-plugin', projectPath: ''],
+        [projectName: ':base:journeys:journeys-junit-engine', projectPath: ''],
+        [projectName: ':base:journeys:journeys-junit-engine-test-support', projectPath: ''],
+]
 
-include ':base:testing-infrastructure:device-pool:device-provider'
+/**
+ * Gradle 9.0 requires directories for project to be explicitly created.
+ */
+projects.each { proj ->
 
-project(':base:api-generator'      ).projectDir = new File(rootDir, 'base/misc/api-generator')
+    def finalPath
+    // Check if projectPath is non-empty
+    if (proj.projectPath) {
+        finalPath = proj.projectPath
+    } else {
+        // If path is empty, derive it from the name.
+        // ':base:journeys:journeys-junit-engine' -> 'base/journeys/journeys-junit-engine'
+        finalPath = proj.projectName.substring(1).replace(':', '/')
+    }
 
-project(':base:profile'            ).projectDir = new File(rootDir, 'base/build-system/profile')
-project(':base:builder-model'      ).projectDir = new File(rootDir, 'base/build-system/builder-model')
-project(':base:builder-test-api'   ).projectDir = new File(rootDir, 'base/build-system/builder-test-api')
-project(':base:builder'            ).projectDir = new File(rootDir, 'base/build-system/builder')
-project(':base:manifest-merger'    ).projectDir = new File(rootDir, 'base/build-system/manifest-merger')
-project(':base:gradle-api'         ).projectDir = new File(rootDir, 'base/build-system/gradle-api')
-project(':base:project-test-lib'   ).projectDir = new File(rootDir, 'base/build-system/project-test-lib')
-project(':base:project-test'       ).projectDir = new File(rootDir, 'base/build-system/project-test')
-project(':base:profgen'            ).projectDir = new File(rootDir, 'base/profgen/profgen')
-project(':base:profgen-cli'        ).projectDir = new File(rootDir, 'base/profgen/profgen-cli')
-
-include ':external:fat32lib'
-include ':data-binding'
-
-include ':base:utp:android-device-provider-ddmlib'
-include ':base:utp:android-device-provider-profile'
-include ':base:utp:android-test-plugin-host-additional-test-output'
-include ':base:utp:android-test-plugin-host-apk-installer'
-include ':base:utp:android-test-plugin-host-coverage'
-include ':base:utp:android-test-plugin-host-device-info'
-include ':base:utp:android-test-plugin-host-logcat'
-include ':base:utp:android-test-plugin-host-emulator-control'
-include ':base:utp:android-test-plugin-result-listener-gradle'
-include ':base:utp:utp-common'
-include ':base:perf-logger'
-
-include ':base:firebase:testlab:testlab-gradle-plugin'
-
-include ':base:compose-preview-detector'
-project(':base:compose-preview-detector').projectDir = new File(rootDir, 'base/multipreview-asm')
-
-include ':base:preview:screenshot:screenshot-test-gradle-plugin'
-include ':base:preview:screenshot:screenshot-validation-api'
-include ':base:preview:screenshot:screenshot-validation-junit-engine'
-
-include ':base:backup-test:android-backup-runner'
-include ':base:backup-test:backup-junit-engine'
-include ':base:backup-test:backup-test-api'
-
-include ':base:journeys:journeys-gradle-plugin'
-include ':base:journeys:journeys-junit-engine'
-include ':base:journeys:journeys-junit-engine-test-support'
+    // Define the project directory using the final path
+    def projectDir = new File(settingsDir, finalPath)
+    println("---> " + projectDir)
+    projectDir.mkdirs()
+    include(proj.projectName)
+    project(proj.projectName).projectDir = projectDir
+}
