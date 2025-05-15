@@ -40,19 +40,6 @@ validatePlugins {
     getFailOnWarning().set(false)
 }
 
-// See README.
-sourceSets {
-    main {
-        groovy {
-            srcDir 'src/fromGradle/groovy'
-        }
-
-        resources {
-            srcDir 'src/fromGradle/resources'
-        }
-    }
-}
-
 // Make sure that we are compiling with a valid JDK. This can be overridden by setting the
 // 'JAVA_FOR_TESTS' environment variable (to, e.g., '1.6')
 task('checkJavaVersion').doLast {

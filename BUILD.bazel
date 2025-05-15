@@ -3,13 +3,6 @@ filegroup(
     srcs = glob([
         "**/*.gradle",
         "**/*.gradle.kts",
-        "src/fromGradle/groovy/org/gradle/build/docs/*.java",
-        "src/fromGradle/groovy/org/gradle/build/docs/dsl/docbook/*.java",
-        "src/fromGradle/groovy/org/gradle/build/docs/dsl/docbook/model/*.java",
-        "src/fromGradle/groovy/org/gradle/build/docs/dsl/links/*.java",
-        "src/fromGradle/groovy/org/gradle/build/docs/dsl/source/*.java",
-        "src/fromGradle/groovy/org/gradle/build/docs/dsl/source/model/*.java",
-        "src/fromGradle/groovy/org/gradle/build/docs/model/*.java",
         "src/main/groovy/com/android/tools/internal/*.java",
         "src/main/groovy/com/android/tools/internal/license/*.java",
         "src/main/java/com/android/tools/internal/*.java",
