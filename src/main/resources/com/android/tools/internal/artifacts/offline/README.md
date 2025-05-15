@@ -75,14 +75,14 @@ buildscript {
         // the offline components. You can include them again after
         // you’ve confirmed that your project builds ‘offline’.
         // google()
-        // jcenter()
+        // mavenCentral()
     }
     …
 }
 allprojects {
     repositories {
         // google()
-        // jcenter()
+        // mavenCentral()
     }
     ...
 }
