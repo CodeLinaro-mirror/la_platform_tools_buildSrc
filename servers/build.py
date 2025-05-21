@@ -59,7 +59,12 @@ def generate_aemu_bazel(args):
             "--buildid",
             args.build_id,
         ]
-        env.run(command, timeout=2400)
+        res = "no results."
+        try:
+            # Note, builds on windows can take quite some time.
+            res = env.run(command, capture_output=env.is_windows(), timeout=7200)
+        finally:
+            logging.info("Completed aemu bazel generation: %s", res)
 
 
 def build_trusty(args):
@@ -217,6 +222,11 @@ def main():
         help="Path to the change_info.json file that is provided by the build bots",
     )
     parser.add_argument(
+        "--force_generate_aemu_bazel",
+        action="store_true",
+        help="Force the building of the qemu meson packages to generate the bazel build files.",
+    )
+    parser.add_argument(
         "--config",
         type=str,
         default="ci",
@@ -251,8 +261,9 @@ def main():
         return build_trusty(args)
 
     change_info = ChangeInfo(args.change_info)
-    if args.build_id.startswith("P") and change_info.get_commits_by_project(
-        "platform/external/qemu"
+    if args.force_generate_aemu_bazel or (
+        args.build_id.startswith("P")
+        and change_info.get_commits_by_project("platform/external/qemu")
     ):
         logging.info("Qemu changes detected, generating bazel build files.")
         generate_aemu_bazel(args)
