@@ -41,7 +41,7 @@ def generate_aemu_bazel(args):
     with build_environment.create_build_environment(args) as env:
         amc = (
             env.repo_root
-            / "external"
+            / "third_party"
             / "qemu"
             / "google"
             / "toolchain"
@@ -74,7 +74,7 @@ def build_trusty(args):
     bld_dir.mkdir(exist_ok=True, parents=True)
 
     with build_environment.create_build_environment(args) as env:
-        toolchain = env.repo_root / "external" / "qemu" / "google" / "toolchain"
+        toolchain = env.repo_root / "third_party" / "qemu" / "google" / "toolchain"
         build = toolchain / "build-qemu-trusty"
         command = [
             build,
