@@ -21,7 +21,6 @@ import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.ConfigurationContainer;
-import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.Category;
 import org.gradle.api.attributes.DocsType;
 import org.gradle.api.attributes.Usage;
@@ -49,16 +48,16 @@ public class DackkaPlugin implements Plugin<Project> {
 
 
         ConfigurationContainer configurations = project.getConfigurations();
-        Configuration api = configurations.create("api", it -> {
+        Configuration api = configurations.register("api", it -> {
             it.setCanBeConsumed(false);
             it.setCanBeResolved(false);
-        });
-        Configuration provided = configurations.create("provided", it -> {
+        }).get();
+        Configuration provided = configurations.register("provided", it -> {
             it.setCanBeConsumed(false);
             it.setCanBeResolved(false);
-        });
+        }).get();
 
-        Configuration sources = configurations.create("sources", it -> {
+        Configuration sources = configurations.register("sources", it -> {
             it.setCanBeConsumed(false);
             it.setCanBeResolved(true);
             it.extendsFrom(api);
@@ -68,9 +67,9 @@ public class DackkaPlugin implements Plugin<Project> {
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, Category.DOCUMENTATION));
                 attributes.attribute(DocsType.DOCS_TYPE_ATTRIBUTE, project.getObjects().named(DocsType.class, DocsType.SOURCES));
             });
-        });
+        }).get();
 
-        Configuration compileClasspath = configurations.create("compileClasspath", it -> {
+        Configuration compileClasspath = configurations.register("compileClasspath", it -> {
             it.setCanBeConsumed(false);
             it.setCanBeResolved(true);
             it.extendsFrom(api, provided);
@@ -78,9 +77,9 @@ public class DackkaPlugin implements Plugin<Project> {
             it.attributes(attributes -> {
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_API));
             });
-        });
+        }).get();
 
-        Configuration metalavaMetadata = configurations.create("versionsMetadata", it -> {
+        Configuration metalavaMetadata = configurations.register("versionsMetadata", it -> {
             it.setCanBeConsumed(false);
             it.setCanBeResolved(true);
             it.extendsFrom(api);
@@ -89,7 +88,7 @@ public class DackkaPlugin implements Plugin<Project> {
                 attributes.attribute(Usage.USAGE_ATTRIBUTE, project.getObjects().named(Usage.class, Usage.JAVA_RUNTIME));
                 attributes.attribute(Category.CATEGORY_ATTRIBUTE, project.getObjects().named(Category.class, "metalava-api-levels"));
             });
-        });
+        }).get();
 
         TaskProvider<DackkaTask> dackkaTask = project.getTasks().register("dackkaDocs", DackkaTask.class, task -> {
             task.getDevsiteTenant().set(devsitePrefix);
