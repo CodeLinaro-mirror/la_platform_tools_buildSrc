@@ -1,13 +1,10 @@
 rootProject.name = 'tools-gradle'
 include ':base:api-generator'
-include ':base:archquery'
 include ':base:bazel:avd'
-include ':base:jobb'
 include ':base:layoutlib-extensions'
 include ':base:lint'
 include ':base:manifest-merger'
 include ':base:mlkit-common'
-include ':base:screenshot2'
 include ':base:vector-drawable-tool'
 include ':base:profgen'
 include ':base:profgen-cli'
@@ -47,8 +44,6 @@ include ':base:kotlin-multiplatform-models'
 include ':base:testing-infrastructure:device-pool:device-provider'
 
 project(':base:api-generator'      ).projectDir = new File(rootDir, 'base/misc/api-generator')
-project(':base:archquery'          ).projectDir = new File(rootDir, 'base/legacy/archquery')
-project(':base:screenshot2'        ).projectDir = new File(rootDir, 'base/misc/screenshot2')
 
 project(':base:profile'            ).projectDir = new File(rootDir, 'base/build-system/profile')
 project(':base:builder-model'      ).projectDir = new File(rootDir, 'base/build-system/builder-model')
