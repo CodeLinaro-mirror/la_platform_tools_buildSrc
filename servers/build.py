@@ -97,13 +97,25 @@ def build_aemu(args):
         logs_dir = env.dist_dir / "logs"
         logs_dir.mkdir(exist_ok=True)
         build_id = "snapshot" if env.is_presubmit else env.build_id
-        bzl = bazel.BazelCmd(env)
+        startup_options = []
+        if env.tmp_dir:
+            startup_options += [
+                f"--output_base={env.tmp_dir / 'output'}",
+                f"--install_base={env.tmp_dir / 'install'}",
+            ]
+        bzl = bazel.BazelCmd(env, startup_options=startup_options)
+
+        common_build_flags = [
+            f"--build_metadata=ab_build_id={env.build_id}",
+            f"--build_metadata=ab_target={env.build_target}",
+            f"--config={args.config}",
+            "--verbose_failures",
+            f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
+        ]
 
         bzl_debug = bzl.with_build_flags(
-            [
-                f"--config={args.config}",
+            common_build_flags + [
                 "--config=debug",
-                f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
             ]
         )
         targets = release_targets + always_test_targets
@@ -115,12 +127,7 @@ def build_aemu(args):
             invocation_flags=[
                 "--test_output=errors",
                 "--test_summary=detailed",
-                "--verbose_failures",
-                "--verbose_explanations",
-                f"--explain={logs_dir / 'bazel_test_debug_explain.log'}",
                 "--build_metadata=test_definition_name=android_emulator/test_debug",
-                f"--build_metadata=ab_build_id={env.build_id}",
-                f"--build_metadata=ab_target={env.build_target}",
             ],
             allow_analysis_cache_discard=True,
         )
@@ -128,21 +135,14 @@ def build_aemu(args):
         copy_all(artifacts, env.dist_dir)
 
         bzl_release = bzl.with_build_flags(
-            [
-                f"--config={args.config}",
+            common_build_flags + [
                 "--config=release",
-                f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
             ]
         )
         bzl_release.test(
             release_targets + always_test_targets,
             invocation_flags=[
-                "--verbose_failures",
-                "--verbose_explanations",
-                f"--explain={logs_dir / 'bazel_release_explain.log'}",
                 "--build_metadata=test_definition_name=android_emulator/release",
-                f"--build_metadata=ab_build_id={env.build_id}",
-                f"--build_metadata=ab_target={env.build_target}",
             ],
             allow_analysis_cache_discard=True,
         )
@@ -238,21 +238,8 @@ def main():
         Note: Using rcache may make the build faster or a bit slower, depending on the hit rate.
         To use 'rcache', you'll need to configure your credentials:
 
-        **glinux workstation:**
-
-        1. Add the following line to `~/.bazelrc`:
-              common --credential_helper=/google/src/head/depot/google3/devtools/blaze/bazel/credhelper/credhelper
-
-        2. Run `gcert`
-
-        **Other machines:**
-
-        1. Add the following line to `~/.bazelrc` (`%%USERPROFILE%%\\.bazelrc` on Windows):
-               common --google_default_credentials
-
-        2. Run:
-               gcloud auth application-default login --project="emulator-builds"
-               gcloud auth application-default set-quota-project emulator-builds
+        * glinux workstation - run `gcert`
+        * Other machines: run `gcloud auth application-default login --project="emulator-builds"`
         """,
     )
 

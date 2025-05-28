@@ -100,6 +100,7 @@ def disable_debug_policy():
 
 class CommandFailedException(Exception):
     """Exception raised when the command fails."""
+
     result: subprocess.CompletedProcess
 
     def __init__(self, msg: str, result: subprocess.CompletedProcess):
@@ -156,7 +157,9 @@ class BazelEnvironment:
         )
         self.repo_root = repo_root
         self.user = user
-        self.tmp_dir = os.environ.get("TMPDIR")
+        self.tmp_dir = (
+            pathlib.Path(os.environ.get("TMPDIR")) if os.environ.get("TMPDIR") else None
+        )
 
         self._start_time = time.time()
         self._cmd_env = env.copy()
@@ -284,6 +287,7 @@ class BuildEnvironment(BazelEnvironment):
         crashpad_symbol_server_key: API key for Crashpad symbol server.
         crashpad_server: URL of the Crashpad symbol server.
     """
+
     build_id: str
     is_presubmit: bool
     dist_dir: pathlib.Path
@@ -339,6 +343,7 @@ class LinuxBazelEnvironment(BazelEnvironment):
     Attributes:
         python: Path to the Python executable.
     """
+
     python: pathlib.Path
 
     def __init__(self, *args, **kwargs):
@@ -358,6 +363,7 @@ class WindowsBazelEnvironment(BazelEnvironment):
     Attributes:
         python: Path to the Python executable.
     """
+
     python: pathlib.Path
 
     def __init__(self, *args, **kwargs):
@@ -386,6 +392,7 @@ class MacOSBazelEnvironment(BazelEnvironment):
     Attributes:
         python: Path to the Python executable.
     """
+
     python: pathlib.Path
 
     def __init__(self, *args, **kwargs):
@@ -404,6 +411,7 @@ class MacOSBazelEnvironment(BazelEnvironment):
 
 class WindowsBuildEnvironment(WindowsBazelEnvironment, BuildEnvironment):
     """Environment for Windows builds, combining Windows and build settings."""
+
     def __init__(self, *args, **kwargs):
         WindowsBazelEnvironment.__init__(self, *args, **kwargs)
         BuildEnvironment.__init__(self, *args, **kwargs)
@@ -411,6 +419,7 @@ class WindowsBuildEnvironment(WindowsBazelEnvironment, BuildEnvironment):
 
 class LinuxBuildEnvironment(LinuxBazelEnvironment, BuildEnvironment):
     """Environment for Linux builds, combining Linux and build settings."""
+
     def __init__(self, *args, **kwargs):
         LinuxBazelEnvironment.__init__(self, *args, **kwargs)
         BuildEnvironment.__init__(self, *args, **kwargs)
@@ -418,6 +427,7 @@ class LinuxBuildEnvironment(LinuxBazelEnvironment, BuildEnvironment):
 
 class MacOSBuildEnvironment(MacOSBazelEnvironment, BuildEnvironment):
     """Environment for macOS builds, combining macOS and build settings."""
+
     def __init__(self, *args, **kwargs):
         MacOSBazelEnvironment.__init__(self, *args, **kwargs)
         BuildEnvironment.__init__(self, *args, **kwargs)
