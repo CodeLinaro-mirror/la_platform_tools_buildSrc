@@ -62,7 +62,7 @@ def generate_aemu_bazel(args):
         res = "no results."
         try:
             # Note, builds on windows can take quite some time.
-            res = env.run(command, capture_output=env.is_windows(), timeout=7200)
+            res = env.run(command, timeout=7200)
         finally:
             logging.info("Completed aemu bazel generation: %s", res)
 

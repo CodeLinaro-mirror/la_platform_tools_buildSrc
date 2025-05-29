@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import asyncio
 import getpass
 import json
 import logging
@@ -22,9 +23,7 @@ import subprocess
 import sys
 import time
 import pathlib
-from typing import Dict, List, Optional, Union
-
-from log_handler import LogHandler
+from typing import Dict, List, Optional, Union, Callable
 
 _SYSTEM_TO_TARGET = {
     "linux": "linux_x64",
@@ -98,6 +97,30 @@ def disable_debug_policy():
             logging.error("Failed to remove key, error: %s.", err)
 
 
+async def _read_stream(
+    stream: asyncio.StreamReader, log_fn: Optional[Callable[[str], None]]
+) -> str:
+    """Asynchronously reads lines from a stream and either logs (if log_fn is not None) or returns them."""
+    output = []
+    try:
+        while not stream.at_eof():
+            line = await stream.readline()
+            line = line.decode("utf-8", errors="replace")
+            if not log_fn:
+                output.append(line)
+            elif line:
+                log_fn(line.rstrip())
+    except:
+        logging.exception("Stream closed unexpectedly: %s", e)
+        if captured_output:
+            logging.warning("--- PARTIAL OUTPUT CAPTURED BEFORE FAILURE ---")
+            for line in captured_output:
+                logging.warning(line.rstrip())
+            logging.warning("--------------------------------------------")
+        raise
+    return "".join(output)
+
+
 class CommandFailedException(Exception):
     """Exception raised when the command fails."""
 
@@ -133,7 +156,6 @@ class BazelEnvironment:
 
     _start_time: float
     _cmd_env: Dict[str, str]
-    _log_handler: LogHandler
 
     def __init__(
         self,
@@ -164,7 +186,6 @@ class BazelEnvironment:
         self._start_time = time.time()
         self._cmd_env = env.copy()
         self._cmd_env["PYTHONUNBUFFERED"] = "1"
-        self._log_handler = LogHandler()
 
     def get_env(self):
         """Gets the OS environment that should be used when running a program."""
@@ -190,6 +211,72 @@ class BazelEnvironment:
     def is_windows(self):
         return False
 
+    async def _run_async(
+        self,
+        cmd: List[str],
+        *,
+        capture_output: bool = False,
+        env: Dict[str, str] = None,
+        cwd: Optional[Union[pathlib.Path, str]] = None,
+        throw_on_failure: bool = True,
+        timeout: Union[float, None] = 3600,
+    ) -> subprocess.CompletedProcess:
+        """
+        Asynchronously runs a command, with a choice to stream or capture output.
+        """
+        if not env:
+            env = {}
+        env.update(self.get_env())
+        if not cwd:
+            cwd = self.repo_root
+
+        cmd_str = [str(x) for x in cmd]
+        logging.info("%s $> %s", cwd, " ".join(cmd_str))
+
+        proc = await asyncio.create_subprocess_exec(
+            *cmd_str,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+            env=env,
+        )
+
+        try:
+            async with asyncio.TaskGroup() as tg:
+                stdout_task = tg.create_task(
+                    _read_stream(proc.stdout, None if capture_output else logging.info)
+                )
+                stderr_task = tg.create_task(
+                    _read_stream(proc.stderr, None if capture_output else logging.error)
+                )
+                wait_task = tg.create_task(
+                    asyncio.wait_for(proc.wait(), timeout=timeout)
+                )
+        except asyncio.TimeoutError:
+            logging.error("Command timed out after %s seconds, terminating.", timeout)
+            raise subprocess.TimeoutExpired(cmd, timeout)
+        finally:
+            if proc.returncode is None:
+                try:
+                    proc.terminate()
+                    await asyncio.wait_for(proc.wait(), timeout=30)
+                except asyncio.TimeoutError:
+                    logging.error("Command did not terminate after 30s, killing.")
+                    proc.kill()
+
+
+        stdout = stdout_task.result() or None
+        stderr = stderr_task.result() or None
+        result = subprocess.CompletedProcess(
+            args=cmd_str, returncode=proc.returncode, stdout=stdout, stderr=stderr
+        )
+
+        if proc.returncode != 0 and throw_on_failure:
+            msg = [f"Failed to run {' '.join(cmd_str)}, exit code: {proc.returncode}"]
+            raise CommandFailedException("\n".join(msg), result)
+
+        return result
+
     def run(
         self,
         cmd: List[str],
@@ -214,63 +301,16 @@ class BazelEnvironment:
         Raises:
             CommandFailedException: If the command fails and throw_on_failure is True.
         """
-        if not env:
-            env = {}
-        env.update(self.get_env())
-        if not cwd:
-            cwd = self.repo_root
-
-        cmd = [str(x) for x in cmd]
-        logging.info("%s $> %s", cwd, " ".join(cmd))
-
-        proc = subprocess.Popen(
-            cmd,
-            encoding="utf-8",
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            shell=self.is_windows(),
-            cwd=cwd,
-            env=env,
-        )
-
-        try:
-            if capture_output:
-                stdout, stderr = proc.communicate(timeout=timeout)
-                result = subprocess.CompletedProcess(
-                    args=cmd, returncode=proc.returncode, stdout=stdout, stderr=stderr
-                )
-            else:
-                self._log_handler.start_log_proc(proc)
-                proc.wait(timeout=timeout)
-                result = subprocess.CompletedProcess(
-                    args=cmd, returncode=proc.returncode
-                )
-        except subprocess.TimeoutExpired as timeout1:
-            logging.error(
-                "The command %s timed out after %s seconds, terminating",
-                " ".join(cmd),
-                timeout1.timeout,
+        return asyncio.run(
+            self._run_async(
+                cmd,
+                capture_output=capture_output,
+                env=env,
+                cwd=cwd,
+                throw_on_failure=throw_on_failure,
+                timeout=timeout,
             )
-            proc.terminate()
-            try:
-                proc.wait(timeout=30)
-            except subprocess.TimeoutExpired as timeout2:
-                logging.error(
-                    "Command %s did not terminate after %s seconds, killing",
-                    " ".join(cmd),
-                    timeout2.timeout,
-                )
-                proc.kill()
-            raise
-
-        if result.returncode != 0 and throw_on_failure:
-            msg = [f"Failed to run {' '.join(cmd)}, exit code: {result.returncode}"]
-            if result.stdout:
-                msg.append(f"STDOUT: {result.stdout}")
-            if result.stderr:
-                msg.append(f"STDERR: {result.stderr}")
-            raise CommandFailedException("\n".join(msg), result)
-        return result
+        )
 
 
 class BuildEnvironment(BazelEnvironment):
