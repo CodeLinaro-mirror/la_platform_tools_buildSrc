@@ -91,7 +91,10 @@ def build_aemu(args):
         "//hardware/generic/goldfish/emulator:package_goldfish_native_symbols",
     ]
     always_test_targets = ["//hardware/generic/goldfish/emulator:release_build_test"]
-    test_targets = ["//hardware/generic/goldfish/emulator:emulator_unit_tests"]
+    test_targets = [
+        "//hardware/generic/goldfish/emulator:emulator_unit_tests",
+        "//build/bazel:sanity_checks",
+    ]
 
     with build_environment.create_build_environment(args) as env:
         logs_dir = env.dist_dir / "logs"
