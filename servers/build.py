@@ -90,10 +90,12 @@ def build_aemu(args):
         "//hardware/generic/goldfish/emulator:package_goldfish_symbols",
         "//hardware/generic/goldfish/emulator:package_goldfish_native_symbols",
     ]
-    always_test_targets = ["//hardware/generic/goldfish/emulator:release_build_test"]
+    always_test_targets = [
+        "//hardware/generic/goldfish/emulator:release_build_test",
+        "//build/bazel:sanity_checks",
+    ]
     test_targets = [
         "//hardware/generic/goldfish/emulator:emulator_unit_tests",
-        "//build/bazel:sanity_checks",
     ]
 
     with build_environment.create_build_environment(args) as env:
@@ -106,45 +108,30 @@ def build_aemu(args):
                 f"--output_base={env.tmp_dir / 'output'}",
                 f"--install_base={env.tmp_dir / 'install'}",
             ]
-        bzl = bazel.BazelCmd(env, startup_options=startup_options)
-
-        common_build_flags = [
-            f"--build_metadata=ab_build_id={env.build_id}",
-            f"--build_metadata=ab_target={env.build_target}",
-            f"--config={args.config}",
-            "--verbose_failures",
-            f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
-        ]
-
-        bzl_debug = bzl.with_build_flags(
-            common_build_flags + [
-                "--config=debug",
+        bzl_release = bazel.BazelCmd(
+            env, startup_options=startup_options
+        ).with_build_flags(
+            [
+                f"--build_metadata=ab_build_id={env.build_id}",
+                f"--build_metadata=ab_target={env.build_target}",
+                f"--config={args.config}",
+                "--config=release",
+                "--verbose_failures",
+                f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
             ]
         )
+
         targets = release_targets + always_test_targets
         # Skip tests on windows, we still need to figure out some build issues.
         if not env.is_windows():
             targets += test_targets
-        bzl_debug.test(
+
+        bzl_release.test(
             targets,
             invocation_flags=[
+                "--config=ants",
                 "--test_output=errors",
                 "--test_summary=detailed",
-                "--build_metadata=test_definition_name=android_emulator/test_debug",
-            ],
-            allow_analysis_cache_discard=True,
-        )
-        artifacts = bzl_debug.query_artifacts(release_targets)
-        copy_all(artifacts, env.dist_dir)
-
-        bzl_release = bzl.with_build_flags(
-            common_build_flags + [
-                "--config=release",
-            ]
-        )
-        bzl_release.test(
-            release_targets + always_test_targets,
-            invocation_flags=[
                 "--build_metadata=test_definition_name=android_emulator/release",
             ],
             allow_analysis_cache_discard=True,
