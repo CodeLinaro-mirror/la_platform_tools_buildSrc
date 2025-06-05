@@ -110,11 +110,11 @@ async def _read_stream(
                 output.append(line)
             elif line:
                 log_fn(line.rstrip())
-    except:
+    except Exception as e:
         logging.exception("Stream closed unexpectedly: %s", e)
-        if captured_output:
+        if output:
             logging.warning("--- PARTIAL OUTPUT CAPTURED BEFORE FAILURE ---")
-            for line in captured_output:
+            for line in output:
                 logging.warning(line.rstrip())
             logging.warning("--------------------------------------------")
         raise
@@ -249,10 +249,10 @@ class BazelEnvironment:
                 stderr_task = tg.create_task(
                     _read_stream(proc.stderr, None if capture_output else logging.error)
                 )
-                wait_task = tg.create_task(
+                tg.create_task(
                     asyncio.wait_for(proc.wait(), timeout=timeout)
                 )
-        except asyncio.TimeoutError:
+        except* asyncio.TimeoutError:
             logging.error("Command timed out after %s seconds, terminating.", timeout)
             raise subprocess.TimeoutExpired(cmd, timeout)
         finally:
@@ -263,7 +263,6 @@ class BazelEnvironment:
                 except asyncio.TimeoutError:
                     logging.error("Command did not terminate after 30s, killing.")
                     proc.kill()
-
 
         stdout = stdout_task.result() or None
         stderr = stderr_task.result() or None

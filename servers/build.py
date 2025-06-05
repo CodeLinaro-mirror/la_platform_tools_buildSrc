@@ -126,14 +126,17 @@ def build_aemu(args):
         if not env.is_windows():
             targets += test_targets
 
+        invocation_flags = [
+            "--config=ants",
+            "--build_metadata=test_definition_name=android_emulator/release",
+            "--test_output=errors",
+            "--test_summary=detailed",
+        ]
+        if env.host_platform in ["linux", "windows"] or not env.is_presubmit:
+            invocation_flags.append("--nocache_test_results")
         bzl_release.test(
             targets,
-            invocation_flags=[
-                "--config=ants",
-                "--test_output=errors",
-                "--test_summary=detailed",
-                "--build_metadata=test_definition_name=android_emulator/release",
-            ],
+            invocation_flags=invocation_flags,
             allow_analysis_cache_discard=True,
         )
         artifacts = bzl_release.query_artifacts(release_targets)
