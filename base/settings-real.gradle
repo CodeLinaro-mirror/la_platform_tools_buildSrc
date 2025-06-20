@@ -87,3 +87,4 @@ include ':base:backup-test:backup-test-api'
 
 include ':base:journeys:journeys-gradle-plugin'
 include ':base:journeys:journeys-junit-engine'
+include ':base:journeys:journeys-junit-engine-test-support'
