@@ -37,54 +37,54 @@ def copy_all(srcs: Iterable[Path], dest: Path):
         logging.info("Copied '%s' to '%s'", f, f_dest)
 
 
-def generate_aemu_bazel(args):
-    with build_environment.create_build_environment(args) as env:
-        amc = (
-            env.repo_root
-            / "third_party"
-            / "qemu"
-            / "google"
-            / "toolchain"
-            / "src"
-            / "amc.py"
-        )
-        command = [
-            env.python,
-            amc,
-            "-v",
-            "bazel",
-            "--aosp",
-            env.repo_root,
-            env.dist_dir,
-            "--buildid",
-            args.build_id,
-        ]
-        res = "no results."
-        try:
-            # Note, builds on windows can take quite some time.
-            res = env.run(command, timeout=7200)
-        finally:
-            logging.info("Completed aemu bazel generation: %s", res)
+def generate_aemu_bazel(args, env, startup_options, build_options):
+    amc = (
+        env.repo_root
+        / "third_party"
+        / "qemu"
+        / "google"
+        / "toolchain"
+        / "src"
+        / "amc.py"
+    )
+    command = [
+        env.python,
+        amc,
+        "-v",
+        "--bazel_startup_options={}".format(",".join(startup_options)),
+        "--bazel_build_options={}".format(",".join(build_options)),
+        "bazel",
+        "--aosp",
+        env.repo_root,
+        env.dist_dir,
+        "--buildid",
+        args.build_id,
+    ]
+    res = "no results."
+    try:
+        # Note, builds on windows can take quite some time.
+        res = env.run(command, timeout=7200)
+    finally:
+        logging.info("Completed aemu bazel generation: %s", res)
 
 
-def build_trusty(args):
+def build_trusty(args, env):
     zip_name = f"sdk-repo-{args.target}-qemu-{args.build_id}.zip"
 
     bld_dir = Path("out")
     bld_dir.mkdir(exist_ok=True, parents=True)
 
-    with build_environment.create_build_environment(args) as env:
-        toolchain = env.repo_root / "third_party" / "qemu" / "google" / "toolchain"
-        build = toolchain / "build-qemu-trusty"
-        command = [
-            build,
-            bld_dir,
-            env.dist_dir / zip_name,
-        ]
-        env.run(command, timeout=1200)
+    toolchain = env.repo_root / "third_party" / "qemu" / "google" / "toolchain"
+    build = toolchain / "build-qemu-trusty"
+    command = [
+        build,
+        bld_dir,
+        env.dist_dir / zip_name,
+    ]
+    env.run(command, timeout=1200)
 
 
-def build_aemu(args):
+def build_aemu(args, env, startup_options, build_options):
     release_targets = [
         "//hardware/generic/goldfish/emulator:release",
         "//hardware/generic/goldfish/emulator:package_goldfish_symbols",
@@ -98,54 +98,45 @@ def build_aemu(args):
         "//hardware/generic/goldfish/emulator:emulator_unit_tests",
     ]
 
-    with build_environment.create_build_environment(args) as env:
-        logs_dir = env.dist_dir / "logs"
-        logs_dir.mkdir(exist_ok=True)
-        build_id = "snapshot" if env.is_presubmit else env.build_id
-        startup_options = []
-        if env.tmp_dir:
-            startup_options += [
-                f"--output_base={env.tmp_dir / 'output'}",
-                f"--install_base={env.tmp_dir / 'install'}",
-            ]
-        bzl_release = bazel.BazelCmd(
-            env, startup_options=startup_options
-        ).with_build_flags(
-            [
-                f"--build_metadata=ab_build_id={env.build_id}",
-                f"--build_metadata=ab_target={env.build_target}",
-                f"--config={args.config}",
-                "--config=release",
-                "--verbose_failures",
-                f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
-            ]
-        )
-
-        targets = release_targets + always_test_targets
-        # Skip tests on windows, we still need to figure out some build issues.
-        if not env.is_windows():
-            targets += test_targets
-
-        invocation_flags = [
-            "--config=ants",
-            "--build_metadata=test_definition_name=android_emulator/release",
-            "--test_output=errors",
-            "--test_summary=detailed",
+    logs_dir = env.dist_dir / "logs"
+    logs_dir.mkdir(exist_ok=True)
+    build_id = "snapshot" if env.is_presubmit else env.build_id
+    bzl_release = bazel.BazelCmd(
+        env, startup_options=startup_options
+    ).with_build_flags(
+        build_options + [
+            f"--build_metadata=ab_build_id={env.build_id}",
+            f"--build_metadata=ab_target={env.build_target}",
+            "--verbose_failures",
+            f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
         ]
-        if env.host_platform in ["linux", "windows"] or not env.is_presubmit:
-            invocation_flags.append("--nocache_test_results")
-        bzl_release.test(
-            targets,
-            invocation_flags=invocation_flags,
-            allow_analysis_cache_discard=True,
-        )
-        artifacts = bzl_release.query_artifacts(release_targets)
-        copy_all(artifacts, env.dist_dir)
+    )
 
-        if env.crashpad_symbol_server_key:
-            upload_symbols(env, bzl_release)
-        else:
-            logging.warning("No server API key available, not uploading symbols.")
+    targets = release_targets + always_test_targets
+    # Skip tests on windows, we still need to figure out some build issues.
+    if not env.is_windows():
+        targets += test_targets
+
+    invocation_flags = [
+        "--config=ants",
+        "--build_metadata=test_definition_name=android_emulator/release",
+        "--test_output=errors",
+        "--test_summary=detailed",
+    ]
+    if env.host_platform in ["linux", "windows"] or not env.is_presubmit:
+        invocation_flags.append("--nocache_test_results")
+    bzl_release.test(
+        targets,
+        invocation_flags=invocation_flags,
+        allow_analysis_cache_discard=True,
+    )
+    artifacts = bzl_release.query_artifacts(release_targets)
+    copy_all(artifacts, env.dist_dir)
+
+    if env.crashpad_symbol_server_key:
+        upload_symbols(env, bzl_release)
+    else:
+        logging.warning("No server API key available, not uploading symbols.")
 
 
 def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd):
@@ -237,17 +228,30 @@ def main():
     )
 
     args = parser.parse_args()
-    if "trusty" in args.target:
-        return build_trusty(args)
+    with build_environment.create_build_environment(args) as env:
+        startup_options = []
+        if env.tmp_dir:
+            startup_options += [
+                f"--output_base={env.tmp_dir / 'output'}",
+                f"--install_base={env.tmp_dir / 'install'}",
+            ]
 
-    change_info = ChangeInfo(args.change_info)
-    if args.force_generate_aemu_bazel or (
-        args.build_id.startswith("P")
-        and change_info.get_commits_by_project("platform/external/qemu")
-    ):
-        logging.info("Qemu changes detected, generating bazel build files.")
-        generate_aemu_bazel(args)
-    build_aemu(args)
+        build_options = [
+            f"--config={args.config}",
+            "--config=release",
+            ]
+
+        if "trusty" in args.target:
+            return build_trusty(args, env)
+
+        change_info = ChangeInfo(args.change_info)
+        if args.force_generate_aemu_bazel or (
+            args.build_id.startswith("P")
+            and change_info.get_commits_by_project("platform/external/qemu")
+        ):
+            logging.info("Qemu changes detected, generating bazel build files.")
+            generate_aemu_bazel(args, env, startup_options, build_options)
+        build_aemu(args, env, startup_options, build_options)
 
 
 if __name__ == "__main__":
