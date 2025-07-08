@@ -155,6 +155,23 @@ def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd)
         uploader.upload_from_zip(symbol_zip_file)
 
 
+def _should_run_meson_generator(args):
+    change_info = ChangeInfo(args.change_info)
+
+    if args.force_generate_aemu_bazel:
+        return True
+
+    if args.build_id.startswith("P") and change_info.get_commits_by_project("platform/external/qemu"):
+        return True
+
+    # We now always run the generator for Linux and Mac.
+    # TODO(whollins): Consider adding a mechanism to force NOT running the generator.
+    if platform.system().lower() != "windows":
+        return True
+
+    return False
+
+
 def main():
     config_logging()
 
@@ -244,11 +261,7 @@ def main():
         if "trusty" in args.target:
             return build_trusty(args, env)
 
-        change_info = ChangeInfo(args.change_info)
-        if args.force_generate_aemu_bazel or (
-            args.build_id.startswith("P")
-            and change_info.get_commits_by_project("platform/external/qemu")
-        ):
+        if _should_run_meson_generator(args):
             logging.info("Qemu changes detected, generating bazel build files.")
             generate_aemu_bazel(args, env, startup_options, build_options)
         build_aemu(args, env, startup_options, build_options)
