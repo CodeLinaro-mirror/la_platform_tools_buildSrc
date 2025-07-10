@@ -2,6 +2,7 @@ plugins {
     id 'groovy-gradle-plugin'
     id 'idea'
     id 'maven-publish'
+    id 'jvm-toolchains'
 }
 
 repositories {
