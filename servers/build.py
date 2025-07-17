@@ -161,12 +161,17 @@ def _should_run_meson_generator(args):
     if args.force_generate_aemu_bazel:
         return True
 
-    if args.build_id.startswith("P") and change_info.get_commits_by_project("platform/external/qemu"):
+    # Always run in post submit.
+    if not args.build_id.startswith("P"):
         return True
 
-    # We now always run the generator for Linux and Mac.
+    # Always run presubmit when qemu project is affected.
+    if change_info.get_commits_by_project("platform/external/qemu"):
+        return True
+
+    # We now always run the generator for Linux.
     # TODO(whollins): Consider adding a mechanism to force NOT running the generator.
-    if platform.system().lower() != "windows":
+    if platform.system().lower() == "linux":
         return True
 
     return False
