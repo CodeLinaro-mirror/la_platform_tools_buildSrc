@@ -60,7 +60,6 @@ include ':external:fat32lib'
 include ':data-binding'
 
 include ':base:utp:android-device-provider-ddmlib'
-include ':base:utp:android-device-provider-gradle'
 include ':base:utp:android-device-provider-profile'
 include ':base:utp:android-test-plugin-host-additional-test-output'
 include ':base:utp:android-test-plugin-host-apk-installer'
