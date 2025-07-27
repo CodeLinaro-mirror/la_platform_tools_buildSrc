@@ -95,7 +95,11 @@ def build_aemu(args, env, startup_options, build_options):
         "//build/bazel:sanity_checks",
     ]
     test_targets = [
-        "//hardware/generic/goldfish/emulator:emulator_unit_tests",
+        "//hardware/generic/goldfish/emulator/...",
+        "-//hardware/generic/goldfish/emulator/grpc/...",
+        "-//hardware/generic/goldfish/emulator/hal/...",
+        "-//hardware/generic/goldfish/emulator/modem_simulator/...",
+        "-//hardware/generic/goldfish/emulator/sdk/...",
     ]
 
     logs_dir = env.dist_dir / "logs"
@@ -108,6 +112,7 @@ def build_aemu(args, env, startup_options, build_options):
             f"--build_metadata=ab_build_id={env.build_id}",
             f"--build_metadata=ab_target={env.build_target}",
             "--verbose_failures",
+            "--build_manual_tests",
             f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
         ]
     )
