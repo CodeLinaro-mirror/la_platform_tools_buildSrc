@@ -96,6 +96,7 @@ def build_aemu(args, env, startup_options, build_options):
     ]
     test_targets = [
         "//hardware/generic/goldfish/emulator/...",
+        "-//hardware/generic/goldfish/emulator/adb/...",
         "-//hardware/generic/goldfish/emulator/grpc/...",
         "-//hardware/generic/goldfish/emulator/hal/...",
         "-//hardware/generic/goldfish/emulator/modem_simulator/...",
