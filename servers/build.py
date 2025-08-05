@@ -129,7 +129,7 @@ def build_aemu(args, env, startup_options, build_options):
         "--test_output=errors",
         "--test_summary=detailed",
     ]
-    if env.host_platform in ["linux", "windows"] or not env.is_presubmit:
+    if not env.is_presubmit:
         invocation_flags.append("--nocache_test_results")
     bzl_release.test(
         targets,
