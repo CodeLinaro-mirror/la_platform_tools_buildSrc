@@ -1,0 +1,53 @@
+{
+    "changes": [
+        {
+            "host": "googleplex-android-review.googlesource.com",
+            "project": "platform/tools/buildSrc",
+            "branch": "main-emu-next-dev",
+            "changeNumber": "35314213",
+            "status": "new",
+            "creationTime": "1756315105",
+            "latestRevision": "HEAD",
+            "revisions": [
+                {
+                    "gitRevision": "HEAD",
+                    "patchSet": 1,
+                    "commit": {
+                        "parents": [
+                            {
+                                "commitId": "7c1d800aee9f405183cc6dee1ec3a6442422a668",
+                                "subject": "chore: Remove modem simulator tests"
+                            }
+                        ],
+                        "author": {
+                            "name": "Erwin Jansen",
+                            "email": "jansene@google.com"
+                        },
+                        "subject": "test: DO NOT SUBMIT",
+                        "commitMessage": "test: DO NOT SUBMIT\n\nChange-Id: I140718aa146acbb48ff59dc6e6d6b881e2e24ca1\n"
+                    },
+                    "fileInfos": [
+                        {
+                            "path": "servers/change_info.py",
+                            "status": "modified"
+                        },
+                        {
+                            "path": "servers/gemini_client.py",
+                            "status": "added"
+                        },
+                        {
+                            "path": "servers/build.py",
+                            "status": "modified"
+                        }
+                    ]
+                }
+            ],
+            "owner": {
+                "name": "Erwin Jansen",
+                "email": "jansene@google.com"
+            },
+            "changeId": "I140718aa146acbb48ff59dc6e6d6b881e2e24ca1",
+            "projectPath": "tools/buildSrc"
+        }
+    ]
+}

@@ -29,6 +29,7 @@ import build_environment
 import sym_upload
 from change_info import ChangeInfo
 from log_handler import config_logging
+from gemini_explainer import GeminiExplainer
 
 
 def copy_all(srcs: Iterable[Path], dest: Path):
@@ -255,26 +256,27 @@ def main():
     )
 
     args = parser.parse_args()
-    with build_environment.create_build_environment(args) as env:
-        startup_options = []
-        if env.tmp_dir:
-            startup_options += [
-                f"--output_base={env.tmp_dir / 'output'}",
-                f"--install_base={env.tmp_dir / 'install'}",
-            ]
+    with GeminiExplainer(args) as _:
+        with build_environment.create_build_environment(args) as env:
+            startup_options = []
+            if env.tmp_dir:
+                startup_options += [
+                    f"--output_base={env.tmp_dir / 'output'}",
+                    f"--install_base={env.tmp_dir / 'install'}",
+                ]
 
-        build_options = [
-            f"--config={args.config}",
-            "--config=release",
-            ]
+            build_options = [
+                f"--config={args.config}",
+                "--config=release",
+                ]
 
-        if "trusty" in args.target:
-            return build_trusty(args, env)
+            if "trusty" in args.target:
+                return build_trusty(args, env)
 
-        if _should_run_meson_generator(args):
-            logging.info("Qemu changes detected, generating bazel build files.")
-            generate_aemu_bazel(args, env, startup_options, build_options)
-        build_aemu(args, env, startup_options, build_options)
+            if _should_run_meson_generator(args):
+                logging.info("Qemu changes detected, generating bazel build files.")
+                generate_aemu_bazel(args, env, startup_options, build_options)
+            build_aemu(args, env, startup_options, build_options)
 
 
 if __name__ == "__main__":
