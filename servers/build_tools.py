@@ -26,6 +26,7 @@ import time
 
 from server_config import ServerConfig
 from pyrunner import AospPyRunner
+from gemini_explainer import GeminiExplainer
 
 from utils import (
     PYTHON_EXE,
@@ -38,9 +39,6 @@ from utils import (
 
 
 def main(argv):
-    config_logging()
-    log_system_info()
-
     # We don't want to be too aggressive with concurrency.
     test_cpu_count = int(multiprocessing.cpu_count() / 4)
 
@@ -200,11 +198,11 @@ def main(argv):
     else:
         cmd = cmd + ["--crash", "prod"]
 
+
     with ServerConfig(presubmit, args) as cfg:
         if not target == "windows":
             # sccache does not (yet?) make life better on windows in gce.
             cmd = cmd + ["--ccache", cfg.sccache]
-
         run_python(launcher + cmd, cfg.get_env(), timeout=3600, log_prefix="bld")
 
     logging.info("Build completed!")
@@ -213,7 +211,10 @@ def main(argv):
 if __name__ == "__main__":
     start_time = time.monotonic()
     try:
-        main(sys.argv)
+        config_logging()
+        log_system_info()
+        with GeminiExplainer() as _:
+            main(sys.argv)
     except Exception as e:
         logging.fatal("Build failed due to %s", e)
         sys.exit(1)
