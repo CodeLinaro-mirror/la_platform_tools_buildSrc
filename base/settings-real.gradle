@@ -86,7 +86,6 @@ projects.each { proj ->
 
     // Define the project directory using the final path
     def projectDir = new File(settingsDir, finalPath)
-    println("---> " + projectDir)
     projectDir.mkdirs()
     include(proj.projectName)
     project(proj.projectName).projectDir = projectDir
