@@ -88,8 +88,6 @@ You will be provided with:
 Analyze these two pieces of information to determine why the build failed. Then, provide a single, concise paragraph that explains the root cause.
 Your explanation should not exceed 20 lines and a line should not contain more than 170 characters.
 
-To lighten the mood, please include a single, relevant programming or engineering-related pun within your analysis.
-
 --- BUILD LOGS ---
 {log}
 --- END BUILD LOGS ---
@@ -98,4 +96,8 @@ To lighten the mood, please include a single, relevant programming or engineerin
 {code_changes}
 --- END CODE CHANGES ---"""
             answer = client.get_generated_text(gemini_prompt)
+            logging.error(
+                "--------------- Gemini will now attempt to explain the build failure:"
+            )
             logging.error(textwrap.fill(answer, width=170))
+            logging.error("---------------")
