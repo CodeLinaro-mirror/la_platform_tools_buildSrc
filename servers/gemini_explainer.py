@@ -77,10 +77,12 @@ You will receive the full **build logs** that were part of the build. Your task 
 Your final output must be a concise, one-paragraph explanation of the problem, limited to a maximum of 20 lines with 170 characters
 The explanation should be clear and technical, allowing another engineer to understand the issue quickly.
 
-To lighten the mood, please include a single, relevant programming or engineering-related pun within your analysis.
-
 --- BUILD LOGS ---
 {log}
 --- END BUILD LOGS ---"""
         answer = client.get_generated_text(gemini_prompt)
+        logging.error(
+            "--------------- Gemini will now attempt to explain the build failure:"
+        )
         logging.error(textwrap.fill(answer, width=170))
+        logging.error("---------------")
