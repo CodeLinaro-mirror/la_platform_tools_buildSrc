@@ -44,6 +44,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public abstract class GenerateApiReleaseNotes extends DefaultTask {
@@ -66,29 +67,40 @@ public abstract class GenerateApiReleaseNotes extends DefaultTask {
     public abstract ConfigurableFileCollection getOldApiFiles();
 
     public GenerateApiReleaseNotes() {
-        getCurrentVersion().convention("current.txt");
+        getCurrentVersion().convention("current");
     }
 
     @TaskAction
     public void generate() throws IOException {
         File olderApiSignatureFile = null;
+        String previousVersion = null;
         if (!getPreviousVersion().isPresent()) {
             Optional<AgpVersion> previousStableVersion = getOldApiFiles().getFiles().stream()
                     .map(file -> AgpVersion.parseFileNameOrNull(file.getName()))
                     .filter(Objects::nonNull).max(Comparator.naturalOrder());
-            assert previousStableVersion.isPresent();
+            if (!previousStableVersion.isPresent()) {
+                throw new RuntimeException("previous stable version not present");
+            }
             olderApiSignatureFile = getProject().getLayout().getProjectDirectory().dir("previous-gradle-apis").file(previousStableVersion.get() + ".txt").getAsFile();
+            previousVersion = previousStableVersion.get().toString();
         } else {
-            olderApiSignatureFile = getProject().getLayout().getProjectDirectory().dir("previous-gradle-apis").file(getPreviousVersion().get()).getAsFile();
+            olderApiSignatureFile = getProject().getLayout().getProjectDirectory().dir("previous-gradle-apis").file(getPreviousVersion().get() + ".txt").getAsFile();
+            previousVersion = getPreviousVersion().get();
         }
 
-        File currentApiSignatureFile = getInputDirectory().get().file(getCurrentVersion().get()).getAsFile();
+        File currentApiSignatureFile = getInputDirectory().get().file(getCurrentVersion().get() + ".txt").getAsFile();
+        String currentVersion = getCurrentVersion().get();
 
         if (!currentApiSignatureFile.exists() || !olderApiSignatureFile.exists()) return;
-        generateReleaseNotes(currentApiSignatureFile, olderApiSignatureFile);
+        generateReleaseNotes(currentApiSignatureFile, olderApiSignatureFile, previousVersion, currentVersion);
     }
 
-    private void generateReleaseNotes(File currentApiSignatureFile, File olderApiSignatureFile) throws IOException {
+    private void generateReleaseNotes(
+            File currentApiSignatureFile,
+            File olderApiSignatureFile,
+            String previousVersion,
+            String currentVersion
+    ) throws IOException {
         Map<String, ClassDefinition> currentApiElements =
                 parseApiSignature(IOUtils.toString(new FileReader(currentApiSignatureFile)))
                         .stream()
@@ -101,25 +113,59 @@ public abstract class GenerateApiReleaseNotes extends DefaultTask {
                         .collect(Collectors.toMap(
                                 clazz -> clazz.getPackageName() + "." + clazz.getClassName(), clazz -> clazz));
 
-        findStabilizedApis(currentApiElements, olderApiElements);
-
+        findStabilizedApis(currentApiElements, olderApiElements, previousVersion, currentVersion);
     }
 
     // Finds apis that were incubating in older api version but are not in current
     private void findStabilizedApis(
             Map<String, ClassDefinition> currentApiElements,
-            Map<String, ClassDefinition> olderApiElements
+            Map<String, ClassDefinition> olderApiElements,
+            String previousVersion,
+            String currentVersion
     ) {
         StringBuilder sb = new StringBuilder();
-        sb.append("Android Gradle plugin API updates").append("\n");
+        sb.append("Android Gradle plugin API updates")
+                .append("(between ").append(previousVersion).append(" and ").append(currentVersion).append(")")
+                .append("\n\n");
 
+        boolean changes = false;
         for (String className : olderApiElements.keySet()) {
-            com.android.tools.internal.metalava.ClassDefinition oldClassDefinition = olderApiElements.get(className);
+            ClassDefinition oldClassDefinition = olderApiElements.get(className);
             ClassDefinition classDefinition = currentApiElements.get(className);
-            if (classDefinition != null && oldClassDefinition.isIncubating() && !classDefinition.isIncubating()) {
-                // class has become stable
-                sb.append(className).append(" is now stable\n");
+
+            if (classDefinition != null) {
+                if (oldClassDefinition.isIncubating() && !classDefinition.isIncubating()) {
+                    // class has become stable
+                    sb.append("Class ").append(className).append(" is now stable\n");
+                    changes = true;
+                }
+
+                for (MethodOrFieldDefinition oldMethod : oldClassDefinition.getMethods()) {
+                    Optional<MethodOrFieldDefinition> currentMethod = classDefinition.getMethods().stream()
+                            .filter(method -> method.getName().equals(oldMethod.getName()))
+                            .findFirst();
+                    if (currentMethod.isPresent() && oldMethod.isIncubating() && !currentMethod.get().isIncubating()) {
+                        // method has become stable
+                        sb.append("Method ").append(oldMethod.getName()).append(" in ").append(className).append(" is now stable\n");
+                        changes = true;
+                    }
+                }
+
+                for (MethodOrFieldDefinition oldField : oldClassDefinition.getFields()) {
+                    Optional<MethodOrFieldDefinition> currentField = classDefinition.getFields().stream()
+                            .filter(field -> field.getName().equals(oldField.getName()))
+                            .findFirst();
+                    if (currentField.isPresent() && oldField.isIncubating() && !currentField.get().isIncubating()) {
+                        // field has become stable
+                        sb.append("Field ").append(oldField.getName()).append(" in ").append(className).append(" is now stable\n");
+                        changes = true;
+                    }
+                }
             }
+        }
+
+        if (!changes) {
+            sb.append("No APIs were made stable.");
         }
 
         writeToFile(sb, "stable-apis.txt");
@@ -152,6 +198,11 @@ public abstract class GenerateApiReleaseNotes extends DefaultTask {
 
                     boolean isDeprecated = line.startsWith("@Deprecated");
                     line = line.replace("@Deprecated", "").trim();
+                    boolean isReplacedByIncubating = line.startsWith("@com.android.build.api.annotations.ReplacedByIncubating");
+                    if (isReplacedByIncubating) {
+                        Pattern p = Pattern.compile("@com\\.android\\.build\\.api\\.annotations\\.ReplacedByIncubating(\\(.*\\))?");
+                        line = p.matcher(line).replaceAll("");
+                    }
                     boolean isIncubating = line.startsWith("@org.gradle.api.Incubating");
                     line = line.replace("@org.gradle.api.Incubating", "").trim();
 
