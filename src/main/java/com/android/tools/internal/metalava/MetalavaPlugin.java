@@ -109,6 +109,8 @@ public class MetalavaPlugin implements Plugin<Project> {
                 task.getOldApiFiles().disallowChanges();
                 task.getOutputDirectory().set(project.getLayout().getBuildDirectory().dir("metalava/reports"));
                 task.getOutputDirectory().disallowChanges();
+                task.getAgpBuildVersion().set(buildVersion);
+                task.getAgpBuildVersion().disallowChanges();
             });
 
             tasks.register("distMetalavaApiZip", Zip.class, task -> {
