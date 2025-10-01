@@ -39,32 +39,30 @@ def copy_all(srcs: Iterable[Path], dest: Path):
 
 
 def generate_aemu_bazel(args, env, startup_options, build_options):
-    amc = (
-        env.repo_root
-        / "third_party"
-        / "qemu"
-        / "google"
-        / "toolchain"
-        / "src"
-        / "amc.py"
+    bzl = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
+        build_options
     )
-    command = [
-        env.python,
-        amc,
-        "-v",
-        "--bazel_startup_options={}".format(",".join(startup_options)),
-        "--bazel_build_options={}".format(",".join(build_options)),
-        "bazel",
-        "--aosp",
-        env.repo_root,
-        env.dist_dir,
-        "--buildid",
-        args.build_id,
-    ]
+
     res = "no results."
     try:
         # Note, builds on windows can take quite some time.
-        res = env.run(command, timeout=7200)
+        logging.info("Starting aemu bazel generation")
+        res = bzl.run(
+            target="//third_party/qemu/google/toolchain:amc",
+            params=[
+                "-v",
+                "--bazel_startup_options={}".format(",".join(startup_options)),
+                "--bazel_build_options={}".format(",".join(build_options)),
+                "bazel",
+                "--aosp",
+                env.repo_root,
+                env.dist_dir,
+                "--buildid",
+                args.build_id,
+            ],
+            allow_analysis_cache_discard=True,
+            timeout=7200,
+        )
     finally:
         logging.info("Completed aemu bazel generation: %s", res)
 
@@ -106,10 +104,9 @@ def build_aemu(args, env, startup_options, build_options):
     logs_dir = env.dist_dir / "logs"
     logs_dir.mkdir(exist_ok=True)
     build_id = "snapshot" if env.is_presubmit else env.build_id
-    bzl_release = bazel.BazelCmd(
-        env, startup_options=startup_options
-    ).with_build_flags(
-        build_options + [
+    bzl_release = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
+        build_options
+        + [
             f"--build_metadata=ab_build_id={env.build_id}",
             f"--build_metadata=ab_target={env.build_target}",
             "--verbose_failures",
@@ -268,7 +265,7 @@ def main():
             build_options = [
                 f"--config={args.config}",
                 "--config=release",
-                ]
+            ]
 
             if "trusty" in args.target:
                 return build_trusty(args, env)
