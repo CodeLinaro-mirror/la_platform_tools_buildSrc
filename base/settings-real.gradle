@@ -64,7 +64,6 @@ def projects = [
         [projectName: ':base:backup-test:android-backup-runner', projectPath: ''],
         [projectName: ':base:backup-test:backup-junit-engine', projectPath: ''],
         [projectName: ':base:backup-test:backup-test-api', projectPath: ''],
-        [projectName: ':base:journeys:journeys-gradle-plugin', projectPath: ''],
 ]
 
 /**
