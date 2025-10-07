@@ -21,10 +21,10 @@ from typing import Iterable, List, Mapping, Tuple, Type, TypeVar, Union
 import build_environment
 
 _PLATFORM_TARGETS_BY_NAME = {
-    "linux_x64": "@//build/bazel/platforms:linux_x64",
-    "mac_aarch64": "@//build/bazel/platforms:macos_aarch64",
-    "mac_x64": "@//build/bazel/platforms:macos_x64",
-    "windows_x64": "@//build/bazel/platforms:windows_x64",
+    "linux_x64": "@goldfish_build//platforms:linux_x64",
+    "mac_aarch64": "@goldfish_build//platforms:macos_aarch64",
+    "mac_x64": "@goldfish_build//platforms:macos_x64",
+    "windows_x64": "@goldfish_build//platforms:windows_x64",
 }
 
 ExitCodeType = TypeVar("ExitCodeType", bound="BaseExitCode")
@@ -181,11 +181,13 @@ class BazelCmd:
         cmd.extend(self._startup_options)
         cmd.append(verb)
         cmd.extend(self._build_flags)
-        cmd.append(
-            "--platforms={}".format(
-                _PLATFORM_TARGETS_BY_NAME[self._env.target_platform]
+        # Info doesn't seem to have access to other modules
+        if verb != "info":
+            cmd.append(
+                "--platforms={}".format(
+                    _PLATFORM_TARGETS_BY_NAME[self._env.target_platform]
+                )
             )
-        )
         cmd.extend(extra_flags)
         if not allow_analysis_cache_discard:
             cmd.append("--noallow_analysis_cache_discard")

@@ -91,7 +91,7 @@ def build_aemu(args, env, startup_options, build_options):
     ]
     always_test_targets = [
         "//hardware/generic/goldfish/emulator:release_build_test",
-        "//build/bazel:sanity_checks",
+        "@goldfish_build//:sanity_checks",
     ]
     test_targets = [
         "//hardware/generic/goldfish/emulator/...",
