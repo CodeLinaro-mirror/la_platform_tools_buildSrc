@@ -57,6 +57,8 @@ def generate_aemu_bazel(args, env, startup_options, build_options):
                 "--aosp",
                 env.repo_root,
                 env.dist_dir,
+                "--config",
+                env.repo_root / "third_party" / "qemu" / "google" / "toolchain" / "qemu-build-config.jsonc" ,
                 "--buildid",
                 args.build_id,
             ],
