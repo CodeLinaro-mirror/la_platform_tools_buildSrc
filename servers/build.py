@@ -96,8 +96,7 @@ def build_aemu(args, env, startup_options, build_options):
         "@goldfish_build//:sanity_checks",
     ]
     test_targets = [
-        "//hardware/generic/goldfish/android/...",
-        "//hardware/generic/goldfish/emulator/...",
+        "//hardware/generic/goldfish/...",
         "//hardware/generic/goldfish/emulator/launcher:boot_tests",
         "//hardware/generic/goldfish/emulator/tests:integration_tests",
     ]
