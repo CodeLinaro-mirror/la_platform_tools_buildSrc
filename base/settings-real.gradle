@@ -45,6 +45,7 @@ def projects = [
         [projectName: ':base:testing-infrastructure:device-pool:device-provider', projectPath: ''],
         [projectName: ':external:fat32lib', projectPath: ''],
         [projectName: ':data-binding', projectPath: ''],
+        [projectName: ':base:utp', projectPath: ''],
         [projectName: ':base:utp:android-device-provider-ddmlib', projectPath: ''],
         [projectName: ':base:utp:android-device-provider-profile', projectPath: ''],
         [projectName: ':base:utp:android-test-plugin-host-additional-test-output', projectPath: ''],
