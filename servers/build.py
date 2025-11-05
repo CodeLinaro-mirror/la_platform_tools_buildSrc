@@ -96,9 +96,14 @@ def build_aemu(args, env, startup_options, build_options):
         "@goldfish_build//:sanity_checks",
     ]
     test_targets = [
+        # Build everything (including tests marked manual) but only run the non-manual ones...
         "//hardware/generic/goldfish/...",
-        "//hardware/generic/goldfish/emulator/launcher:boot_tests",
+        # But we don't want to build all the CTS tests!
+        "-//hardware/generic/goldfish/emulator/tests/...",
+        # But we do want to build and run the manual integration_tests.
         "//hardware/generic/goldfish/emulator/tests:integration_tests",
+        # We also want to run the manual boot_tests.
+        "//hardware/generic/goldfish/emulator/launcher:boot_tests",
     ]
 
     logs_dir = env.dist_dir / "logs"
