@@ -22,6 +22,7 @@ import platform
 import socket
 import shutil
 from utils import AOSP_ROOT, run
+import sys
 
 try:
     import _winreg as winreg
@@ -70,6 +71,7 @@ class ServerConfig(object):
         try:
             # TODO(jansene): Remove once windows buildbots are using PY3
             import urllib.request
+
             with urllib.request.urlopen("http://metadata.google.internal") as r:
                 return r.getheader("Metadata-Flavor") == "Google"
         except:
@@ -115,9 +117,9 @@ class ServerConfig(object):
             # Use a bucket in gce. Make sure the default service account has R/W
             # access to gs://emu-dev-sccache
             self.env["SCCACHE_GCS_BUCKET"] = "emu-dev-sccache"
-            self.env[
-                "SCCACHE_GCS_OAUTH_URL"
-            ] = "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+            self.env["SCCACHE_GCS_OAUTH_URL"] = (
+                "http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token"
+            )
             self.env["SCCACHE_GCS_RW_MODE"] = "READ_WRITE"
         elif self.__can_use_redis():
             # Lets try our redis cache.
@@ -143,3 +145,18 @@ class ServerConfig(object):
         """Report cache statistics and stop the server."""
         if self.sccache:
             run([self.sccache, "--stop-server"], self.env, "scc", AOSP_ROOT, False)
+
+        if self.target == "windows":
+            try:
+                find_ps_script = os.path.join(os.path.dirname(__file__), "find_ps.py")
+                run(
+                    [
+                        sys.executable,
+                        find_ps_script,
+                        "--target-dir",
+                        self.args.dist_dir,
+                        os.path.join(AOSP_ROOT, "prebuilts"),
+                    ]
+                )
+            except Exception as e:
+                print(f"Failed to execute find_ps.py: {e}")
