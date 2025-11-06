@@ -156,7 +156,11 @@ class ServerConfig(object):
                         "--target-dir",
                         self.args.dist_dir,
                         os.path.join(AOSP_ROOT, "prebuilts"),
-                    ]
+                    ],
+                    self.env,
+                    "clean",
+                    AOSP_ROOT,
+                    False,
                 )
             except Exception as e:
                 print(f"Failed to execute find_ps.py: {e}")
