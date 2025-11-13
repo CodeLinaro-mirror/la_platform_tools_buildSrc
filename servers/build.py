@@ -104,6 +104,8 @@ def build_aemu(args, env, startup_options, build_options):
         "//hardware/generic/goldfish/emulator/tests:integration_tests",
         # We also want to run the manual boot_tests.
         "//hardware/generic/goldfish/emulator/launcher:boot_tests",
+        # Goldfish E2E tests.
+        "@goldfish_test//testlib/...",
     ]
 
     logs_dir = env.dist_dir / "logs"
