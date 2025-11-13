@@ -64,7 +64,8 @@ public abstract class GenerateApiTask extends DefaultTask {
      * The directory where past API files are stored. Not all files in the directory are used, they
      * are filtered in [getPastApiFiles].
      */
-    @Internal abstract DirectoryProperty getProjectApiDirectory();
+    @Internal
+    abstract DirectoryProperty getProjectApiDirectory();
 
     /** An ordered list of the API files to use in generating the API level metadata JSON. */
     @InputFiles

@@ -26,10 +26,17 @@ import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Classpath;
 import org.gradle.api.tasks.CompileClasspath;
+import org.gradle.api.tasks.Input;
+import org.gradle.api.tasks.InputDirectory;
+import org.gradle.api.tasks.InputFile;
+import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.workers.WorkerExecutor;
 import javax.inject.Inject;
@@ -61,12 +68,22 @@ public abstract class GenerateOldApisTask extends DefaultTask {
     @Inject
     public abstract WorkerExecutor getWorkerExecutor();
 
+    @Input
+    abstract Property<String> getGroupId();
+
+    @Input
+    abstract Property<String> getArtifactId();
+
+    @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
+    public abstract DirectoryProperty getPrebuiltsDirectory();
+
     @TaskAction
     public void generateApi() throws IOException {
         FileUtils.cleanDirectory(getOutputDirectory().get().getAsFile());
-        String groupId = getProject().getGroup().toString();
-        String artifactId = getProject().getName();
-        File prebuiltsDir = getProject().getRootProject().file("../prebuilts/tools/common/m2/repository");
+        String groupId = getGroupId().get();
+        String artifactId = getArtifactId().get();
+        File prebuiltsDir = getPrebuiltsDirectory().get().getAsFile();
         File projectPrebuiltsDir = new File(prebuiltsDir, groupId.replace(".", "/") + "/" + artifactId);
 
         List<AbstractMap.SimpleEntry<AgpVersion, File>> allPrebuiltVersions = Arrays.stream(Objects.requireNonNull(projectPrebuiltsDir.list()))

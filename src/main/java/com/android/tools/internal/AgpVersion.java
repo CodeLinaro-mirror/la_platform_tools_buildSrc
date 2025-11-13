@@ -89,4 +89,8 @@ public class AgpVersion implements Comparable<AgpVersion> {
     public boolean isStable() {
         return preview == null;
     }
+
+    public int getMajor() {
+        return this.major;
+    }
 }
