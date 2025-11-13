@@ -127,10 +127,10 @@ class ChangeInfo:
                         else:
                             logging.error(
                                 "Failed to run `git show` for commit %s. Error: %s",
-                                parent_id,
+                                commit_data,
                                 result.stderr,
                             )
                             diffs[project_path].append(
-                                f"Error getting diff for commit {parent_id}: {result.stderr}"
+                                f"Error getting diff for commit {commit_data}: {result.stderr}"
                             )
         return diffs
