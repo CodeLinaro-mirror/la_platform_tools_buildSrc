@@ -245,10 +245,10 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="ci",
+        default="cirelease",
         help="""The configuration to use.
 
-        'ci' is intended for use by buildbots.
+        'cirelease' is intended for use by buildbots.
 
         'rcache' is intended for use by developers and will attempt to use remote caching.
         Note: Using rcache may make the build faster or a bit slower, depending on the hit rate.
@@ -271,7 +271,6 @@ def main():
 
             build_options = [
                 f"--config={args.config}",
-                "--config=release",
             ]
 
             if "trusty" in args.target:
