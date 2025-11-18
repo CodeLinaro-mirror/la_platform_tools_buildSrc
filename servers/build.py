@@ -48,7 +48,7 @@ def generate_aemu_bazel(args, env, startup_options, build_options):
         # Note, builds on windows can take quite some time.
         logging.info("Starting aemu bazel generation")
         res = bzl.run(
-            target="//third_party/qemu/google/toolchain:amc",
+            target="@qemu//google/toolchain:amc",
             params=[
                 "-v",
                 "--bazel_startup_options={}".format(",".join(startup_options)),
@@ -87,23 +87,23 @@ def build_trusty(args, env):
 
 def build_aemu(args, env, startup_options, build_options):
     release_targets = [
-        "//hardware/generic/goldfish/emulator:release",
-        "//hardware/generic/goldfish/emulator:package_goldfish_symbols",
-        "//hardware/generic/goldfish/emulator:package_goldfish_native_symbols",
+        "@goldfish//emulator:release",
+        "@goldfish//emulator:package_goldfish_symbols",
+        "@goldfish//emulator:package_goldfish_native_symbols",
     ]
     always_test_targets = [
-        "//hardware/generic/goldfish/emulator:release_build_test",
+        "@goldfish//emulator:release_build_test",
         "@goldfish_build//:sanity_checks",
     ]
     test_targets = [
         # Build everything (including tests marked manual) but only run the non-manual ones...
-        "//hardware/generic/goldfish/...",
+        "@goldfish//...",
         # But we don't want to build all the CTS tests!
-        "-//hardware/generic/goldfish/emulator/tests/...",
+        "-@goldfish//emulator/tests/...",
         # But we do want to build and run the manual integration_tests.
-        "//hardware/generic/goldfish/emulator/tests:integration_tests",
+        "@goldfish//emulator/tests:integration_tests",
         # We also want to run the manual boot_tests.
-        "//hardware/generic/goldfish/emulator/launcher:boot_tests",
+        "@goldfish//emulator/launcher:boot_tests",
         # Goldfish E2E tests.
         "@goldfish_test//testlib/...",
     ]
@@ -118,7 +118,7 @@ def build_aemu(args, env, startup_options, build_options):
             f"--build_metadata=ab_target={env.build_target}",
             "--verbose_failures",
             "--build_manual_tests",
-            f"--//hardware/generic/goldfish/emulator:build_id={build_id}",
+            f"--@goldfish//emulator:build_id={build_id}",
         ]
     )
 
@@ -154,13 +154,13 @@ def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd)
 
     if env.is_windows():
         symbol_zip_file = bzl.query_artifacts(
-            ["//hardware/generic/goldfish/emulator:release"]
+            ["@goldfish//emulator:release"]
         )[0]
         # Ignoring an issue around processing of .dll's for now
         uploader.upload_from_zip(symbol_zip_file, ignore_failures=True)
     else:
         symbol_zip_file = bzl.query_artifacts(
-            ["//hardware/generic/goldfish/emulator:package_goldfish_symbols"]
+            ["@goldfish//emulator:package_goldfish_symbols"]
         )[0]
         uploader.upload_from_zip(symbol_zip_file)
 
