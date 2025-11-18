@@ -69,7 +69,7 @@ class Symuploader:
             ]
         try:
             self.bzl.run(
-                target="@com_google_breakpad//:sym_upload",
+                target="@breakpad//:sym_upload",
                 params=params,
             )
         except build_environment.CommandFailedException as cfe:
