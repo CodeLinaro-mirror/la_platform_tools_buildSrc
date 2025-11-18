@@ -171,6 +171,10 @@ def _should_run_meson_generator(args):
     if args.force_generate_aemu_bazel:
         return True
 
+    # Don't try to run AMC for TSAN or ASAN builds.
+    if args.config != "cirelease":
+        return False
+
     # Always run in post submit.
     if not args.build_id.startswith("P"):
         return True
