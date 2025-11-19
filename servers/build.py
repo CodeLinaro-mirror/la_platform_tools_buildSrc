@@ -282,7 +282,7 @@ def main():
 
             if _should_run_meson_generator(args):
                 logging.info("Qemu changes detected, generating bazel build files.")
-                generate_aemu_bazel(args, env, startup_options, build_options)
+                generate_aemu_bazel(args, env, startup_options, build_options + ["--config=no_sponge"])
             build_aemu(args, env, startup_options, build_options)
 
 
