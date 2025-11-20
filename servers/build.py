@@ -91,6 +91,8 @@ def build_aemu(args, env, startup_options, build_options):
         "@goldfish//emulator:package_goldfish_symbols",
         "@goldfish//emulator:package_goldfish_native_symbols",
     ]
+    # Needs special handling on windows.
+    android_ets_zip = "@goldfish_test//tests/ets:android_ets_zip"
     always_test_targets = [
         "@goldfish//emulator:release_build_test",
         "@goldfish_build//:sanity_checks",
@@ -104,8 +106,10 @@ def build_aemu(args, env, startup_options, build_options):
         "@goldfish//emulator/tests:integration_tests",
         # We also want to run the manual boot_tests.
         "@goldfish//emulator/launcher:boot_tests",
-        # Goldfish E2E tests.
+        # Goldfish E2E test libraries.
         "@goldfish_test//testlib/...",
+        # Goldfish E2E tests.
+        "@ets//...",
     ]
 
     logs_dir = env.dist_dir / "logs"
@@ -125,7 +129,9 @@ def build_aemu(args, env, startup_options, build_options):
     targets = release_targets + always_test_targets
     # Skip tests on windows, we still need to figure out some build issues.
     if not env.is_windows():
-        targets += test_targets
+        # ETS zip file does not yet build on windows.
+        release_targets += [android_ets_zip]
+        targets += test_targets + [android_ets_zip]
 
     invocation_flags = [
         "--config=ants",
