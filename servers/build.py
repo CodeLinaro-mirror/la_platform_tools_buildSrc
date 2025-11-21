@@ -28,14 +28,34 @@ import bazel
 import build_environment
 import sym_upload
 from change_info import ChangeInfo
-from log_handler import config_logging
 from gemini_explainer import GeminiExplainer
+from log_handler import config_logging
 
 
-def copy_all(srcs: Iterable[Path], dest: Path):
+def copy_all(srcs: Iterable[Path], dest: Path, not_found_ok=False):
     for f in srcs:
-        f_dest = shutil.copy2(f, dest)
-        logging.info("Copied '%s' to '%s'", f, f_dest)
+        try:
+            f_dest = shutil.copy2(f, dest)
+            logging.info("Copied '%s' to '%s'", f, f_dest)
+        except FileNotFoundError:
+            if not_found_ok:
+                continue
+            raise
+
+
+def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
+    logs_dir = logs_dir / "bazel"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+    output_base = Path(bzl.info["output_base"])
+
+    logs = [
+        Path(bzl.info["server_log"]),
+        output_base / "server" / "jvm.out",
+    ]
+    if (output_base / "bazel-workers").is_dir():
+        logs.extend((output_base / "bazel-workers").glob("*.log"))
+
+    copy_all(logs, logs_dir, not_found_ok=True)
 
 
 def generate_aemu_bazel(args, env, startup_options, build_options):
@@ -58,7 +78,12 @@ def generate_aemu_bazel(args, env, startup_options, build_options):
                 env.repo_root,
                 env.dist_dir,
                 "--config",
-                env.repo_root / "third_party" / "qemu" / "google" / "toolchain" / "qemu-build-config.jsonc" ,
+                env.repo_root
+                / "third_party"
+                / "qemu"
+                / "google"
+                / "toolchain"
+                / "qemu-build-config.jsonc",
                 "--buildid",
                 args.build_id,
             ],
@@ -85,7 +110,7 @@ def build_trusty(args, env):
     env.run(command, timeout=1200)
 
 
-def build_aemu(args, env, startup_options, build_options):
+def build_aemu(env, startup_options, build_options):
     release_targets = [
         "@goldfish//emulator:release",
         "@goldfish//emulator:package_goldfish_symbols",
@@ -141,11 +166,15 @@ def build_aemu(args, env, startup_options, build_options):
     ]
     if not env.is_presubmit:
         invocation_flags.append("--nocache_test_results")
-    bzl_release.test(
-        targets,
-        invocation_flags=invocation_flags,
-        allow_analysis_cache_discard=True,
-    )
+    try:
+        bzl_release.test(
+            targets,
+            invocation_flags=invocation_flags,
+            allow_analysis_cache_discard=True,
+        )
+    except build_environment.CommandFailedException:
+        copy_bazel_logs(bzl_release, logs_dir)
+        raise
     artifacts = bzl_release.query_artifacts(release_targets)
     copy_all(artifacts, env.dist_dir)
 
@@ -159,9 +188,7 @@ def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd)
     uploader = sym_upload.Symuploader(env, bzl)
 
     if env.is_windows():
-        symbol_zip_file = bzl.query_artifacts(
-            ["@goldfish//emulator:release"]
-        )[0]
+        symbol_zip_file = bzl.query_artifacts(["@goldfish//emulator:release"])[0]
         # Ignoring an issue around processing of .dll's for now
         uploader.upload_from_zip(symbol_zip_file, ignore_failures=True)
     else:
@@ -270,26 +297,30 @@ def main():
     )
 
     args = parser.parse_args()
-    with GeminiExplainer(args) as _:
-        with build_environment.create_build_environment(args) as env:
-            startup_options = []
-            if env.tmp_dir:
-                startup_options += [
-                    f"--output_base={env.tmp_dir / 'output'}",
-                    f"--install_base={env.tmp_dir / 'install'}",
-                ]
-
-            build_options = [
-                f"--config={args.config}",
+    with (
+        GeminiExplainer(args) as _,
+        build_environment.create_build_environment(args) as env,
+    ):
+        startup_options = []
+        if env.tmp_dir:
+            startup_options += [
+                f"--output_base={env.tmp_dir / 'output'}",
+                f"--install_base={env.tmp_dir / 'install'}",
             ]
 
-            if "trusty" in args.target:
-                return build_trusty(args, env)
+        build_options = [
+            f"--config={args.config}",
+        ]
 
-            if _should_run_meson_generator(args):
-                logging.info("Qemu changes detected, generating bazel build files.")
-                generate_aemu_bazel(args, env, startup_options, build_options + ["--config=no_sponge"])
-            build_aemu(args, env, startup_options, build_options)
+        if "trusty" in args.target:
+            return build_trusty(args, env)
+
+        if _should_run_meson_generator(args):
+            logging.info("Qemu changes detected, generating bazel build files.")
+            generate_aemu_bazel(
+                args, env, startup_options, build_options + ["--config=no_sponge"]
+            )
+        build_aemu(env, startup_options, build_options)
 
 
 if __name__ == "__main__":
