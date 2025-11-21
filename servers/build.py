@@ -212,8 +212,13 @@ def _should_run_meson_generator(args):
     if not args.build_id.startswith("P"):
         return True
 
-    # Always run presubmit when qemu project is affected.
+    # Always run presubmit when qemu project is affected or projects that affect
+    # AMC tool
     if change_info.get_commits_by_project("platform/external/qemu"):
+        return True
+    if change_info.get_commits_by_project("trusty/external/qemu-meson"):
+        return True
+    if change_info.get_commits_by_project("platform/hardware/google/aemu"):
         return True
 
     # We now always run the generator for Linux.
