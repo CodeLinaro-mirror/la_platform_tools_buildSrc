@@ -127,6 +127,8 @@ def build_aemu(env, startup_options, build_options):
         "@goldfish//...",
         # But we don't want to build all the CTS tests!
         "-@goldfish//emulator/tests/...",
+        # We have no need for a compilation database (and most of tests are private, failing this target)
+        "-@goldfish//:compile_commands",
         # But we do want to build and run the manual integration_tests.
         "@goldfish//emulator/tests:integration_tests",
         # We also want to run the manual boot_tests.
