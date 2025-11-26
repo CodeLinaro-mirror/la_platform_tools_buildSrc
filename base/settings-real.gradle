@@ -47,7 +47,6 @@ def projects = [
         [projectName: ':data-binding', projectPath: ''],
         [projectName: ':base:utp', projectPath: ''],
         [projectName: ':base:utp:android-device-provider-ddmlib', projectPath: ''],
-        [projectName: ':base:utp:android-device-provider-profile', projectPath: ''],
         [projectName: ':base:utp:android-test-plugin-host-additional-test-output', projectPath: ''],
         [projectName: ':base:utp:android-test-plugin-host-apk-installer', projectPath: ''],
         [projectName: ':base:utp:android-test-plugin-host-coverage', projectPath: ''],
