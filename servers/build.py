@@ -117,7 +117,7 @@ def build_aemu(env, startup_options, build_options):
         "@goldfish//emulator:package_goldfish_native_symbols",
     ]
     # Needs special handling on windows.
-    android_ets_zip = "@goldfish_test//tests/ets:android_ets_zip"
+    android_ets_zip = "@goldfish_test//ets:android_ets_zip"
     always_test_targets = [
         "@goldfish//emulator:release_build_test",
         "@goldfish_build//:sanity_checks",
@@ -133,10 +133,12 @@ def build_aemu(env, startup_options, build_options):
         "@goldfish//emulator/tests:integration_tests",
         # We also want to run the manual boot_tests.
         "@goldfish//emulator/launcher:boot_tests",
+        # Do not run all of @goldfish_test as there are test rules which will only pass when run as
+        # a part of tradefed.
         # Goldfish E2E test libraries.
         "@goldfish_test//testlib/...",
         # Goldfish E2E tests.
-        "@ets//...",
+        "@goldfish_test//ets:all",
     ]
 
     logs_dir = env.dist_dir / "logs"
