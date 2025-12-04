@@ -175,6 +175,7 @@ def build_aemu(env, startup_options, build_options):
             targets,
             invocation_flags=invocation_flags,
             allow_analysis_cache_discard=True,
+            timeout=7200,
         )
     except build_environment.CommandFailedException:
         copy_bazel_logs(bzl_release, logs_dir)
