@@ -117,7 +117,7 @@ def build_aemu(env, startup_options, build_options):
         "@goldfish//emulator:package_goldfish_native_symbols",
     ]
     # Needs special handling on windows.
-    android_ets_zip = "@goldfish_test//ets:android_ets_zip"
+    android_ets_zip = ["@goldfish_test//ets:android_ets_zip"]
     always_test_targets = [
         "@goldfish//emulator:release_build_test",
         "@goldfish_build//:sanity_checks",
@@ -129,10 +129,16 @@ def build_aemu(env, startup_options, build_options):
         "-@goldfish//emulator/tests/...",
         # We have no need for a compilation database (and most of tests are private, failing this target)
         "-@goldfish//:compile_commands",
+        # Crashpad tests currently fail on Windows.
+        "-@goldfish//emulator:external_unit_tests",
         # But we do want to build and run the manual integration_tests.
         "@goldfish//emulator/tests:integration_tests",
         # We also want to run the manual boot_tests.
         "@goldfish//emulator/launcher:boot_tests",
+    ]
+    external_tests = ["@goldfish//emulator:external_unit_tests"]
+
+    ets_test_targets = [
         # Do not run all of @goldfish_test as there are test rules which will only pass when run as
         # a part of tradefed.
         # Goldfish E2E test libraries.
@@ -155,12 +161,14 @@ def build_aemu(env, startup_options, build_options):
         ]
     )
 
-    targets = release_targets + always_test_targets
-    # Skip tests on windows, we still need to figure out some build issues.
     if not env.is_windows():
-        # ETS zip file does not yet build on windows.
-        release_targets += [android_ets_zip]
-        targets += test_targets + [android_ets_zip]
+        # ETS zip file does not yet build on Windows.
+        release_targets += android_ets_zip
+
+    targets = release_targets + test_targets + always_test_targets
+    if not env.is_windows():
+        # crashpad tests and ETS don't currently run on Windows.
+        targets += external_tests + ets_test_targets
 
     invocation_flags = [
         "--config=ants",
