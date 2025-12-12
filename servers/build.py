@@ -129,6 +129,8 @@ def build_aemu(env, startup_options, build_options):
         "-@goldfish//emulator/tests/...",
         # We have no need for a compilation database (and most of tests are private, failing this target)
         "-@goldfish//:compile_commands",
+        # clang_tidy_report needs visibility checking to be disabled and should be run separately.
+        "-@goldfish//:clang_tidy_report",
         # Crashpad tests currently fail on Windows.
         "-@goldfish//emulator:external_unit_tests",
         # But we do want to build and run the manual integration_tests.
