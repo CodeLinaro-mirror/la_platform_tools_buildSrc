@@ -22,7 +22,7 @@ import shutil
 import sys
 import time
 from pathlib import Path
-from typing import Iterable
+from typing import Iterable, List
 
 import bazel
 import build_environment
@@ -110,12 +110,18 @@ def build_trusty(args, env):
     env.run(command, timeout=1200)
 
 
-def build_aemu(env, startup_options, build_options):
+def build_aemu(
+    env: build_environment.BuildEnvironment,
+    startup_options: List[str],
+    build_options: List[str],
+):
     release_targets = [
         "@goldfish//emulator:release",
         "@goldfish//emulator:package_goldfish_symbols",
         "@goldfish//emulator:package_goldfish_native_symbols",
     ]
+    if env.target_platform.startswith("linux"):
+        release_targets.append("@goldfish//emulator:release_unstripped")
     # Needs special handling on windows.
     android_ets_zip = ["@goldfish_test//ets:android_ets_zip"]
     always_test_targets = [
