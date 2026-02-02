@@ -308,8 +308,9 @@ def main():
     parser.add_argument(
         "--config",
         type=str,
-        default="cirelease",
-        help="""The configuration to use.
+        nargs="*",
+        default=["cirelease"],
+        help="""The configurations to use.
 
         'cirelease' is intended for use by buildbots.
 
@@ -334,9 +335,7 @@ def main():
                 f"--install_base={env.tmp_dir / 'install'}",
             ]
 
-        build_options = [
-            f"--config={args.config}",
-        ]
+        build_options = [f"--config={c}" for c in args.config]
         if not env.is_presubmit:
             build_options.append("--bes_keywords=ab-postsubmit")
 
