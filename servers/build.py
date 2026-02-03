@@ -131,16 +131,12 @@ def build_aemu(
     test_targets = [
         # Build everything (including tests marked manual) but only run the non-manual ones...
         "@goldfish//...",
-        # But we don't want to build all the CTS tests!
-        "-@goldfish//emulator/tests/...",
         # We have no need for a compilation database (and most of tests are private, failing this target)
         "-@goldfish//:compile_commands",
         # clang_tidy_report needs visibility checking to be disabled and should be run separately.
         "-@goldfish//:clang_tidy_report",
         # Crashpad tests currently fail on Windows.
         "-@goldfish//emulator:external_unit_tests",
-        # But we do want to build and run the manual integration_tests.
-        "@goldfish//emulator/tests:integration_tests",
         # We also want to run the manual boot_tests.
         "@goldfish//emulator/launcher:boot_tests",
     ]
