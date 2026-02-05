@@ -170,6 +170,11 @@ class BazelCmd:
         instance._build_flags = tuple(flags)
         return instance
 
+    @property
+    def build_flags(self) -> Tuple[str, ...]:
+        """Returns the build flags attached to the instance."""
+        return self._build_flags
+
     def _build_cmd(
         self,
         verb: str,

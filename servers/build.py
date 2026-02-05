@@ -196,7 +196,9 @@ def build_aemu(
     copy_all(artifacts, env.dist_dir)
 
     if env.crashpad_symbol_server_key:
-        upload_symbols(env, bzl_release)
+        upload_symbols(env, bzl_release.with_build_flags(
+            bzl_release.build_flags + ("--config=no_sponge",),
+        ))
     else:
         logging.warning("No server API key available, not uploading symbols.")
 
@@ -333,6 +335,8 @@ def main():
         build_options = [
             f"--config={args.config}",
         ]
+        if not env.is_presubmit:
+            build_options.append("--bes_keywords=ab-postsubmit")
 
         if "trusty" in args.target:
             return build_trusty(args, env)
