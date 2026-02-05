@@ -145,9 +145,13 @@ def build_aemu(env, startup_options, build_options):
         # a part of tradefed.
         # Goldfish E2E test libraries.
         "@goldfish_test//testlib/...",
-        # Goldfish E2E tests.
-        "@goldfish_test//ets:all",
     ]
+    # Run only a subset of tests in presubmit, but everything in postsubmit.
+    if env.is_presubmit:
+      ets_test_targets.append("@goldfish_test//ets:presubmit")
+    else:
+      ets_test_targets.append("@goldfish_test//ets:ets")
+
 
     logs_dir = env.dist_dir / "logs"
     logs_dir.mkdir(exist_ok=True)
