@@ -148,11 +148,11 @@ def build_aemu(
         # Goldfish E2E test libraries.
         "@goldfish_test//testlib/...",
     ]
-    # Run only a subset of tests in presubmit, but everything in postsubmit.
+    # Run only a subset of tests in presubmit.
     if env.is_presubmit:
       ets_test_targets.append("@goldfish_test//ets:presubmit")
     else:
-      ets_test_targets.append("@goldfish_test//ets:ets")
+      ets_test_targets.append("@goldfish_test//ets:postsubmit")
 
 
     logs_dir = env.dist_dir / "logs"
