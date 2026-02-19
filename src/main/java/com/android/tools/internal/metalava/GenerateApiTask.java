@@ -119,7 +119,7 @@ public abstract class GenerateApiTask extends DefaultTask {
                 // Select the version from the files. The `*` wildcard matches and ignores any
                 // pre-release suffix.
                 apiDir + "/{version:major.minor.patch}*.txt",
-                "--current-version",
+                "--api-version-for-sources",
                 currentVersion.get()
             );
 

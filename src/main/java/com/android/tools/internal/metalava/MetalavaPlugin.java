@@ -38,7 +38,7 @@ import java.io.File;
 
 public class MetalavaPlugin implements Plugin<Project> {
 
-    private static final String METALAVA_MAVEN = "com.android.tools.metalava:metalava:1.0.0-alpha12";
+    private static final String METALAVA_MAVEN = "com.android.tools.metalava:metalava:1.0.0-alpha14";
     protected static final String API_LEVELS_FILE = "apiLevels.json";
 
     @Override
