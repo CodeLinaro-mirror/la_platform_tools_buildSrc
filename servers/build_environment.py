@@ -333,6 +333,9 @@ class BuildEnvironment(BazelEnvironment):
     crashpad_symbol_server_key: str
     crashpad_server: str
 
+    CRASHPAD_PROD = "https://prod-crashsymbolcollector-pa.googleapis.com"
+    CRASHPAD_STAGING = "https://staging-crashsymbolcollector-pa.googleapis.com"
+
     def __init__(
         self,
         args: argparse.Namespace,
@@ -357,11 +360,9 @@ class BuildEnvironment(BazelEnvironment):
         )
 
         self.crashpad_symbol_server_key = os.environ.get("EMULATOR_SYMBOL_SERVER_KEY")
-        self.crashpad_server = "https://prod-crashsymbolcollector-pa.googleapis.com"
+        self.crashpad_server = self.CRASHPAD_PROD
         if self.is_presubmit:
-            self.crashpad_server = (
-                "https://staging-crashsymbolcollector-pa.googleapis.com"
-            )
+            self.crashpad_server = self.CRASHPAD_STAGING
 
         if not self.crashpad_symbol_server_key:
             key_path = pathlib.Path.home() / ".emulator_symbol_server_key"

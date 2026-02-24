@@ -212,11 +212,19 @@ def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd)
         symbol_zip_file = bzl.query_artifacts(["@goldfish//emulator:release"])[0]
         # Ignoring an issue around processing of .dll's for now
         uploader.upload_from_zip(symbol_zip_file, ignore_failures=True)
+        if not env.is_presubmit:
+            logging.info("Pushing symbols to staging as well.")
+            uploader.upload_from_zip(
+                symbol_zip_file, ignore_failures=True, server=env.CRASHPAD_STAGING
+            )
     else:
         symbol_zip_file = bzl.query_artifacts(
             ["@goldfish//emulator:package_goldfish_symbols"]
         )[0]
         uploader.upload_from_zip(symbol_zip_file)
+        if not env.is_presubmit:
+            logging.info("Pushing symbols to staging as well.")
+            uploader.upload_from_zip(symbol_zip_file, server=env.CRASHPAD_STAGING)
 
 
 def _should_run_meson_generator(args):

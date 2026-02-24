@@ -41,21 +41,23 @@ class Symuploader:
         self.env = env
         self.bzl = bzl
 
-    def upload_artifact(self, symbol_or_exe: Path) -> None:
+    def upload_artifact(self, symbol_or_exe: Path, server: str = None) -> None:
         """
         Uploads a single symbol or windows exectuable file to the crashpad server.
 
         Args:
             symbol_or_exe: Path to the .sym or .exe file.
+            server: The server to upload to. Defaults to the one in the environment.
 
         Raises:
             build_environment.CommandFailedException: If the sym_upload command fails (except for exit code 2).
         """
+        server = server or self.env.crashpad_server
         if self.env.is_windows():
             params = [
                 "-p",
                 str(symbol_or_exe),
-                self.env.crashpad_server,
+                server,
                 self.env.crashpad_symbol_server_key,
             ]
         else:
@@ -65,7 +67,7 @@ class Symuploader:
                 "-k",
                 self.env.crashpad_symbol_server_key,
                 str(symbol_or_exe),
-                self.env.crashpad_server,
+                server,
             ]
         try:
             self.bzl.run(
@@ -78,22 +80,27 @@ class Symuploader:
             else:
                 raise
 
-    def upload_artifacts(self, artifacts: List[str]) -> None:
+    def upload_artifacts(self, artifacts: List[str], server: str = None) -> None:
         """
         Uploads multiple symbol files from a list of bazel targets.
 
         Args:
             artifacts: A list of bazel targets that produce .sym or .exe files.
+            server: The server to upload to. Defaults to the one in the environment.
         """
         for symbol_or_exe in self.bzl.query_artifacts(artifacts):
-            self.upload_artifact(symbol_or_exe)
+            self.upload_artifact(symbol_or_exe, server=server)
 
-    def upload_from_zip(self, zip: Path, ignore_failures: bool = False) -> None:
+    def upload_from_zip(
+        self, zip: Path, ignore_failures: bool = False, server: str = None
+    ) -> None:
         """
         Uploads symbol files (.sym or .exe/.dll) extracted from a zip archive.
 
         Args:
             zip: Path to the zip file.
+            ignore_failures: If True, failures will be logged as warnings instead of raising an exception.
+            server: The server to upload to. Defaults to the one in the environment.
 
         Raises:
             FileNotFoundError: If the zip file does not exist.
@@ -111,7 +118,7 @@ class Symuploader:
                     symbol_file.suffix in (".sym", ".exe", ".dll")
                 ):
                     try:
-                        self.upload_artifact(symbol_file)
+                        self.upload_artifact(symbol_file, server=server)
                     except build_environment.CommandFailedException as cfe:
                         if not ignore_failures:
                             raise
