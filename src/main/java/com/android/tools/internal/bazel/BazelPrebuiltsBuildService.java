@@ -94,6 +94,8 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
         }
         if (getParameters().getUseReleaseVersion().get()) {
             args.add("--config=release");
+        } else {
+            args.add("--no//tools/base/bazel:studio-release");
         }
         args.add("//tools/base:agp_artifacts_dir");
         args.add("--");

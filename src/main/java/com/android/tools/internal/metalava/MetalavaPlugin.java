@@ -65,6 +65,12 @@ public class MetalavaPlugin implements Plugin<Project> {
                 task.getMetalavaClasspath().disallowChanges();
                 task.getOutputDirectory().set(project.getLayout().getProjectDirectory().dir("previous-gradle-apis"));
                 task.getOutputDirectory().disallowChanges();
+                task.getGroupId().set(project.getGroup().toString());
+                task.getGroupId().disallowChanges();
+                task.getArtifactId().set(project.getName());
+                task.getArtifactId().disallowChanges();
+                task.getPrebuiltsDirectory().set(project.getRootProject().file("../prebuilts/tools/common/m2/repository"));
+                task.getPrebuiltsDirectory().disallowChanges();
             });
 
             TaskProvider<GenerateApiTask> generateApi = tasks.register("generateApi", GenerateApiTask.class, task -> {
@@ -85,6 +91,19 @@ public class MetalavaPlugin implements Plugin<Project> {
             });
 
             Provider<Directory> generateApiOutput = generateApi.flatMap(GenerateApiTask::getOutputDirectory);
+
+            TaskProvider<CheckApiCompatibilityTask> checkApiCompat = tasks.register("checkApiCompatibility", CheckApiCompatibilityTask.class, task -> {
+                task.getClasspath().from(main.getCompileClasspath());
+                task.getClasspath().disallowChanges();
+                task.getMetalavaClasspath().from(metalavaClasspath);
+                task.getMetalavaClasspath().disallowChanges();
+                task.getAgpBuildVersion().set(buildVersion);
+                task.getAgpBuildVersion().disallowChanges();
+                task.getInputDirectory().set(generateApiOutput);
+                task.getInputDirectory().disallowChanges();
+                task.getPreviousApisDirectory().set(project.getLayout().getProjectDirectory().dir("previous-gradle-apis"));
+                task.getPreviousApisDirectory().disallowChanges();
+            });
 
             // new outgoing variant for the metalava generated API metadata json files
             Configuration versionsMetadataConfiguration = project.getConfigurations().create("versionsMetadata", configuration -> {
@@ -130,6 +149,8 @@ public class MetalavaPlugin implements Plugin<Project> {
                 task.setTestClassesDirs(metalavaTestSourceSet.getOutput().getClassesDirs());
                 task.setClasspath(metalavaTestSourceSet.getRuntimeClasspath());
                 task.getJvmArgumentProviders().add(metalavaCurrentTxtInput);
+
+                task.dependsOn(checkApiCompat);
             });
 
             tasks.register("updateMetalavaApi", Sync.class, task -> {
