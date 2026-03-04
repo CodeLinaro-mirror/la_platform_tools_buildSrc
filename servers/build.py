@@ -31,6 +31,12 @@ from change_info import ChangeInfo
 from gemini_explainer import GeminiExplainer
 from log_handler import config_logging
 
+_DEFAULT_CONFIG_BY_OS = {
+    "linux": ["release", "ci", "remote"],
+    "darwin": ["release", "ci"],
+    "windows": ["release", "ci"],
+}
+
 
 def copy_all(srcs: Iterable[Path], dest: Path, not_found_ok=False):
     for f in srcs:
@@ -149,10 +155,9 @@ def build_aemu(
     ]
     # Run only a subset of tests in presubmit.
     if env.is_presubmit:
-      ets_test_targets.append("@goldfish_test//ets:presubmit")
+        ets_test_targets.append("@goldfish_test//ets:presubmit")
     else:
-      ets_test_targets.append("@goldfish_test//ets:postsubmit")
-
+        ets_test_targets.append("@goldfish_test//ets:postsubmit")
 
     logs_dir = env.dist_dir / "logs"
     logs_dir.mkdir(exist_ok=True)
@@ -164,6 +169,7 @@ def build_aemu(
             f"--build_metadata=ab_target={env.build_target}",
             "--verbose_failures",
             "--build_manual_tests",
+            f"--profile={logs_dir / 'bazel' / 'command.profile.gz'}"
             f"--@goldfish//emulator:build_id={build_id}",
         ]
     )
@@ -205,9 +211,12 @@ def build_aemu(
     copy_all(artifacts, env.dist_dir)
 
     if env.crashpad_symbol_server_key:
-        upload_symbols(env, bzl_release.with_build_flags(
-            bzl_release.build_flags + ("--config=no_sponge",),
-        ))
+        upload_symbols(
+            env,
+            bzl_release.with_build_flags(
+                bzl_release.build_flags + ("--config=no_sponge",),
+            ),
+        )
     else:
         logging.warning("No server API key available, not uploading symbols.")
 
@@ -324,14 +333,14 @@ def main():
         "--config",
         type=str,
         nargs="*",
-        default=["cirelease"],
+        default=_DEFAULT_CONFIG_BY_OS[platform.system().lower()],
         help="""The configurations to use.
 
-        'cirelease' is intended for use by buildbots.
+        'ci' is intended for use by buildbots.
 
-        'rcache' is intended for use by developers and will attempt to use remote caching.
+        'rcache' / 'connected' is intended for use by developers and will attempt to use remote caching.
         Note: Using rcache may make the build faster or a bit slower, depending on the hit rate.
-        To use 'rcache', you'll need to configure your credentials:
+        To use them, you'll need to configure your credentials:
 
         * glinux workstation - run `gcert`
         * Other machines: run `gcloud auth application-default login --project="emulator-builds"`
