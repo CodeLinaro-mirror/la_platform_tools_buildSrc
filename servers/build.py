@@ -139,6 +139,7 @@ def build_aemu(
         "@goldfish//emulator/launcher:boot_tests",
     ]
     external_tests = ["@goldfish//emulator:external_unit_tests"]
+    cts_test_targets = ["@goldfish_test//cts:postsubmit"]
 
     ets_test_targets = [
         # Do not run all of @goldfish_test as there are test rules which will only pass when run as
@@ -175,6 +176,12 @@ def build_aemu(
     if not env.is_windows():
         # crashpad tests and ETS don't currently run on Windows.
         targets += external_tests + ets_test_targets
+
+    if not env.is_presubmit and not env.is_windows() and not env.is_macos():
+        # b/490122946 some buildbot macs can not execute cts-tradefed due to
+        # the missing executable `realpath`, which cts-tradefed assumes
+        # exists.
+        targets += cts_test_targets
 
     invocation_flags = [
         "--config=ants",

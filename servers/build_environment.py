@@ -208,6 +208,9 @@ class BazelEnvironment:
         formatted_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
         logging.info("Completed build in %s", formatted_time)
 
+    def is_macos(self):
+        return False
+
     def is_windows(self):
         return False
 
@@ -447,6 +450,9 @@ class MacOSBazelEnvironment(BazelEnvironment):
 
         xcode_path = subprocess.check_output(["xcode-select", "-p"], text=True).strip()
         self._cmd_env["DEVELOPER_DIR"] = xcode_path
+
+    def is_macos(self):
+        return True
 
 
 class WindowsBuildEnvironment(WindowsBazelEnvironment, BuildEnvironment):
