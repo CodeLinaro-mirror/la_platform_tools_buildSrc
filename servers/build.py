@@ -169,7 +169,7 @@ def build_aemu(
             f"--build_metadata=ab_target={env.build_target}",
             "--verbose_failures",
             "--build_manual_tests",
-            f"--profile={logs_dir / 'bazel' / 'command.profile.gz'}"
+            f"--profile={logs_dir / 'bazel' / 'command.profile.gz'}",
             f"--@goldfish//emulator:build_id={build_id}",
         ]
     )
