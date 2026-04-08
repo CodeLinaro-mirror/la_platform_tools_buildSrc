@@ -173,13 +173,12 @@ def build_aemu(
         ]
     )
 
-    # TODO(whollins): re-enable ETS on Linux.
-    if not env.is_windows() and not env.target_platform.startswith("linux"):
+    if not env.is_windows():
         # ETS zip file does not yet build on Windows.
         release_targets += android_ets_zip
 
     targets = release_targets + test_targets + always_test_targets
-    if not env.is_windows() and not env.target_platform.startswith("linux"):
+    if not env.is_windows():
         # crashpad tests and ETS don't currently run on Windows.
         targets += external_tests + ets_test_targets
 
