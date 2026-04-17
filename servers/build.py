@@ -128,6 +128,7 @@ def build_aemu(
     ]
     if env.target_platform.startswith("linux"):
         release_targets.append("@goldfish//emulator:release_unstripped")
+        release_targets.append("@goldfish//emulator:release_internal")
     # Needs special handling on windows.
     android_ets_zip = ["@goldfish_test//ets:android_ets_zip"]
     always_test_targets = [
