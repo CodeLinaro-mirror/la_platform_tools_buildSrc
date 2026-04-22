@@ -62,7 +62,7 @@ def main() -> None:
         formatter_class=argparse.RawTextHelpFormatter,
     )
     parser.add_argument(
-        "files", nargs="+", help="List of Bazel files to check and fix."
+        "files", nargs="*", help="List of Bazel files to check and fix."
     )
 
     args = parser.parse_args()
