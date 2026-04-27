@@ -251,7 +251,9 @@ def _should_run_meson_generator(args):
         return True
 
     # Don't try to run AMC for TSAN or ASAN builds.
-    if args.config != "cirelease":
+    if "citsan" in args.config:
+        return False
+    if "ciasan" in args.config:
         return False
 
     # Always run in post submit.
