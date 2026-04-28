@@ -181,7 +181,10 @@ def build_aemu(
     targets = release_targets + test_targets + always_test_targets
     if not env.is_windows():
         # crashpad tests and ETS don't currently run on Windows.
-        targets += external_tests + ets_test_targets
+        targets += ets_test_targets
+        # Only add the 3rd party code tests to postsubmit release builds
+        if not env.is_presubmit and env.is_release:
+            targets += external_tests
 
     if not env.is_presubmit and not env.is_windows() and not env.is_macos():
         # b/490122946 some buildbot macs can not execute cts-tradefed due to
@@ -244,20 +247,18 @@ def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd)
             uploader.upload_from_zip(symbol_zip_file, server=env.CRASHPAD_STAGING)
 
 
-def _should_run_meson_generator(args):
+def _should_run_meson_generator(args, env):
     change_info = ChangeInfo(args.change_info)
 
     if args.force_generate_aemu_bazel:
         return True
 
-    # Don't try to run AMC for TSAN or ASAN builds.
-    if "citsan" in args.config:
-        return False
-    if "ciasan" in args.config:
+    # Don't try to run AMC for debug or TSAN or ASAN builds.
+    if not env.is_release:
         return False
 
     # Always run in post submit.
-    if not args.build_id.startswith("P"):
+    if not env.is_presubmit:
         return True
 
     # Always run presubmit when qemu project is affected or projects that affect
@@ -369,7 +370,7 @@ def main():
         if "trusty" in args.target:
             return build_trusty(args, env)
 
-        if _should_run_meson_generator(args):
+        if _should_run_meson_generator(args, env):
             logging.info("Qemu changes detected, generating bazel build files.")
             generate_aemu_bazel(
                 args, env, startup_options, build_options + ["--config=no_sponge"]

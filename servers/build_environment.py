@@ -332,6 +332,7 @@ class BuildEnvironment(BazelEnvironment):
 
     build_id: str
     is_presubmit: bool
+    is_release: bool
     dist_dir: pathlib.Path
     crashpad_symbol_server_key: str
     crashpad_server: str
@@ -358,6 +359,7 @@ class BuildEnvironment(BazelEnvironment):
         self.build_id = args.build_id if hasattr(args, "build_id") else "PNONE"
         self.build_target = env.get("BUILD_TARGET_NAME")
         self.is_presubmit = self.build_id.startswith("P")
+        self.is_release = "release" in args.config
         self.dist_dir = (
             pathlib.Path(args.dist) if hasattr(args, "build_id") else "PNONE"
         )
