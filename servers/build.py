@@ -34,6 +34,7 @@ from log_handler import config_logging
 _DEFAULT_CONFIG_BY_OS = {
     "linux": ["release", "debug_symbols", "ci", "remote"],
     "darwin": ["release", "debug_symbols", "ci"],
+    # Windows uses a different feature for PDBs and is always on.
     "windows": ["release", "ci"],
 }
 
