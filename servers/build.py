@@ -32,8 +32,8 @@ from gemini_explainer import GeminiExplainer
 from log_handler import config_logging
 
 _DEFAULT_CONFIG_BY_OS = {
-    "linux": ["release", "ci", "remote"],
-    "darwin": ["release", "ci"],
+    "linux": ["release", "debug_symbols", "ci", "remote"],
+    "darwin": ["release", "debug_symbols", "ci"],
     "windows": ["release", "ci"],
 }
 
