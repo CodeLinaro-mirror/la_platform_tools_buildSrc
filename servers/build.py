@@ -180,9 +180,11 @@ def build_aemu(
         release_targets += android_ets_zip
 
     targets = release_targets + test_targets + always_test_targets
+    # crashpad tests and ETS don't currently run on Windows.
     if not env.is_windows():
-        # crashpad tests and ETS don't currently run on Windows.
-        targets += ets_test_targets
+        # Don't run ETS on ASAN, TSAN or debug builds
+        if env.is_release:
+            targets += ets_test_targets
         # Only add the 3rd party code tests to postsubmit release builds
         if not env.is_presubmit and env.is_release:
             targets += external_tests
