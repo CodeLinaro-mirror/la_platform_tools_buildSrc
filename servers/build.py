@@ -189,7 +189,7 @@ def build_aemu(
         if not env.is_presubmit and env.is_release:
             targets += external_tests
 
-    if not env.is_presubmit and not env.is_windows() and not env.is_macos():
+    if env.is_release and not env.is_presubmit and not env.is_windows() and not env.is_macos():
         # b/490122946 some buildbot macs can not execute cts-tradefed due to
         # the missing executable `realpath`, which cts-tradefed assumes
         # exists.
