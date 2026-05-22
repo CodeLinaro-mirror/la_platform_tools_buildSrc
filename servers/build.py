@@ -163,7 +163,6 @@ def build_aemu(
 
     logs_dir = env.dist_dir / "logs"
     (logs_dir / "bazel").mkdir(parents=True, exist_ok=True)
-    build_id = "snapshot" if env.is_presubmit else env.build_id
     bzl_release = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
         build_options
         + [
@@ -171,7 +170,7 @@ def build_aemu(
             f"--build_metadata=ab_target={env.build_target}",
             "--verbose_failures",
             "--build_manual_tests",
-            f"--@goldfish//emulator:build_id={build_id}",
+            f"--@goldfish//emulator:build_id={env.build_id}",
         ]
     )
 
