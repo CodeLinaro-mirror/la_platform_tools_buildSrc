@@ -58,6 +58,8 @@ def projects = [
         [projectName: ':base:utp:gradle-work-action', projectPath: ''],
         [projectName: ':base:utp:utp-common', projectPath: ''],
         [projectName: ':base:perf-logger', projectPath: ''],
+        [projectName: ':base:android-test:coverage:coverage-rt', projectPath: 'base/android-test/coverage/agent/runtime'],
+        [projectName: ':base:android-test:coverage:coverage-agent', projectPath: 'base/android-test/coverage/agent/support'],
         [projectName: ':base:firebase:testlab:testlab-gradle-plugin', projectPath: ''],
         [projectName: ':base:compose-preview-detector', projectPath: 'base/multipreview-asm'],
         [projectName: ':base:preview:screenshot:screenshot-test-gradle-plugin', projectPath: ''],
