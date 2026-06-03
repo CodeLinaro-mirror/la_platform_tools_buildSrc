@@ -253,6 +253,7 @@ def _should_run_meson_generator(args, env):
     change_info = ChangeInfo(args.change_info)
 
     if args.force_generate_aemu_bazel:
+        logging.error("-------Running generator because force flag set")
         return True
 
     # Don't try to run AMC for debug or TSAN or ASAN builds.
@@ -261,20 +262,25 @@ def _should_run_meson_generator(args, env):
 
     # Always run in post submit.
     if not env.is_presubmit:
+        logging.error("-------Running generator because no in presubmit")
         return True
 
     # Always run presubmit when qemu project is affected or projects that affect
     # AMC tool
     if change_info.get_commits_by_project("platform/external/qemu"):
+        logging.error("-------Running generator because change affects qemu")
         return True
     if change_info.get_commits_by_project("trusty/external/qemu-meson"):
+        logging.error("-------Running generator because change affects meson")
         return True
     if change_info.get_commits_by_project("platform/hardware/google/aemu"):
+        logging.error("-------Running generator because change affects aemu")
         return True
 
     # We now always run the generator for Linux.
     # TODO(whollins): Consider adding a mechanism to force NOT running the generator.
     if platform.system().lower() == "linux":
+        logging.error("-------Running generator because we're on Linux")
         return True
 
     return False
