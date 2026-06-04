@@ -155,11 +155,16 @@ def build_aemu(
         # Goldfish E2E test libraries.
         "@goldfish_test//testlib/...",
     ]
+    prefix = "@goldfish_test//ets:"
+    # For mac force the use of the exclusive ETS tests.
+    if env.is_macos():
+        prefix = "@goldfish_test//ets:exclusive_"
+
     # Run only a subset of tests in presubmit.
     if env.is_presubmit:
-        ets_test_targets.append("@goldfish_test//ets:presubmit")
+        ets_test_targets.append(prefix + "presubmit")
     else:
-        ets_test_targets.append("@goldfish_test//ets:postsubmit")
+        ets_test_targets.append(prefix + "postsubmit")
 
     logs_dir = env.dist_dir / "logs"
     (logs_dir / "bazel").mkdir(parents=True, exist_ok=True)
