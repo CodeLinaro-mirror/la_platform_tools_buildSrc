@@ -25,6 +25,8 @@ import time
 import pathlib
 from typing import Dict, List, Optional, Union, Callable
 
+from gemini_auth import GeminiAuthenticator
+
 _SYSTEM_TO_TARGET = {
     "linux": "linux_x64",
     "darwin": "mac_aarch64",
@@ -194,7 +196,10 @@ class BazelEnvironment:
     def __enter__(self):
         """Configure platform specific settings if needed."""
         logging.info("=" * 140)
-        logging.info(json.dumps(self._cmd_env, sort_keys=True))
+        env_to_log = self._cmd_env.copy()
+        if "GEMINI_API_KEY" in env_to_log:
+            env_to_log["GEMINI_API_KEY"] = "******"
+        logging.info(json.dumps(env_to_log, sort_keys=True))
         logging.info("=" * 140)
 
         self._start_time = time.time()
@@ -234,7 +239,13 @@ class BazelEnvironment:
             cwd = self.repo_root
 
         cmd_str = [str(x) for x in cmd]
-        logging.info("%s $> %s", cwd, " ".join(cmd_str))
+        log_cmd_str = []
+        for x in cmd_str:
+            if x.startswith("--test_env=GEMINI_API_KEY="):
+                log_cmd_str.append("--test_env=GEMINI_API_KEY=******")
+            else:
+                log_cmd_str.append(x)
+        logging.info("%s $> %s", cwd, " ".join(log_cmd_str))
 
         proc = await asyncio.create_subprocess_exec(
             *cmd_str,
@@ -252,9 +263,7 @@ class BazelEnvironment:
                 stderr_task = tg.create_task(
                     _read_stream(proc.stderr, None if capture_output else logging.error)
                 )
-                tg.create_task(
-                    asyncio.wait_for(proc.wait(), timeout=timeout)
-                )
+                tg.create_task(asyncio.wait_for(proc.wait(), timeout=timeout))
         except* asyncio.TimeoutError:
             logging.error("Command timed out after %s seconds, terminating.", timeout)
             raise subprocess.TimeoutExpired(cmd, timeout)
@@ -376,6 +385,14 @@ class BuildEnvironment(BazelEnvironment):
                     self.crashpad_symbol_server_key = f.read().strip()
             except FileNotFoundError:
                 logging.error("Error: Symbol server key file not found at %s", key_path)
+
+        self.gemini_api_key = None
+        try:
+            auth = GeminiAuthenticator()
+            creds = auth.get_credentials("gemini-flash-latest")
+            self.gemini_api_key = creds.get("api_key")
+        except Exception as e:
+            logging.warning("Could not obtain Gemini API key: %s", e)
 
     def __enter__(self):
         self.dist_dir.mkdir(exist_ok=True, parents=True)
