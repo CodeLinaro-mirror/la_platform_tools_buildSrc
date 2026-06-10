@@ -26,7 +26,7 @@ class GeminiClient:
 
     def __init__(
         self,
-        model="gemini-2.5-flash",
+        model="gemini-flash-latest",
         service_account_email="build-runner@emulator-builds.iam.gserviceaccount.com",
     ):
         self.model = model
