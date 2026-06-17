@@ -218,7 +218,7 @@ def build_aemu(
             targets,
             invocation_flags=invocation_flags,
             allow_analysis_cache_discard=True,
-            timeout=(3600 * 5 if env.is_macos() else 3600),
+            timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
         )
     except build_environment.CommandFailedException:
         copy_bazel_logs(bzl_release, logs_dir)
