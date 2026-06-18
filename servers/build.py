@@ -19,6 +19,7 @@ import datetime
 import logging
 import platform
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -51,8 +52,8 @@ def copy_all(srcs: Iterable[Path], dest: Path, not_found_ok=False):
 
 
 def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
-    logs_dir = logs_dir / "bazel"
-    logs_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir_bazel = logs_dir / "bazel"
+    logs_dir_bazel.mkdir(parents=True, exist_ok=True)
     output_base = Path(bzl.info["output_base"])
 
     logs = [
@@ -62,7 +63,15 @@ def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
     if (output_base / "bazel-workers").is_dir():
         logs.extend((output_base / "bazel-workers").glob("*.log"))
 
-    copy_all(logs, logs_dir, not_found_ok=True)
+    copy_all(logs, logs_dir_bazel, not_found_ok=True)
+
+    if "bazel-testlogs" in bzl.info:
+        testlogs_dir = Path(bzl.info["bazel-testlogs"])
+        if testlogs_dir.is_dir():
+            testlogs_dest = logs_dir / "testlogs"
+            testlogs_dest.mkdir(parents=True, exist_ok=True)
+            test_files = list(testlogs_dir.rglob("*.log")) + list(testlogs_dir.rglob("*.xml"))
+            copy_all(test_files, testlogs_dest, not_found_ok=True)
 
 
 def generate_aemu_bazel(args, env, startup_options, build_options):
@@ -210,6 +219,7 @@ def build_aemu(
         "--build_metadata=test_definition_name=android_emulator/release",
         "--test_output=errors",
         "--test_summary=detailed",
+        "--test_timeout=1200,1800,2400,3000",
     ]
     if not env.is_presubmit:
         invocation_flags.append("--nocache_test_results")
@@ -220,7 +230,7 @@ def build_aemu(
             allow_analysis_cache_discard=True,
             timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
         )
-    except build_environment.CommandFailedException:
+    except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
         copy_bazel_logs(bzl_release, logs_dir)
         raise
     artifacts = bzl_release.query_artifacts(release_targets)
