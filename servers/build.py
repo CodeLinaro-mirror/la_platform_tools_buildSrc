@@ -185,6 +185,7 @@ def build_aemu(
             "--verbose_failures",
             "--build_manual_tests",
             f"--@goldfish//emulator:build_id={env.build_id}",
+            f"--@goldfish//emulator:is_presubmit={env.is_presubmit}",
         ]
     )
 
