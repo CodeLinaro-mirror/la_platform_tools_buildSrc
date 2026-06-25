@@ -16,7 +16,7 @@
 
 package com.android.tools.internal.bazel;
 
-import com.google.common.collect.ImmutableMap;
+import com.google.common.base.Splitter;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -25,12 +25,6 @@ import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.jetbrains.kotlin.gradle.tasks.KotlinCompile;
-
-import java.io.IOException;
-import java.io.StringReader;
-import java.io.UncheckedIOException;
-import java.util.Map;
-import java.util.Properties;
 
 /**
  * Plugin to handle hybrid build dependency substitutions.
@@ -58,6 +52,7 @@ public class BazelPrebuiltSupportPlugin implements Plugin<Project> {
                                                     params.getRootDir().set(project.getRootDir());
                                                     params.getOsName().set(project.getProviders().systemProperty("os.name"));
                                                     params.getUseReleaseVersion().set(getBoolean(project.getProviders(), "release", false));
+                                                    params.getAdditionalBazelArgs().set(Splitter.on(" ").omitEmptyStrings().split(project.getProviders().gradleProperty("additionalBazelArgs").getOrElse("")));
                                                 });
                                     });
             BazelPrebuiltsBuildService buildService = buildServiceProvider.get();
