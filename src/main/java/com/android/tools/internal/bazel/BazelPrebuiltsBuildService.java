@@ -19,6 +19,7 @@ package com.android.tools.internal.bazel;
 import org.gradle.api.file.Directory;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.services.BuildService;
@@ -46,6 +47,8 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
         DirectoryProperty getRootDir();
         Property<String> getOsName();
         Property<Boolean> getUseReleaseVersion();
+
+        ListProperty<String> getAdditionalBazelArgs();
     }
 
     @Inject
@@ -97,6 +100,7 @@ public abstract class BazelPrebuiltsBuildService implements BuildService<BazelPr
         } else {
             args.add("--no//tools/base/bazel:studio-release");
         }
+        args.addAll(getParameters().getAdditionalBazelArgs().get());
         args.add("//tools/base:agp_artifacts_dir");
         args.add("--");
         args.add(getMavenRepoLocation().get().getAsFile().getAbsolutePath());
