@@ -74,42 +74,6 @@ def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
             copy_all(test_files, testlogs_dest, not_found_ok=True)
 
 
-def generate_aemu_bazel(args, env, startup_options, build_options):
-    bzl = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
-        build_options
-    )
-
-    res = "no results."
-    try:
-        # Note, builds on windows can take quite some time.
-        logging.info("Starting aemu bazel generation")
-        res = bzl.run(
-            target="@qemu//google/toolchain:amc",
-            params=[
-                "-v",
-                "--bazel_startup_options={}".format(",".join(startup_options)),
-                "--bazel_build_options={}".format(",".join(build_options)),
-                "bazel",
-                "--aosp",
-                env.repo_root,
-                env.dist_dir,
-                "--config",
-                env.repo_root
-                / "third_party"
-                / "qemu"
-                / "google"
-                / "toolchain"
-                / "qemu-build-config.jsonc",
-                "--buildid",
-                args.build_id,
-            ],
-            allow_analysis_cache_discard=True,
-            timeout=7200,
-        )
-    finally:
-        logging.info("Completed aemu bazel generation: %s", res)
-
-
 def build_trusty(args, env):
     zip_name = f"sdk-repo-{args.target}-qemu-{args.build_id}.zip"
 
@@ -127,6 +91,7 @@ def build_trusty(args, env):
 
 
 def build_aemu(
+    args,
     env: build_environment.BuildEnvironment,
     startup_options: List[str],
     build_options: List[str],
@@ -139,6 +104,7 @@ def build_aemu(
     if env.target_platform.startswith("linux"):
         release_targets.append("@goldfish//emulator:release_unstripped")
         release_targets.append("@goldfish//emulator:release_internal")
+
     # Needs special handling on windows.
     android_ets_zip = ["@goldfish_test//ets:android_ets_zip"]
     always_test_targets = [
@@ -155,6 +121,12 @@ def build_aemu(
         # We also want to run the manual boot_tests.
         "@goldfish//emulator/launcher:boot_tests",
     ]
+
+    if _should_run_meson_generator(args, env):
+        logging.info("Qemu changes detected, generating bazel build files.")
+        release_targets.append("@qemu//google/toolchain:zip")
+        test_targets.append("@qemu//google/toolchain:generated_diff")
+
     external_tests = ["@goldfish//emulator:external_unit_tests"]
     xts_test_targets = ["@goldfish_test//xts:postsubmit"]
 
@@ -185,6 +157,7 @@ def build_aemu(
             "--verbose_failures",
             "--build_manual_tests",
             f"--@goldfish//emulator:build_id={env.build_id}",
+            f"--@qemu//google/toolchain:build_id={env.build_id}",
             f"--@goldfish//emulator:is_presubmit={env.is_presubmit}",
         ]
     )
@@ -273,10 +246,6 @@ def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd)
 def _should_run_meson_generator(args, env):
     change_info = ChangeInfo(args.change_info)
 
-    if args.force_generate_aemu_bazel:
-        logging.error("-------Running generator because force flag set")
-        return True
-
     # Don't try to run AMC for debug or TSAN or ASAN builds.
     if not env.is_release:
         return False
@@ -358,11 +327,6 @@ def main():
         help="Path to the change_info.json file that is provided by the build bots",
     )
     parser.add_argument(
-        "--force_generate_aemu_bazel",
-        action="store_true",
-        help="Force the building of the qemu meson packages to generate the bazel build files.",
-    )
-    parser.add_argument(
         "--config",
         type=str,
         nargs="*",
@@ -399,12 +363,7 @@ def main():
         if "trusty" in args.target:
             return build_trusty(args, env)
 
-        if _should_run_meson_generator(args, env):
-            logging.info("Qemu changes detected, generating bazel build files.")
-            generate_aemu_bazel(
-                args, env, startup_options, build_options + ["--config=no_sponge"]
-            )
-        build_aemu(env, startup_options, build_options)
+        build_aemu(args, env, startup_options, build_options)
 
 
 if __name__ == "__main__":
