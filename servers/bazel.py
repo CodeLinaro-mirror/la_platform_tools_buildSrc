@@ -252,9 +252,10 @@ class BazelCmd:
             A ``subprocess.CompletedProcess`` object. When capture_output == False,
             it contains only the commandline and the return code.
         """
-        cmd = self._build_cmd(
-            "test", targets, invocation_flags, allow_analysis_cache_discard
-        )
+        flags = list(invocation_flags)
+        if getattr(self._env, "gemini_api_key", None):
+            flags.append(f"--test_env=GEMINI_API_KEY={self._env.gemini_api_key}")
+        cmd = self._build_cmd("test", targets, flags, allow_analysis_cache_discard)
         result = self._env.run(
             cmd,
             capture_output=self._capture_output,

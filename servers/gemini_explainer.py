@@ -60,7 +60,8 @@ class GeminiExplainer:
         if exc_type is not None and self._temp_log_file:
             # An exception has occurred, we will try to explain it.
             self._temp_log_file.seek(0)
-            log = self._temp_log_file.read()
+            lines = self._temp_log_file.readlines()
+            log = self._get_truncated_log(lines)
             self.safely_explain_failure(log)
 
         if self._temp_log_file:
@@ -68,6 +69,27 @@ class GeminiExplainer:
             os.remove(self._temp_log_file.name)
 
         # Returning None (or False) will re-raise the exception if one occurred.
+
+    def _get_truncated_log(
+        self, lines: list, header_lines: int = 20, tail_lines: int = 2000
+    ) -> str:
+        """Truncates the log to include only the header and tail lines to reduce token consumption.
+
+        Args:
+            lines: List of log lines.
+            header_lines: Number of lines to keep from the beginning.
+            tail_lines: Number of lines to keep from the end.
+
+        Returns:
+            The truncated log string.
+        """
+        if len(lines) > header_lines + tail_lines:
+            return (
+                "".join(lines[:header_lines])
+                + f"\n\n... [TRUNCATED {len(lines) - header_lines - tail_lines} LINES] ...\n\n"
+                + "".join(lines[-tail_lines:])
+            )
+        return "".join(lines)
 
     def safely_explain_failure(self, log: str):
         try:

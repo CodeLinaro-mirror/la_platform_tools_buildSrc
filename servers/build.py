@@ -19,6 +19,7 @@ import datetime
 import logging
 import platform
 import shutil
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -51,8 +52,8 @@ def copy_all(srcs: Iterable[Path], dest: Path, not_found_ok=False):
 
 
 def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
-    logs_dir = logs_dir / "bazel"
-    logs_dir.mkdir(parents=True, exist_ok=True)
+    logs_dir_bazel = logs_dir / "bazel"
+    logs_dir_bazel.mkdir(parents=True, exist_ok=True)
     output_base = Path(bzl.info["output_base"])
 
     logs = [
@@ -62,43 +63,15 @@ def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
     if (output_base / "bazel-workers").is_dir():
         logs.extend((output_base / "bazel-workers").glob("*.log"))
 
-    copy_all(logs, logs_dir, not_found_ok=True)
+    copy_all(logs, logs_dir_bazel, not_found_ok=True)
 
-
-def generate_aemu_bazel(args, env, startup_options, build_options):
-    bzl = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
-        build_options
-    )
-
-    res = "no results."
-    try:
-        # Note, builds on windows can take quite some time.
-        logging.info("Starting aemu bazel generation")
-        res = bzl.run(
-            target="@qemu//google/toolchain:amc",
-            params=[
-                "-v",
-                "--bazel_startup_options={}".format(",".join(startup_options)),
-                "--bazel_build_options={}".format(",".join(build_options)),
-                "bazel",
-                "--aosp",
-                env.repo_root,
-                env.dist_dir,
-                "--config",
-                env.repo_root
-                / "third_party"
-                / "qemu"
-                / "google"
-                / "toolchain"
-                / "qemu-build-config.jsonc",
-                "--buildid",
-                args.build_id,
-            ],
-            allow_analysis_cache_discard=True,
-            timeout=7200,
-        )
-    finally:
-        logging.info("Completed aemu bazel generation: %s", res)
+    if "bazel-testlogs" in bzl.info:
+        testlogs_dir = Path(bzl.info["bazel-testlogs"])
+        if testlogs_dir.is_dir():
+            testlogs_dest = logs_dir / "testlogs"
+            testlogs_dest.mkdir(parents=True, exist_ok=True)
+            test_files = list(testlogs_dir.rglob("*.log")) + list(testlogs_dir.rglob("*.xml"))
+            copy_all(test_files, testlogs_dest, not_found_ok=True)
 
 
 def build_trusty(args, env):
@@ -118,6 +91,7 @@ def build_trusty(args, env):
 
 
 def build_aemu(
+    args,
     env: build_environment.BuildEnvironment,
     startup_options: List[str],
     build_options: List[str],
@@ -130,6 +104,7 @@ def build_aemu(
     if env.target_platform.startswith("linux"):
         release_targets.append("@goldfish//emulator:release_unstripped")
         release_targets.append("@goldfish//emulator:release_internal")
+
     # Needs special handling on windows.
     android_ets_zip = ["@goldfish_test//ets:android_ets_zip"]
     always_test_targets = [
@@ -146,8 +121,14 @@ def build_aemu(
         # We also want to run the manual boot_tests.
         "@goldfish//emulator/launcher:boot_tests",
     ]
+
+    if _should_run_meson_generator(args, env):
+        logging.info("Qemu changes detected, generating bazel build files.")
+        release_targets.append("@qemu//google/toolchain:zip")
+        test_targets.append("@qemu//google/toolchain:generated_diff")
+
     external_tests = ["@goldfish//emulator:external_unit_tests"]
-    cts_test_targets = ["@goldfish_test//cts:postsubmit"]
+    xts_test_targets = ["@goldfish_test//xts:postsubmit"]
 
     ets_test_targets = [
         # Do not run all of @goldfish_test as there are test rules which will only pass when run as
@@ -155,11 +136,16 @@ def build_aemu(
         # Goldfish E2E test libraries.
         "@goldfish_test//testlib/...",
     ]
+    prefix = "@goldfish_test//ets:"
+    # For mac force the use of the exclusive ETS tests.
+    if env.is_macos():
+        prefix = "@goldfish_test//ets:exclusive_"
+
     # Run only a subset of tests in presubmit.
     if env.is_presubmit:
-        ets_test_targets.append("@goldfish_test//ets:presubmit")
+        ets_test_targets.append(prefix + "presubmit")
     else:
-        ets_test_targets.append("@goldfish_test//ets:postsubmit")
+        ets_test_targets.append(prefix + "postsubmit")
 
     logs_dir = env.dist_dir / "logs"
     (logs_dir / "bazel").mkdir(parents=True, exist_ok=True)
@@ -171,6 +157,8 @@ def build_aemu(
             "--verbose_failures",
             "--build_manual_tests",
             f"--@goldfish//emulator:build_id={env.build_id}",
+            f"--@qemu//google/toolchain:build_id={env.build_id}",
+            f"--@goldfish//emulator:is_presubmit={env.is_presubmit}",
         ]
     )
 
@@ -188,11 +176,16 @@ def build_aemu(
         if not env.is_presubmit and env.is_release:
             targets += external_tests
 
-    if env.is_release and not env.is_presubmit and not env.is_windows() and not env.is_macos():
+    if (
+        env.is_release
+        and not env.is_presubmit
+        and not env.is_windows()
+        and not env.is_macos()
+    ):
         # b/490122946 some buildbot macs can not execute cts-tradefed due to
         # the missing executable `realpath`, which cts-tradefed assumes
         # exists.
-        targets += cts_test_targets
+        targets += xts_test_targets
 
     invocation_flags = [
         "--config=ants",
@@ -200,6 +193,7 @@ def build_aemu(
         "--build_metadata=test_definition_name=android_emulator/release",
         "--test_output=errors",
         "--test_summary=detailed",
+        "--test_timeout=1200,1800,2400,3000",
     ]
     if not env.is_presubmit:
         invocation_flags.append("--nocache_test_results")
@@ -208,9 +202,9 @@ def build_aemu(
             targets,
             invocation_flags=invocation_flags,
             allow_analysis_cache_discard=True,
-            timeout=(3600 * 5 if env.is_macos() else 3600),
+            timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
         )
-    except build_environment.CommandFailedException:
+    except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
         copy_bazel_logs(bzl_release, logs_dir)
         raise
     artifacts = bzl_release.query_artifacts(release_targets)
@@ -252,29 +246,31 @@ def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd)
 def _should_run_meson_generator(args, env):
     change_info = ChangeInfo(args.change_info)
 
-    if args.force_generate_aemu_bazel:
-        return True
-
     # Don't try to run AMC for debug or TSAN or ASAN builds.
     if not env.is_release:
         return False
 
     # Always run in post submit.
     if not env.is_presubmit:
+        logging.error("-------Running generator because no in presubmit")
         return True
 
     # Always run presubmit when qemu project is affected or projects that affect
     # AMC tool
     if change_info.get_commits_by_project("platform/external/qemu"):
+        logging.error("-------Running generator because change affects qemu")
         return True
     if change_info.get_commits_by_project("trusty/external/qemu-meson"):
+        logging.error("-------Running generator because change affects meson")
         return True
     if change_info.get_commits_by_project("platform/hardware/google/aemu"):
+        logging.error("-------Running generator because change affects aemu")
         return True
 
     # We now always run the generator for Linux.
     # TODO(whollins): Consider adding a mechanism to force NOT running the generator.
     if platform.system().lower() == "linux":
+        logging.error("-------Running generator because we're on Linux")
         return True
 
     return False
@@ -331,11 +327,6 @@ def main():
         help="Path to the change_info.json file that is provided by the build bots",
     )
     parser.add_argument(
-        "--force_generate_aemu_bazel",
-        action="store_true",
-        help="Force the building of the qemu meson packages to generate the bazel build files.",
-    )
-    parser.add_argument(
         "--config",
         type=str,
         nargs="*",
@@ -372,12 +363,7 @@ def main():
         if "trusty" in args.target:
             return build_trusty(args, env)
 
-        if _should_run_meson_generator(args, env):
-            logging.info("Qemu changes detected, generating bazel build files.")
-            generate_aemu_bazel(
-                args, env, startup_options, build_options + ["--config=no_sponge"]
-            )
-        build_aemu(env, startup_options, build_options)
+        build_aemu(args, env, startup_options, build_options)
 
 
 if __name__ == "__main__":
