@@ -13,7 +13,6 @@
 # limitations under the License.
 import base64
 import json
-import logging
 import os
 import socket
 import urllib.error
@@ -50,7 +49,6 @@ class GeminiAuthenticator:
         # 1. Try environment variable
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
-            logging.info("Using API key from GEMINI_API_KEY environment variable.")
             return {
                 "api_key": api_key,
                 "endpoint": f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
@@ -59,7 +57,6 @@ class GeminiAuthenticator:
             }
 
         # 2. Try Secret Manager
-        logging.info("Attempting to retrieve API key from Secret Manager.")
         # Try default service account
         access_token = self._get_access_token_for_sa("default")
 
@@ -79,9 +76,6 @@ class GeminiAuthenticator:
                     secret_b64 = secret_payload["payload"]["data"]
                     api_key = base64.b64decode(secret_b64).decode("utf-8").strip()
 
-                logging.info(
-                    "Successfully configured with API key from Secret Manager."
-                )
                 return {
                     "api_key": api_key,
                     "auth_mode": "API Key from Secret",
@@ -89,14 +83,9 @@ class GeminiAuthenticator:
                     "endpoint": f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
                 }
             except (urllib.error.URLError, ValueError, socket.timeout, KeyError) as e:
-                logging.warning(
-                    "Failed to retrieve API key from Secret Manager. Please ensure the GCE service account "
-                    f"has permissions for Secret Manager. Error: {e}"
-                )
-        else:
-            logging.warning(
-                "Cannot access Secret Manager without a GCE access token from the default account."
-            )
+                raise RuntimeError(
+                    f"Failed to retrieve API key from Secret Manager: {e}"
+                ) from e
 
         raise RuntimeError(
             "Failed to configure Gemini client with any authentication method."
@@ -119,12 +108,6 @@ class GeminiAuthenticator:
                     raise ValueError(
                         "Access token not found in metadata server response."
                     )
-                logging.info(
-                    f"Successfully retrieved GCE access token for {service_account}."
-                )
                 return access_token
-        except (urllib.error.URLError, ValueError, socket.timeout) as e:
-            logging.warning(
-                f"Failed to get GCE access token for {service_account}: {e}"
-            )
+        except (urllib.error.URLError, ValueError, socket.timeout):
             return None
