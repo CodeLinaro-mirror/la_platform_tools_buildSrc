@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
+import re
 import logging
 from pathlib import Path
 
@@ -134,3 +135,60 @@ class ChangeInfo:
                                 f"Error getting diff for commit {commit_data}: {result.stderr}"
                             )
         return diffs
+
+    def get_clang_tidy_line_filter_json(self, bazel_env):
+        """
+        Computes a JSON string suitable for clang-tidy's --line-filter, based on
+        the modified files in the current changes. Extracts unified diff hunks to map
+        line numbers for modified C/C++ files.
+        """
+        all_diffs = self.get_all_parent_diffs(bazel_env)
+
+        # Matches git diff file header line.
+        # Example: "diff --git a/emulator/base/foo.cc b/emulator/base/foo.cc"
+        #   - Group 1 (old path): "emulator/base/foo.cc"
+        #   - Group 2 (new path): "emulator/base/foo.cc"
+        file_pattern = re.compile(r"^diff --git a/(.*?) b/(.*?)$")
+
+        # Matches unified diff hunk headers specifying modified line ranges.
+        # Format: @@ -<old_start>[,<old_count>] +<new_start>[,<new_count>] @@
+        # Examples:
+        #   - "@@ -10,5 +20,15 @@ void foo() {" -> Group 1: 20 (start line), Group 2: 15 (line count)
+        #   - "@@ -5 +5 @@"                       -> Group 1: 5 (start line),  Group 2: None (count defaults to 1)
+        #   - "@@ -10,5 +20,0 @@"                 -> Group 1: 20 (start line), Group 2: 0 (deletions only)
+        chunk_pattern = re.compile(r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@")
+
+        filters = []
+
+        for project_path, diffs_list in all_diffs.items():
+            # Extract changed files and their modified line ranges [start, end] from each commit's unified diff.
+            for diff_text in diffs_list:
+                file_lines = {}
+                current_file = None
+
+                for line in diff_text.splitlines():
+                    file_match = file_pattern.match(line)
+                    if file_match:
+                        current_file = file_match.group(2)
+                        if current_file not in file_lines:
+                            file_lines[current_file] = []
+                        continue
+
+                    chunk_match = chunk_pattern.match(line)
+                    if chunk_match and current_file:
+                        start_line = int(chunk_match.group(1))
+                        length = chunk_match.group(2)
+                        length = int(length) if length is not None else 1
+                        if length > 0:
+                            end_line = start_line + length - 1
+                            # Combine contiguous ranges if needed, but clang-tidy accepts disjoint or overlapping
+                            file_lines[current_file].append([start_line, end_line])
+
+                # Only keep C and C++ source and header files for clang-tidy analysis.
+                for file_name, lines in file_lines.items():
+                    if lines and file_name.endswith(
+                        (".c", ".cc", ".cpp", ".cxx", ".h", ".hpp")
+                    ):
+                        filters.append({"name": file_name, "lines": lines})
+
+        return json.dumps(filters) if filters else ""

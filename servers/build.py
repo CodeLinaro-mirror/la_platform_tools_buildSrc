@@ -16,6 +16,7 @@
 
 import argparse
 import datetime
+import json
 import logging
 import platform
 import shutil
@@ -70,7 +71,9 @@ def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
         if testlogs_dir.is_dir():
             testlogs_dest = logs_dir / "testlogs"
             testlogs_dest.mkdir(parents=True, exist_ok=True)
-            test_files = list(testlogs_dir.rglob("*.log")) + list(testlogs_dir.rglob("*.xml"))
+            test_files = list(testlogs_dir.rglob("*.log")) + list(
+                testlogs_dir.rglob("*.xml")
+            )
             copy_all(test_files, testlogs_dest, not_found_ok=True)
 
 
@@ -88,6 +91,77 @@ def build_trusty(args, env):
         env.dist_dir / zip_name,
     ]
     env.run(command, timeout=1200)
+
+
+def _extract_and_log_clang_tidy_failures(bzl_tidy: bazel.BazelCmd):
+    """Extracts and logs clang-tidy violations from bazel test logs."""
+    try:
+        if "bazel-testlogs" not in bzl_tidy.info:
+            return
+        testlogs_dir = Path(bzl_tidy.info["bazel-testlogs"])
+        if not testlogs_dir.is_dir():
+            return
+
+        for log_val in testlogs_dir.rglob("test.log"):
+            content = log_val.read_text(encoding="utf-8", errors="replace")
+            if "Clang-tidy found issues" in content or "clang-tidy crashed" in content:
+                try:
+                    rel_path = log_val.relative_to(testlogs_dir)
+                except ValueError:
+                    rel_path = log_val
+                logging.error(
+                    "\n"
+                    + "=" * 80
+                    + f"\n[LINT FAILURE] Report from: {rel_path}\n"
+                    + "=" * 80
+                    + f"\n{content}\n"
+                    + "=" * 80
+                )
+    except (OSError, KeyError, build_environment.CommandFailedException) as e:
+        logging.warning("Failed to extract clang-tidy logs: %s", e)
+
+
+def _enforce_clang_tidy_prepass(
+    env: build_environment.BuildEnvironment,
+    startup_options: List[str],
+    build_options: List[str],
+    clang_tidy_filters: str,
+):
+    """Executes a fast-fail standalone Bazel pass exclusively running clang-tidy checks."""
+    logging.info("Enabling clang-tidy targets for modified C/C++ lines")
+    tidy_build_options = list(build_options) + [
+        "--@goldfish_build//:clang_tidy_enabled=true",
+        f"--@goldfish_build//:clang_tidy_line_filter={clang_tidy_filters}",
+    ]
+    for filter_obj in json.loads(clang_tidy_filters):
+        # Also restrict the files checked by Bazel aspect to avoid processing unaffected files
+        tidy_build_options.append(
+            f"--@goldfish_build//:clang_tidy_check_files={filter_obj['name']}"
+        )
+
+    logging.info("Running fast-fail pre-pass exclusively for clang-tidy checks...")
+    bzl_tidy = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
+        tidy_build_options
+    )
+    try:
+        res = bzl_tidy.test(
+            ["@goldfish//..."],
+            invocation_flags=[
+                "--build_tests_only",
+                "--test_tag_filters=tidy-test",
+                "--test_output=errors",
+                "--modify_execution_info=ClangTidy.*=+no-remote",  # b/545839186
+            ],
+            allow_analysis_cache_discard=True,
+            timeout=600,
+        )
+        if res.returncode != 0:
+            raise build_environment.CommandFailedException(
+                "Clang-tidy pre-pass encountered violations.", res
+            )
+    except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
+        _extract_and_log_clang_tidy_failures(bzl_tidy)
+        raise
 
 
 def build_aemu(
@@ -121,6 +195,14 @@ def build_aemu(
         # We also want to run the manual boot_tests.
         "@goldfish//emulator/launcher:boot_tests",
     ]
+
+    if args.change_info:
+        change_info = ChangeInfo(args.change_info)
+        clang_tidy_filters = change_info.get_clang_tidy_line_filter_json(env)
+        if clang_tidy_filters:
+            _enforce_clang_tidy_prepass(
+                env, startup_options, build_options, clang_tidy_filters
+            )
 
     if _should_run_meson_generator(args, env):
         logging.info("Qemu changes detected, generating bazel build files.")
@@ -197,6 +279,7 @@ def build_aemu(
     ]
     if not env.is_presubmit:
         invocation_flags.append("--nocache_test_results")
+
     try:
         bzl_release.test(
             targets,
