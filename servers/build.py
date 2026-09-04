@@ -198,7 +198,10 @@ def build_aemu(
 
     if args.change_info:
         change_info = ChangeInfo(args.change_info)
-        clang_tidy_filters = change_info.get_clang_tidy_line_filter_json(env)
+        # Only check clang-tidy issues in the goldfish project
+        clang_tidy_filters = change_info.get_clang_tidy_line_filter_json_by_project(
+            "hardware/generic/goldfish", env
+        )
         if clang_tidy_filters:
             _enforce_clang_tidy_prepass(
                 env, startup_options, build_options, clang_tidy_filters

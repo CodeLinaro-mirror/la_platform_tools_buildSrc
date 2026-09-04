@@ -17,7 +17,6 @@ import logging
 import os
 import tempfile
 import textwrap
-import urllib.error
 
 import build_environment
 from gemini_client import GeminiClient
@@ -94,12 +93,11 @@ class GeminiExplainer:
     def safely_explain_failure(self, log: str):
         try:
             self.explain_failure(log)
-        except urllib.error.HTTPError as e:
-            msg = f"Gemini failed to explain the failure due to: {e.reason}"
-            logging.error(msg[:170])
         except Exception as e:
-            msg = f"Gemini failed to explain the failure due to: {e}"
-            logging.error(msg[:170])
+            first_line = str(e).splitlines()[0] if str(e) else repr(e)
+            logging.error(
+                f"Gemini failed to explain the failure due to: {first_line}"[:170]
+            )
 
     def explain_failure(self, log: str):
         with build_environment.create_build_environment(self.args) as env:
