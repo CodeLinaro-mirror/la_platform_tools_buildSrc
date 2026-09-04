@@ -34,7 +34,7 @@ from gemini_explainer import GeminiExplainer
 from log_handler import config_logging
 
 _DEFAULT_CONFIG_BY_OS = {
-    "linux": ["release", "debug_symbols", "ci", "remote"],
+    "linux": ["release", "debug_symbols", "ci", "dynamic"],
     "darwin": ["release", "debug_symbols", "ci"],
     # Windows uses a different feature for PDBs and is always on.
     "windows": ["release", "ci"],
