@@ -13,8 +13,6 @@
 # limitations under the License.
 import json
 import urllib.request
-import urllib.error
-import logging
 
 from gemini_auth import GeminiAuthenticator
 
@@ -58,30 +56,13 @@ class GeminiClient:
         body = self._prepare_request_body(prompt)
         json_data = json.dumps(body).encode("utf-8")
 
-        endpoint_to_log = self.endpoint
-        if "key=" in endpoint_to_log:
-            endpoint_to_log = endpoint_to_log.split("key=")[0] + "key=REDACTED"
-        logging.info(f"Sending request to endpoint: {endpoint_to_log}")
         req = urllib.request.Request(
             self.endpoint, data=json_data, headers=self.headers, method="POST"
         )
 
-        try:
-            with urllib.request.urlopen(req, timeout=300) as response:
-                response_body = response.read().decode("utf-8")
-                logging.info("Request successful.")
-                return json.loads(response_body)
-        except urllib.error.HTTPError as e:
-            error_message = (
-                f"HTTP Error {e.code}: {e.reason} - {e.read().decode('utf-8')}"
-            )
-            logging.error(f"Request failed: {error_message}")
-            raise urllib.error.HTTPError(
-                e.url, e.code, error_message, e.headers, e.fp
-            ) from e
-        except urllib.error.URLError as e:
-            logging.error(f"An error occurred with the request: {e.reason}")
-            raise RuntimeError(f"An error occurred with the request: {e.reason}") from e
+        with urllib.request.urlopen(req, timeout=300) as response:
+            response_body = response.read().decode("utf-8")
+            return json.loads(response_body)
 
     def parse_response(self, response_json):
         """
@@ -103,7 +84,6 @@ class GeminiClient:
                     if "text" in part:
                         extracted_text.append(part["text"])
         except (AttributeError, KeyError) as e:
-            logging.error(f"Failed to parse response JSON: {e}")
             raise ValueError("Invalid response JSON format.") from e
         return extracted_text
 

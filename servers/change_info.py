@@ -136,13 +136,13 @@ class ChangeInfo:
                             )
         return diffs
 
-    def get_clang_tidy_line_filter_json(self, bazel_env):
+    def get_clang_tidy_line_filter_json_by_project(self, project_path, bazel_env):
         """
         Computes a JSON string suitable for clang-tidy's --line-filter, based on
         the modified files in the current changes. Extracts unified diff hunks to map
         line numbers for modified C/C++ files.
         """
-        all_diffs = self.get_all_parent_diffs(bazel_env)
+        all_diffs = self.get_parent_diffs_by_project(project_path, bazel_env)
 
         # Matches git diff file header line.
         # Example: "diff --git a/emulator/base/foo.cc b/emulator/base/foo.cc"
@@ -160,7 +160,7 @@ class ChangeInfo:
 
         filters = []
 
-        for project_path, diffs_list in all_diffs.items():
+        for _, diffs_list in all_diffs.items():
             # Extract changed files and their modified line ranges [start, end] from each commit's unified diff.
             for diff_text in diffs_list:
                 file_lines = {}
