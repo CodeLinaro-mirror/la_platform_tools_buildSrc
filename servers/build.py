@@ -34,7 +34,7 @@ from gemini_explainer import GeminiExplainer
 from log_handler import config_logging
 
 _DEFAULT_CONFIG_BY_OS = {
-    "linux": ["release", "debug_symbols", "ci", "remote"],
+    "linux": ["release", "debug_symbols", "ci", "dynamic"],
     "darwin": ["release", "debug_symbols", "ci"],
     # Windows uses a different feature for PDBs and is always on.
     "windows": ["release", "ci"],
@@ -121,6 +121,39 @@ def _extract_and_log_clang_tidy_failures(bzl_tidy: bazel.BazelCmd):
         logging.warning("Failed to extract clang-tidy logs: %s", e)
 
 
+def _find_tidy_targets(
+    env: build_environment.BuildEnvironment, clang_tidy_filters: str
+) -> List[str]:
+    """Finds specific Bazel test targets for the modified files to avoid analyzing the whole repo."""
+    try:
+        filters = json.loads(clang_tidy_filters)
+    except Exception as e:
+        logging.warning("Could not parse clang-tidy filters: %s", e)
+        return ["@goldfish//..."]
+
+    goldfish_root = env.repo_root / "hardware" / "generic" / "goldfish"
+    targets = set()
+
+    for filter_obj in filters:
+        rel_path = filter_obj.get("name")
+        if not rel_path:
+            continue
+        file_path = goldfish_root / rel_path
+        curr = file_path.parent
+        while curr != goldfish_root and curr != curr.parent:
+            if (curr / "BUILD.bazel").exists() or (curr / "BUILD").exists():
+                pkg_rel = curr.relative_to(goldfish_root).as_posix()
+                targets.add(f"@goldfish//{pkg_rel}:all")
+                break
+            curr = curr.parent
+
+    if targets:
+        logging.info("Scoped clang-tidy pre-pass to targets: %s", sorted(list(targets)))
+        return sorted(list(targets))
+
+    return ["@goldfish//..."]
+
+
 def _enforce_clang_tidy_prepass(
     env: build_environment.BuildEnvironment,
     startup_options: List[str],
@@ -139,13 +172,17 @@ def _enforce_clang_tidy_prepass(
             f"--@goldfish_build//:clang_tidy_check_files={filter_obj['name']}"
         )
 
-    logging.info("Running fast-fail pre-pass exclusively for clang-tidy checks...")
+    targets = _find_tidy_targets(env, clang_tidy_filters)
+    logging.info(
+        "Running fast-fail pre-pass exclusively for clang-tidy checks on %s...",
+        targets,
+    )
     bzl_tidy = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
         tidy_build_options
     )
     try:
         res = bzl_tidy.test(
-            ["@goldfish//..."],
+            targets,
             invocation_flags=[
                 "--build_tests_only",
                 "--test_tag_filters=tidy-test",
