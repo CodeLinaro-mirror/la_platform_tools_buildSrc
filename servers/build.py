@@ -190,8 +190,14 @@ def _enforce_clang_tidy_prepass(
                 "--modify_execution_info=ClangTidy.*=+no-remote",  # b/545839186
             ],
             allow_analysis_cache_discard=True,
+            allow_no_test=True,
             timeout=600,
         )
+        if res.returncode == bazel.BuildExitCode.TESTS_NOT_FOUND:
+            logging.info(
+                "No clang-tidy tests found for %s, skipping pre-pass.", targets
+            )
+            return
         if res.returncode != 0:
             raise build_environment.CommandFailedException(
                 "Clang-tidy pre-pass encountered violations.", res
