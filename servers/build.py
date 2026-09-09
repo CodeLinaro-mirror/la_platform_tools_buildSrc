@@ -289,10 +289,13 @@ def build_aemu(
             f"--build_metadata=ab_target={env.build_target}",
             "--verbose_failures",
             "--build_manual_tests",
+            "--stamp",
+            f"--embed_label={env.build_id}",
             f"--@goldfish//emulator:build_id={env.build_id}",
             f"--@qemu//google/toolchain:build_id={env.build_id}",
             f"--@goldfish//emulator:is_presubmit={env.is_presubmit}",
         ]
+        + (["--config=lto"] if env.target_platform.startswith("linux") else [])
     )
 
     if not env.is_windows():
