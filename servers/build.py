@@ -299,52 +299,131 @@ def build_aemu(
         # ETS zip file does not yet build on Windows.
         release_targets += android_ets_zip
 
-    targets = release_targets + test_targets + always_test_targets
-    # crashpad tests and ETS don't currently run on Windows.
-    if not env.is_windows():
-        # Don't run ETS on ASAN, TSAN or debug builds
-        if env.is_release:
-            targets += ets_test_targets
-        # Only add the 3rd party code tests to postsubmit release builds
-        if not env.is_presubmit and env.is_release:
-            targets += external_tests
+    if env.is_presubmit:
+        # In presubmit, decouple release packaging & boot tests from unit tests.
+        # Stage 1: Build release binaries and run boot / integration tests under --config=release.
+        # ThinLTO remains enabled for shipping binaries (~31k actions).
+        stage1_targets = release_targets + always_test_targets + [
+            "@goldfish//emulator/launcher:boot_tests",
+        ]
+        if _should_run_meson_generator(args, env):
+            stage1_targets.append("@qemu//google/toolchain:generated_diff")
+        if not env.is_windows() and env.is_release:
+            stage1_targets += ets_test_targets
 
-    if (
-        env.is_release
-        and not env.is_presubmit
-        and not env.is_windows()
-        and not env.is_macos()
-    ):
-        # b/490122946 some buildbot macs can not execute cts-tradefed due to
-        # the missing executable `realpath`, which cts-tradefed assumes
-        # exists.
-        targets += xts_test_targets
+        stage1_invocation_flags = [
+            "--config=ants",
+            f"--profile={logs_dir / 'bazel' / 'command.profile.gz'}",
+            "--build_metadata=test_definition_name=android_emulator/release",
+            "--test_output=errors",
+            "--test_summary=detailed",
+            "--test_timeout=1200,1800,2400,3000",
+        ]
 
-    invocation_flags = [
-        "--config=ants",
-        f"--profile={logs_dir / 'bazel' / 'command.profile.gz'}",
-        "--build_metadata=test_definition_name=android_emulator/release",
-        "--test_output=errors",
-        "--test_summary=detailed",
-        "--test_timeout=1200,1800,2400,3000",
-    ]
-    if not env.is_presubmit:
-        invocation_flags.append("--nocache_test_results")
+        try:
+            bzl_release.test(
+                stage1_targets,
+                invocation_flags=stage1_invocation_flags,
+                allow_analysis_cache_discard=True,
+                timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
+            )
+        except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
+            copy_bazel_logs(bzl_release, logs_dir)
+            raise
 
-    try:
-        bzl_release.test(
-            targets,
-            invocation_flags=invocation_flags,
-            allow_analysis_cache_discard=True,
-            timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
+        artifacts = bzl_release.query_artifacts(release_targets)
+        copy_all(artifacts, env.dist_dir)
+
+        # Stage 2: Run unit tests without ThinLTO and with --build_tests_only.
+        # This bypasses the ~185k LTO backend compile actions and remote cache checks.
+        bzl_unit_tests = bazel.BazelCmd(
+            env, startup_options=startup_options
+        ).with_build_flags(
+            build_options
+            + [
+                f"--build_metadata=ab_build_id={env.build_id}",
+                f"--build_metadata=ab_target={env.build_target}",
+                "--verbose_failures",
+                "--features=-thin_lto",
+                f"--@goldfish//emulator:build_id={env.build_id}",
+                f"--@qemu//google/toolchain:build_id={env.build_id}",
+                f"--@goldfish//emulator:is_presubmit={env.is_presubmit}",
+            ]
         )
-    except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
-        copy_bazel_logs(bzl_release, logs_dir)
-        raise
-    artifacts = bzl_release.query_artifacts(release_targets)
-    copy_all(artifacts, env.dist_dir)
+        unit_test_targets = [
+            "@goldfish//...",
+            "-@goldfish//:clang_tidy_report",
+        ]
+        if env.is_windows():
+            unit_test_targets.append("-@goldfish//emulator:external_unit_tests")
 
-    if not env.is_presubmit:
+        stage2_invocation_flags = [
+            "--config=ants",
+            f"--profile={logs_dir / 'bazel' / 'unit_tests.profile.gz'}",
+            "--build_metadata=test_definition_name=android_emulator/unit_tests",
+            "--test_output=errors",
+            "--test_summary=detailed",
+            "--test_timeout=1200,1800,2400,3000",
+            "--build_tests_only",
+        ]
+
+        try:
+            bzl_unit_tests.test(
+                unit_test_targets,
+                invocation_flags=stage2_invocation_flags,
+                allow_analysis_cache_discard=True,
+                timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
+            )
+        except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
+            copy_bazel_logs(bzl_unit_tests, logs_dir)
+            raise
+
+        logging.info("Presubmit run detected; skipping symbol upload.")
+    else:
+        targets = release_targets + test_targets + always_test_targets
+        # crashpad tests and ETS don't currently run on Windows.
+        if not env.is_windows():
+            # Don't run ETS on ASAN, TSAN or debug builds
+            if env.is_release:
+                targets += ets_test_targets
+            # Only add the 3rd party code tests to postsubmit release builds
+            if not env.is_presubmit and env.is_release:
+                targets += external_tests
+
+        if (
+            env.is_release
+            and not env.is_presubmit
+            and not env.is_windows()
+            and not env.is_macos()
+        ):
+            # b/490122946 some buildbot macs can not execute cts-tradefed due to
+            # the missing executable `realpath`, which cts-tradefed assumes
+            # exists.
+            targets += xts_test_targets
+
+        invocation_flags = [
+            "--config=ants",
+            f"--profile={logs_dir / 'bazel' / 'command.profile.gz'}",
+            "--build_metadata=test_definition_name=android_emulator/release",
+            "--test_output=errors",
+            "--test_summary=detailed",
+            "--test_timeout=1200,1800,2400,3000",
+            "--nocache_test_results",
+        ]
+
+        try:
+            bzl_release.test(
+                targets,
+                invocation_flags=invocation_flags,
+                allow_analysis_cache_discard=True,
+                timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
+            )
+        except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
+            copy_bazel_logs(bzl_release, logs_dir)
+            raise
+        artifacts = bzl_release.query_artifacts(release_targets)
+        copy_all(artifacts, env.dist_dir)
+
         if env.crashpad_symbol_server_key:
             upload_symbols(
                 env,
@@ -354,8 +433,6 @@ def build_aemu(
             )
         else:
             logging.warning("No server API key available, not uploading symbols.")
-    else:
-        logging.info("Presubmit run detected; skipping symbol upload.")
 
 
 def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd):
