@@ -209,9 +209,14 @@ def build_aemu(
 ):
     release_targets = [
         "@goldfish//emulator:release",
-        "@goldfish//emulator:package_goldfish_symbols",
-        "@goldfish//emulator:package_goldfish_native_symbols",
     ]
+    if not env.is_presubmit:
+        release_targets.extend(
+            [
+                "@goldfish//emulator:package_goldfish_symbols",
+                "@goldfish//emulator:package_goldfish_native_symbols",
+            ]
+        )
     if env.target_platform.startswith("linux"):
         release_targets.append("@goldfish//emulator:release_unstripped")
         release_targets.append("@goldfish//emulator:release_internal")
@@ -333,18 +338,25 @@ def build_aemu(
     artifacts = bzl_release.query_artifacts(release_targets)
     copy_all(artifacts, env.dist_dir)
 
-    if env.crashpad_symbol_server_key:
-        upload_symbols(
-            env,
-            bzl_release.with_build_flags(
-                bzl_release.build_flags + ("--config=no_sponge",),
-            ),
-        )
+    if not env.is_presubmit:
+        if env.crashpad_symbol_server_key:
+            upload_symbols(
+                env,
+                bzl_release.with_build_flags(
+                    bzl_release.build_flags + ("--config=no_sponge",),
+                ),
+            )
+        else:
+            logging.warning("No server API key available, not uploading symbols.")
     else:
-        logging.warning("No server API key available, not uploading symbols.")
+        logging.info("Presubmit run detected; skipping symbol upload.")
 
 
 def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd):
+    if env.is_presubmit:
+        logging.info("Presubmit run detected; skipping symbol upload.")
+        return
+
     uploader = sym_upload.Symuploader(env, bzl)
 
     if env.is_windows():
