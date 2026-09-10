@@ -55,7 +55,6 @@ def projects = [
         [projectName: ':base:compose-preview-detector', projectPath: 'base/multipreview-asm'],
         [projectName: ':base:preview:screenshot:screenshot-test-gradle-plugin', projectPath: ''],
         [projectName: ':base:preview:screenshot:screenshot-validation-api', projectPath: ''],
-        [projectName: ':base:preview:screenshot:screenshot-validation-junit-engine', projectPath: ''],
 ]
 
 /**
