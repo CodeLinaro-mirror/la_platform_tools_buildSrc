@@ -20,7 +20,7 @@ if (!release && !releaseProperty.equalsIgnoreCase("false")) throw new IllegalSta
 
 String nextMajorProperty = project.providers.gradleProperty("nextMajor").getOrElse("false")
 boolean nextMajor = nextMajorProperty.equalsIgnoreCase("true")
-if (!nextMajor && !nextMajorProperty.equalsIgnoreCase("false")) throw new IllegalStateException("Expected release property to be true or false, but was '$nextMajorProperty'")
+if (!nextMajor && !nextMajorProperty.equalsIgnoreCase("false")) throw new IllegalStateException("Expected nextMajor property to be true or false, but was '$nextMajorProperty'")
 
 String releaseBaseVersion = properties.getProperty('BASE_VERSION') - '"' - '"'
 String releaseBuildVersion = properties.getProperty('BUILD_VERSION') - '"' - '"'
