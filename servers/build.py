@@ -53,28 +53,36 @@ def copy_all(srcs: Iterable[Path], dest: Path, not_found_ok=False):
 
 
 def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
-    logs_dir_bazel = logs_dir / "bazel"
-    logs_dir_bazel.mkdir(parents=True, exist_ok=True)
-    output_base = Path(bzl.info["output_base"])
+    try:
+        logs_dir_bazel = logs_dir / "bazel"
+        logs_dir_bazel.mkdir(parents=True, exist_ok=True)
+        output_base = Path(bzl.info["output_base"])
 
-    logs = [
-        Path(bzl.info["server_log"]),
-        output_base / "server" / "jvm.out",
-    ]
-    if (output_base / "bazel-workers").is_dir():
-        logs.extend((output_base / "bazel-workers").glob("*.log"))
+        logs = [
+            Path(bzl.info["server_log"]),
+            output_base / "server" / "jvm.out",
+        ]
+        if (output_base / "bazel-workers").is_dir():
+            logs.extend((output_base / "bazel-workers").glob("*.log"))
 
-    copy_all(logs, logs_dir_bazel, not_found_ok=True)
+        copy_all(logs, logs_dir_bazel, not_found_ok=True)
 
-    if "bazel-testlogs" in bzl.info:
-        testlogs_dir = Path(bzl.info["bazel-testlogs"])
-        if testlogs_dir.is_dir():
-            testlogs_dest = logs_dir / "testlogs"
-            testlogs_dest.mkdir(parents=True, exist_ok=True)
-            test_files = list(testlogs_dir.rglob("*.log")) + list(
-                testlogs_dir.rglob("*.xml")
-            )
-            copy_all(test_files, testlogs_dest, not_found_ok=True)
+        if "bazel-testlogs" in bzl.info:
+            testlogs_dir = Path(bzl.info["bazel-testlogs"])
+            if testlogs_dir.is_dir():
+                testlogs_dest = logs_dir / "testlogs"
+                testlogs_dest.mkdir(parents=True, exist_ok=True)
+                for ext in ("*.log", "*.xml"):
+                    for f in testlogs_dir.rglob(ext):
+                        rel = f.relative_to(testlogs_dir)
+                        dest = testlogs_dest / rel
+                        dest.parent.mkdir(parents=True, exist_ok=True)
+                        try:
+                            shutil.copy2(f, dest)
+                        except FileNotFoundError:
+                            continue
+    except Exception as e:
+        logging.warning("Failed to copy bazel logs: %s", e)
 
 
 def build_trusty(args, env):
