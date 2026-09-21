@@ -199,6 +199,7 @@ def _enforce_clang_tidy_prepass(
             ],
             allow_analysis_cache_discard=True,
             allow_no_test=True,
+            fail_on_test_failure=False,
             timeout=600,
         )
         if res.returncode == bazel.BuildExitCode.TESTS_NOT_FOUND:
@@ -423,10 +424,11 @@ def build_aemu(
         ]
 
         try:
-            bzl_release.test(
+            postsubmit_res = bzl_release.test(
                 targets,
                 invocation_flags=invocation_flags,
                 allow_analysis_cache_discard=True,
+                fail_on_test_failure=False,
                 timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
             )
         except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
@@ -444,6 +446,13 @@ def build_aemu(
             )
         else:
             logging.warning("No server API key available, not uploading symbols.")
+
+        if postsubmit_res.returncode != bazel.BuildExitCode.SUCCESS:
+            logging.warning(
+                "Postsubmit tests encountered failures (exit code %s).",
+                postsubmit_res.returncode,
+            )
+            copy_bazel_logs(bzl_release, logs_dir)
 
 
 def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd):

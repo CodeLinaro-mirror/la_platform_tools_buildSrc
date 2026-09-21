@@ -234,6 +234,7 @@ class BazelCmd:
         invocation_flags: Iterable[str] = (),
         allow_analysis_cache_discard: bool = False,
         allow_no_test: bool = False,
+        fail_on_test_failure: bool = True,
         timeout: Union[float, None] = 3600,
     ) -> subprocess.CompletedProcess:
         """Runs ``bazel test`` and returns the result.
@@ -246,6 +247,7 @@ class BazelCmd:
                 cache is being discarded.
             allow_no_test: Do not raise exception if bazel reports no tests were
                 run.
+            fail_on_test_failure: Raise exception if bazel reports test failures.
             timeout: Timeout for the entire process.
 
         Returns:
@@ -262,7 +264,9 @@ class BazelCmd:
             throw_on_failure=False,
             timeout=timeout,
         )
-        normal_return_codes = [BuildExitCode.SUCCESS, BuildExitCode.TESTS_FAILED]
+        normal_return_codes = [BuildExitCode.SUCCESS]
+        if not fail_on_test_failure:
+            normal_return_codes.append(BuildExitCode.TESTS_FAILED)
         if allow_no_test:
             normal_return_codes.append(BuildExitCode.TESTS_NOT_FOUND)
         if result.returncode not in normal_return_codes:
