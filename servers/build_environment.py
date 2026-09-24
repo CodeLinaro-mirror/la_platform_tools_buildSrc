@@ -240,8 +240,18 @@ class BazelEnvironment:
 
         cmd_str = [str(x) for x in cmd]
         log_cmd_str = []
+        mask_next = False
+        secret_key = getattr(self, "crashpad_symbol_server_key", None)
         for x in cmd_str:
-            if x.startswith("--test_env=GEMINI_API_KEY="):
+            if mask_next:
+                log_cmd_str.append("******")
+                mask_next = False
+            elif x == "-k":
+                log_cmd_str.append(x)
+                mask_next = True
+            elif secret_key and secret_key in x:
+                log_cmd_str.append(x.replace(secret_key, "******"))
+            elif x.startswith("--test_env=GEMINI_API_KEY="):
                 log_cmd_str.append("--test_env=GEMINI_API_KEY=******")
             else:
                 log_cmd_str.append(x)
