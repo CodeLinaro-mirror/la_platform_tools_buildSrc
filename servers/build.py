@@ -216,6 +216,72 @@ def _enforce_clang_tidy_prepass(
         raise
 
 
+def get_common_build_flags(
+    env: build_environment.BuildEnvironment,
+    base_build_options: List[str],
+) -> List[str]:
+    """Assembles standardized Bazel build flags across pipelines."""
+    flags = list(base_build_options) + [
+        f"--build_metadata=ab_build_id={env.build_id}",
+        f"--build_metadata=ab_target={env.build_target}",
+        "--verbose_failures",
+        "--stamp",
+        f"--embed_label={env.build_id}",
+        f"--@goldfish//emulator:build_id={env.build_id}",
+        f"--@qemu//google/toolchain:build_id={env.build_id}",
+        f"--@goldfish//emulator:is_presubmit={env.is_presubmit}",
+    ]
+    if env.target_platform.startswith("linux"):
+        flags.append("--config=lto")
+    return flags
+
+
+def build_aosp(
+    args,
+    env: build_environment.BuildEnvironment,
+    startup_options: List[str],
+    build_options: List[str],
+):
+    """Executes the minimal AOSP build pipeline.
+
+    Builds exclusively @goldfish//emulator:release under --config=aosp and copies
+    the resultant package zip into dist_dir.
+    """
+    aosp_build_options = list(build_options)
+    if "--config=aosp" not in aosp_build_options:
+        aosp_build_options.append("--config=aosp")
+    if "--lockfile_mode=off" not in aosp_build_options:
+        aosp_build_options.append("--lockfile_mode=off")
+
+    common_flags = get_common_build_flags(env, aosp_build_options)
+    bzl = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
+        common_flags
+    )
+
+    logs_dir = env.dist_dir / "logs"
+    (logs_dir / "bazel").mkdir(parents=True, exist_ok=True)
+
+    release_target = "@goldfish//emulator:release"
+    logging.info("Starting AOSP build for target %s...", release_target)
+    try:
+        bzl.build(
+            [release_target],
+            invocation_flags=[
+                f"--profile={logs_dir / 'bazel' / 'aosp_build.profile.gz'}",
+            ],
+            allow_analysis_cache_discard=True,
+            timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
+        )
+    except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
+        copy_bazel_logs(bzl, logs_dir)
+        raise
+
+    artifacts = bzl.query_artifacts([release_target], allow_analysis_cache_discard=True)
+    copy_all(artifacts, env.dist_dir)
+    copy_bazel_logs(bzl, logs_dir)
+    logging.info("AOSP build complete. Artifacts placed in %s", env.dist_dir)
+
+
 def build_aemu(
     args,
     env: build_environment.BuildEnvironment,
@@ -292,19 +358,10 @@ def build_aemu(
     logs_dir = env.dist_dir / "logs"
     (logs_dir / "bazel").mkdir(parents=True, exist_ok=True)
     bzl_release = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
-        build_options
+        get_common_build_flags(env, build_options)
         + [
-            f"--build_metadata=ab_build_id={env.build_id}",
-            f"--build_metadata=ab_target={env.build_target}",
-            "--verbose_failures",
             "--build_manual_tests",
-            "--stamp",
-            f"--embed_label={env.build_id}",
-            f"--@goldfish//emulator:build_id={env.build_id}",
-            f"--@qemu//google/toolchain:build_id={env.build_id}",
-            f"--@goldfish//emulator:is_presubmit={env.is_presubmit}",
         ]
-        + (["--config=lto"] if env.target_platform.startswith("linux") else [])
     )
 
     if not env.is_windows():
@@ -514,9 +571,7 @@ def _should_run_meson_generator(args, env):
     return False
 
 
-def main():
-    config_logging()
-
+def _create_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="""Builds the android emulator by invoking bazel.
 
@@ -552,13 +607,20 @@ def main():
         "--target",
         type=str,
         choices=["trusty_x64"] + list(bazel._PLATFORM_TARGETS_BY_NAME.keys()),
-        default=platform.system(),
+        default=build_environment.default_target(),
         help=f"""The build target
         Must be one of:
         'trusty_x64' - Stock qemu, used by security team
         Or one of the following emulator releases:
         {", ".join([f"'{key}'" for key in bazel._PLATFORM_TARGETS_BY_NAME.keys()])}
         """,
+    )
+    parser.add_argument(
+        "--aosp",
+        action="store_true",
+        help="""Build the AOSP configuration.
+        Runs 'bazel build @goldfish//emulator:release' only, skipping internal tests,
+        symbol uploads, and linters, and outputs the release distribution zip.""",
     )
     parser.add_argument(
         "--change_info",
@@ -581,7 +643,13 @@ def main():
         * Other machines: run `gcloud auth application-default login --project="emulator-builds"`
         """,
     )
+    return parser
 
+
+def main():
+    config_logging()
+
+    parser = _create_argument_parser()
     args = parser.parse_args()
     with (
         GeminiExplainer(args) as _,
@@ -600,6 +668,9 @@ def main():
 
         if "trusty" in args.target:
             return build_trusty(args, env)
+
+        if args.aosp:
+            return build_aosp(args, env, startup_options, build_options)
 
         build_aemu(args, env, startup_options, build_options)
 

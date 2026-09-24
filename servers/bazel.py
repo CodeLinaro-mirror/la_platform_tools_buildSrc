@@ -205,9 +205,9 @@ class BazelCmd:
     def info(self) -> Mapping[str, str]:
         """Returns the parsed output of ``bazel info``.
 
-        Uses the stored build flags and fails if analysis cache gets discarded.
+        Uses the stored build flags.
         """
-        cmd = self._build_cmd("info")
+        cmd = self._build_cmd("info", allow_analysis_cache_discard=True)
         result = self._env.run(
             cmd, throw_on_failure=False, capture_output=True, timeout=300
         )
@@ -394,7 +394,11 @@ class BazelCmd:
         return result
 
     def query_artifacts(
-        self, targets: Iterable[str], *, timeout: Union[float, None] = 300
+        self,
+        targets: Iterable[str],
+        *,
+        allow_analysis_cache_discard: bool = False,
+        timeout: Union[float, None] = 300,
     ) -> List[pathlib.Path]:
         """Queries the output files of the passed targets.
 
@@ -403,11 +407,15 @@ class BazelCmd:
 
         Args:
             targets: The targets to query for.
+            allow_analysis_cache_discard: Do not fail if analysis cache is discarded.
             timeout: Timeout for the entire process.
         """
         query = " + ".join(quote(t) for t in targets)
         result = self.cquery(
-            query, invocation_flags=["--output=files"], timeout=timeout
+            query,
+            invocation_flags=["--output=files"],
+            allow_analysis_cache_discard=allow_analysis_cache_discard,
+            timeout=timeout,
         )
         exec_root = pathlib.Path(self.info["execution_root"])
         artifacts = []
