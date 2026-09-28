@@ -545,9 +545,12 @@ def build_aemu(
                 "--test_summary=detailed",
                 "--test_timeout=1200,1800,2400,3000",
                 "--build_tests_only",
-                "--jobs=2",
-                "--local_resources=memory=HOST_RAM*.3",
             ]
+            if env.is_macos():
+                stage3_invocation_flags.extend([
+                    "--jobs=2",
+                    "--local_resources=memory=HOST_RAM*.3",
+                ])
 
             try:
                 bzl_ets.test(

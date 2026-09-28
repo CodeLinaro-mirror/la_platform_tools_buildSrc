@@ -304,6 +304,50 @@ class BuildScriptTest(unittest.TestCase):
         self.assertTrue(any("@goldfish_test//ets:" in t for t in stage3_targets))
         stage3_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
         self.assertIn("--build_tests_only", stage3_flags)
+        # On Linux, RBE concurrency should not be throttled to 2 jobs
+        self.assertNotIn("--jobs=2", stage3_flags)
+        self.assertNotIn("--local_resources=memory=HOST_RAM*.3", stage3_flags)
+
+    @patch("build._reclaim_and_stabilize_resources")
+    @patch("build.bazel.BazelCmd")
+    @patch("build.copy_all")
+    @patch("build.copy_bazel_logs")
+    def test_build_aemu_presubmit_macos_constrains_jobs_and_memory(
+        self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls, mock_reclaim
+    ):
+        mock_bzl_release = MagicMock()
+        mock_bzl_unit_tests = MagicMock()
+        mock_bzl_ets = MagicMock()
+
+        mock_bazel_cmd_cls.side_effect = [
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_release)),
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_unit_tests)),
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_ets)),
+        ]
+
+        artifact_zip = Path("/out/sdk-repo-darwin_aarch64-P123456.zip")
+        mock_bzl_release.query_artifacts.return_value = [artifact_zip]
+
+        self.mock_env.is_windows.return_value = False
+        self.mock_env.is_release = True
+        self.mock_env.is_macos.return_value = True
+
+        args = argparse.Namespace(
+            aosp=False,
+            dist="/tmp/dist",
+            build_id="P123456",
+            target="mac_aarch64",
+            change_info=None,
+        )
+
+        build.build_aemu(
+            args,
+            self.mock_env,
+            startup_options=[],
+            build_options=["--config=release"],
+        )
+
+        stage3_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
         self.assertIn("--jobs=2", stage3_flags)
         self.assertIn("--local_resources=memory=HOST_RAM*.3", stage3_flags)
 
