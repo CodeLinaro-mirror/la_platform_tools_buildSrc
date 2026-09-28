@@ -18,6 +18,7 @@ import argparse
 import datetime
 import json
 import logging
+import os
 import platform
 import shutil
 import subprocess
@@ -83,6 +84,81 @@ def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
                             continue
     except Exception as e:
         logging.warning("Failed to copy bazel logs: %s", e)
+
+
+def _log_host_memory_status(
+    env: build_environment.BuildEnvironment,
+    label: str = "",
+):
+    """Logs host memory and swap metrics for telemetry and diagnostics."""
+    suffix = f" [{label}]" if label else ""
+    try:
+        if env.is_macos():
+            swap_res = subprocess.run(
+                ["sysctl", "-n", "vm.swapusage"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            swap_info = swap_res.stdout.strip() if swap_res.returncode == 0 else "unknown"
+            vm_res = subprocess.run(
+                ["vm_stat"],
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=5,
+            )
+            logging.info("Host memory status%s (macOS): swap=[%s]", suffix, swap_info)
+            if vm_res.returncode == 0:
+                lines = [line.strip() for line in vm_res.stdout.splitlines() if line.strip()]
+                logging.info("Host vm_stat%s: %s", suffix, "; ".join(lines[:7]))
+        elif env.is_linux():
+            meminfo_path = Path("/proc/meminfo")
+            if meminfo_path.exists():
+                metrics = {}
+                for line in meminfo_path.read_text().splitlines():
+                    parts = line.split(":")
+                    if len(parts) == 2 and parts[0] in (
+                        "MemTotal",
+                        "MemFree",
+                        "MemAvailable",
+                        "SwapTotal",
+                        "SwapFree",
+                    ):
+                        metrics[parts[0]] = parts[1].strip()
+                logging.info("Host memory status%s (Linux): %s", suffix, metrics)
+    except Exception as e:
+        logging.warning("Failed to collect host memory status%s: %s", suffix, e)
+
+
+def _reclaim_and_stabilize_resources(
+    env: build_environment.BuildEnvironment,
+    *bzl_instances: bazel.BazelCmd,
+):
+    """Reclaims system memory and logs host state before heavy integration tests."""
+    logging.info("Reclaiming resources before ETS integration tests...")
+
+    # 1. Log host memory telemetry before shutdown.
+    _log_host_memory_status(env, "before shutdown")
+
+    # 2. Shut down any active Bazel servers to reclaim resident JVM heap (typically 2.5-4 GB).
+    for bzl in bzl_instances:
+        if bzl:
+            try:
+                bzl.shutdown()
+            except Exception as e:
+                logging.warning("Failed to shutdown Bazel server: %s", e)
+
+    # 3. Flush file buffers to disk.
+    try:
+        if hasattr(os, "sync"):
+            os.sync()
+    except Exception as e:
+        logging.warning("os.sync failed: %s", e)
+
+    # 4. Log host memory telemetry after shutdown.
+    _log_host_memory_status(env, "after shutdown")
 
 
 def build_trusty(args, env):
@@ -369,16 +445,14 @@ def build_aemu(
         release_targets += android_ets_zip
 
     if env.is_presubmit:
-        # In presubmit, decouple release packaging & boot tests from unit tests.
-        # Stage 1: Build release binaries and run boot / integration tests under --config=release.
+        # In presubmit, decouple release packaging & boot tests from unit tests and ETS.
+        # Stage 1: Build release binaries and run fast boot tests under --config=release.
         # ThinLTO remains enabled for shipping binaries (~31k actions).
         stage1_targets = release_targets + always_test_targets + [
             "@goldfish//emulator/launcher:boot_tests",
         ]
         if _should_run_meson_generator(args, env):
             stage1_targets.append("@qemu//google/toolchain:generated_diff")
-        if not env.is_windows() and env.is_release:
-            stage1_targets += ets_test_targets
 
         stage1_invocation_flags = [
             "--config=ants",
@@ -405,6 +479,7 @@ def build_aemu(
 
         # Stage 2: Run unit tests without ThinLTO and with --build_tests_only.
         # This bypasses the ~185k LTO backend compile actions and remote cache checks.
+        # Unit tests fail fast before entering heavy integration tests.
         bzl_unit_tests = bazel.BazelCmd(
             env, startup_options=startup_options
         ).with_build_flags(
@@ -446,6 +521,44 @@ def build_aemu(
         except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
             copy_bazel_logs(bzl_unit_tests, logs_dir)
             raise
+
+        # Stage 3: Dedicated ETS Integration Tests.
+        # Run heavyweight emulator tests last, after all unit tests pass and after
+        # reclaiming resident memory and stabilizing host resources.
+        if not env.is_windows() and env.is_release:
+            _reclaim_and_stabilize_resources(env, bzl_unit_tests, bzl_release)
+
+            ets_startup_options = list(startup_options) + ["--host_jvm_args=-Xmx1g"]
+            bzl_ets = bazel.BazelCmd(
+                env, startup_options=ets_startup_options
+            ).with_build_flags(
+                get_common_build_flags(env, build_options)
+                + [
+                    "--build_manual_tests",
+                ]
+            )
+            stage3_invocation_flags = [
+                "--config=ants",
+                f"--profile={logs_dir / 'bazel' / 'ets.profile.gz'}",
+                "--build_metadata=test_definition_name=android_emulator/ets",
+                "--test_output=errors",
+                "--test_summary=detailed",
+                "--test_timeout=1200,1800,2400,3000",
+                "--build_tests_only",
+                "--jobs=2",
+                "--local_resources=memory=HOST_RAM*.3",
+            ]
+
+            try:
+                bzl_ets.test(
+                    ets_test_targets,
+                    invocation_flags=stage3_invocation_flags,
+                    allow_analysis_cache_discard=True,
+                    timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
+                )
+            except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
+                copy_bazel_logs(bzl_ets, logs_dir)
+                raise
 
         logging.info("Presubmit run detected; skipping symbol upload.")
     else:

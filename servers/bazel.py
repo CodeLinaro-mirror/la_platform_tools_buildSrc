@@ -348,6 +348,20 @@ class BazelCmd:
         )
         return result
 
+    def shutdown(
+        self, timeout: Union[float, None] = 120
+    ) -> subprocess.CompletedProcess:
+        """Runs ``bazel shutdown`` to stop the server and release resident memory."""
+        cmd = [str(self._path)]
+        cmd.extend(self._startup_options)
+        cmd.append("shutdown")
+        return self._env.run(
+            cmd,
+            capture_output=True,
+            throw_on_failure=False,
+            timeout=timeout,
+        )
+
     def cquery(
         self,
         query: str,

@@ -219,6 +219,9 @@ class BazelEnvironment:
     def is_windows(self):
         return False
 
+    def is_linux(self):
+        return not self.is_macos() and not self.is_windows()
+
     async def _run_async(
         self,
         cmd: List[str],
@@ -427,6 +430,9 @@ class LinuxBazelEnvironment(BazelEnvironment):
 
         if not self.python.exists():
             self.python = pathlib.Path(sys.executable)
+
+    def is_linux(self):
+        return True
 
 
 class WindowsBazelEnvironment(BazelEnvironment):
