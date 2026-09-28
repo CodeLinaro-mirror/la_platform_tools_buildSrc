@@ -15,17 +15,27 @@
 import argparse
 import asyncio
 import getpass
-import json
 import logging
 import os
+import pathlib
 import platform
 import subprocess
 import sys
 import time
-import pathlib
-from typing import Dict, List, Optional, Union, Callable
+from collections.abc import Callable, Iterable
+from typing import Any
 
-from gemini_auth import GeminiAuthenticator
+logger = logging.getLogger(__name__)
+
+try:
+    from . import host_resources
+except ImportError:
+    from host import host_resources
+
+try:
+    from services.log_handler import mask_command, redact_secrets, register_secret
+except ImportError:
+    from log_handler import mask_command, redact_secrets, register_secret
 
 _SYSTEM_TO_TARGET = {
     "linux": "linux_x64",
@@ -48,13 +58,18 @@ except ModuleNotFoundError:
 _REPO_MARKERS = ("MODULE.bazel", "REPO.bazel", "WORKSPACE", "WORKSPACE.bazel")
 
 
-def find_repo_root(env: Dict[str, str]) -> pathlib.Path:
+def find_repo_root(env: dict[str, str]) -> pathlib.Path:
     # Fast path when building on CI
     if "BUILD_WORKSPACE_DIRECTORY" in env:
         return pathlib.Path(env["BUILD_WORKSPACE_DIRECTORY"])
     root = pathlib.Path(__file__).resolve().parent
     while not any((root / x).exists() for x in _REPO_MARKERS):
-        root = root.parent
+        parent = root.parent
+        if parent == root:
+            raise FileNotFoundError(
+                f"Could not find repo root containing any marker {_REPO_MARKERS} from {__file__}"
+            )
+        root = parent
     return root
 
 
@@ -65,7 +80,7 @@ def _getuser() -> str:
     """
     try:
         return getpass.getuser()
-    except:
+    except (OSError, KeyError):
         return os.getlogin()
 
 
@@ -78,7 +93,7 @@ def disable_debug_policy():
         ) as registry_key:
             winreg.SetValue(registry_key, "DontShowUI", 1)
     except OSError as err:
-        logging.error("Failed to modify key, error: %s.", err)
+        logger.error("Failed to modify key, error: %s.", err)
 
     # Next clear out the just in time debuggers.
     to_delete = [
@@ -96,29 +111,31 @@ def disable_debug_policy():
             ) as open_key:
                 winreg.DeleteValue(open_key, entry)
         except OSError as err:
-            logging.error("Failed to remove key, error: %s.", err)
+            logger.error("Failed to remove key, error: %s.", err)
 
 
 async def _read_stream(
-    stream: asyncio.StreamReader, log_fn: Optional[Callable[[str], None]]
+    stream: asyncio.StreamReader, log_fn: Callable[[str], None] | None
 ) -> str:
     """Asynchronously reads lines from a stream and either logs (if log_fn is not None) or returns them."""
     output = []
     try:
-        while not stream.at_eof():
-            line = await stream.readline()
-            line = line.decode("utf-8", errors="replace")
+        while True:
+            line_bytes = await stream.readline()
+            if not line_bytes:
+                break
+            line = line_bytes.decode("utf-8", errors="replace")
             if not log_fn:
                 output.append(line)
             elif line:
                 log_fn(line.rstrip())
-    except Exception as e:
-        logging.exception("Stream closed unexpectedly: %s", e)
+    except Exception:
+        logger.exception("Stream closed unexpectedly")
         if output:
-            logging.warning("--- PARTIAL OUTPUT CAPTURED BEFORE FAILURE ---")
+            logger.warning("--- PARTIAL OUTPUT CAPTURED BEFORE FAILURE ---")
             for line in output:
-                logging.warning(line.rstrip())
-            logging.warning("--------------------------------------------")
+                logger.warning(line.rstrip())
+            logger.warning("--------------------------------------------")
         raise
     return "".join(output)
 
@@ -149,22 +166,22 @@ class BazelEnvironment:
         tmp_dir:  System temporary directory (from $TMPDIR, if defined).
     """
 
-    build_target: Optional[str]
+    build_target: str | None
     host_platform: str
     target_platform: str
     repo_root: pathlib.Path
     user: str
-    tmp_dir: Optional[pathlib.Path]
+    tmp_dir: pathlib.Path | None
 
     _start_time: float
-    _cmd_env: Dict[str, str]
+    _cmd_env: dict[str, str]
 
     def __init__(
         self,
         args: argparse.Namespace,
-        env: Dict[str, str] = os.environ,
-        repo_root: pathlib.Path = find_repo_root(os.environ),
-        user: str = _getuser(),
+        env: dict[str, str] | None = None,
+        repo_root: pathlib.Path | None = None,
+        user: str | None = None,
     ):
         """Initializes the BazelEnvironment.
 
@@ -174,20 +191,43 @@ class BazelEnvironment:
             repo_root: The root of the repository. Defaults to finding it.
             user: The current user. Defaults to the logged-in user.
         """
-        self.build_target = env.get("BUILD_TARGET_NAME")
+        env_dict = os.environ if env is None else env
+        self.build_target = env_dict.get("BUILD_TARGET_NAME")
         self.host_platform = platform.system().lower()
         self.target_platform = (
             args.target if hasattr(args, "target") else default_target()
         )
-        self.repo_root = repo_root
-        self.user = user
+        self.repo_root = find_repo_root(env_dict) if repo_root is None else repo_root
+        self.user = _getuser() if user is None else user
         self.tmp_dir = (
-            pathlib.Path(os.environ.get("TMPDIR")) if os.environ.get("TMPDIR") else None
+            pathlib.Path(env_dict["TMPDIR"]) if env_dict.get("TMPDIR") else None
         )
 
         self._start_time = time.time()
-        self._cmd_env = env.copy()
+        self._cmd_env = env_dict.copy()
         self._cmd_env["PYTHONUNBUFFERED"] = "1"
+        for env_secret_key in ("EMULATOR_SYMBOL_SERVER_KEY", "GEMINI_API_KEY"):
+            val = self._cmd_env.get(env_secret_key)
+            if isinstance(val, str):
+                register_secret(val)
+        self.python = self._resolve_python()
+
+    def _resolve_python(self) -> pathlib.Path:
+        subpath = (
+            pathlib.Path("python.exe")
+            if self.is_windows()
+            else (pathlib.Path("bin") / "python3")
+        )
+        python_candidate = (
+            self.repo_root
+            / "prebuilts"
+            / "python"
+            / f"{self.host_platform}-x86"
+            / subpath
+        )
+        if python_candidate.exists():
+            return python_candidate
+        return pathlib.Path(sys.executable)
 
     def get_env(self):
         """Gets the OS environment that should be used when running a program."""
@@ -195,13 +235,6 @@ class BazelEnvironment:
 
     def __enter__(self):
         """Configure platform specific settings if needed."""
-        logging.info("=" * 140)
-        env_to_log = self._cmd_env.copy()
-        if "GEMINI_API_KEY" in env_to_log:
-            env_to_log["GEMINI_API_KEY"] = "******"
-        logging.info(json.dumps(env_to_log, sort_keys=True))
-        logging.info("=" * 140)
-
         self._start_time = time.time()
         return self
 
@@ -211,7 +244,7 @@ class BazelEnvironment:
 
         # Format the execution time nicely
         formatted_time = time.strftime("%H:%M:%S", time.gmtime(execution_time))
-        logging.info("Completed build in %s", formatted_time)
+        logger.info("Completed build in %s", formatted_time)
 
     def is_macos(self):
         return False
@@ -222,15 +255,36 @@ class BazelEnvironment:
     def is_linux(self):
         return not self.is_macos() and not self.is_windows()
 
+    def get_host_memory_metrics(self):
+        """Returns host memory and swap metrics."""
+        return host_resources.get_host_memory_metrics(self)
+
+    def is_memory_constrained(self) -> bool:
+        """Determines whether the host environment is memory-constrained."""
+        return host_resources.is_memory_constrained(self)
+
+    def mask_command(self, cmd: Iterable[Any]) -> list[str]:
+        """Returns a stringified copy of cmd with all API keys and secrets redacted."""
+        secrets = [
+            getattr(self, "crashpad_symbol_server_key", None),
+            getattr(self, "gemini_api_key", None),
+            self._cmd_env.get("EMULATOR_SYMBOL_SERVER_KEY"),
+            self._cmd_env.get("GEMINI_API_KEY"),
+        ]
+        str_secrets = [s for s in secrets if isinstance(s, str) and s]
+        for s in str_secrets:
+            register_secret(s)
+        return mask_command(cmd, extra_secrets=str_secrets)
+
     async def _run_async(
         self,
-        cmd: List[str],
+        cmd: list[str],
         *,
         capture_output: bool = False,
-        env: Dict[str, str] = None,
-        cwd: Optional[Union[pathlib.Path, str]] = None,
+        env: dict[str, str] | None = None,
+        cwd: pathlib.Path | str | None = None,
         throw_on_failure: bool = True,
-        timeout: Union[float, None] = 3600,
+        timeout: float | None = 3600,
     ) -> subprocess.CompletedProcess:
         """
         Asynchronously runs a command, with a choice to stream or capture output.
@@ -242,23 +296,8 @@ class BazelEnvironment:
             cwd = self.repo_root
 
         cmd_str = [str(x) for x in cmd]
-        log_cmd_str = []
-        mask_next = False
-        secret_key = getattr(self, "crashpad_symbol_server_key", None)
-        for x in cmd_str:
-            if mask_next:
-                log_cmd_str.append("******")
-                mask_next = False
-            elif x == "-k":
-                log_cmd_str.append(x)
-                mask_next = True
-            elif secret_key and secret_key in x:
-                log_cmd_str.append(x.replace(secret_key, "******"))
-            elif x.startswith("--test_env=GEMINI_API_KEY="):
-                log_cmd_str.append("--test_env=GEMINI_API_KEY=******")
-            else:
-                log_cmd_str.append(x)
-        logging.info("%s $> %s", cwd, " ".join(log_cmd_str))
+        log_cmd_str = self.mask_command(cmd_str)
+        logger.info("%s $> %s", cwd, " ".join(log_cmd_str))
 
         proc = await asyncio.create_subprocess_exec(
             *cmd_str,
@@ -268,48 +307,61 @@ class BazelEnvironment:
             env=env,
         )
 
-        try:
+        stdout: str | None = None
+        stderr: str | None = None
+
+        async def _execute_with_stream_capture():
+            nonlocal stdout, stderr
             async with asyncio.TaskGroup() as tg:
                 stdout_task = tg.create_task(
-                    _read_stream(proc.stdout, None if capture_output else logging.info)
+                    _read_stream(proc.stdout, None if capture_output else logger.info)
                 )
                 stderr_task = tg.create_task(
-                    _read_stream(proc.stderr, None if capture_output else logging.error)
+                    _read_stream(proc.stderr, None if capture_output else logger.error)
                 )
-                tg.create_task(asyncio.wait_for(proc.wait(), timeout=timeout))
-        except* asyncio.TimeoutError:
-            logging.error("Command timed out after %s seconds, terminating.", timeout)
-            raise subprocess.TimeoutExpired(cmd, timeout)
+                tg.create_task(proc.wait())
+            stdout = stdout_task.result() or None
+            stderr = stderr_task.result() or None
+
+        try:
+            await asyncio.wait_for(_execute_with_stream_capture(), timeout=timeout)
+        except (asyncio.TimeoutError, TimeoutError):
+            logger.error("Command timed out after %s seconds, terminating.", timeout)
+            raise subprocess.TimeoutExpired(log_cmd_str, timeout)
         finally:
             if proc.returncode is None:
                 try:
                     proc.terminate()
-                    await asyncio.wait_for(proc.wait(), timeout=30)
-                except asyncio.TimeoutError:
-                    logging.error("Command did not terminate after 30s, killing.")
+                    await asyncio.wait_for(proc.wait(), timeout=10)
+                except (asyncio.TimeoutError, asyncio.CancelledError, Exception):  # noqa: BLE001
+                    logger.error("Command did not terminate after 10s, killing.")
                     proc.kill()
+                    try:
+                        await asyncio.wait_for(proc.wait(), timeout=10)
+                    except Exception as wait_err:  # noqa: BLE001
+                        logger.debug("Error waiting for killed process: %s", wait_err)
 
-        stdout = stdout_task.result() or None
-        stderr = stderr_task.result() or None
         result = subprocess.CompletedProcess(
-            args=cmd_str, returncode=proc.returncode, stdout=stdout, stderr=stderr
+            args=log_cmd_str, returncode=proc.returncode, stdout=stdout, stderr=stderr
         )
 
         if proc.returncode != 0 and throw_on_failure:
-            msg = [f"Failed to run {' '.join(cmd_str)}, exit code: {proc.returncode}"]
+            msg = [
+                f"Failed to run {' '.join(log_cmd_str)}, exit code: {proc.returncode}"
+            ]
             raise CommandFailedException("\n".join(msg), result)
 
         return result
 
     def run(
         self,
-        cmd: List[str],
+        cmd: list[str],
         *,
         capture_output: bool = False,
-        env: Dict[str, str] = None,
-        cwd: Optional[Union[pathlib.Path, str]] = None,
+        env: dict[str, str] | None = None,
+        cwd: pathlib.Path | str | None = None,
         throw_on_failure: bool = True,
-        timeout: Union[float, None] = 3600,
+        timeout: float | None = 3600,
     ) -> subprocess.CompletedProcess:
         """Runs a command with the configured environment.
 
@@ -365,28 +417,32 @@ class BuildEnvironment(BazelEnvironment):
     def __init__(
         self,
         args: argparse.Namespace,
-        env: Dict[str, str] = os.environ,
-        repo_root: pathlib.Path = find_repo_root(os.environ),
-        user: str = _getuser(),
+        env: dict[str, str] | None = None,
+        repo_root: pathlib.Path | None = None,
+        user: str | None = None,
     ):
         """Initializes the BuildEnvironment.
 
         Args:
             args: Parsed command-line arguments.
             env: The environment variables. Defaults to os.environ.
-            repo_root: The root of the repository.  Defaults to finding it.
+            repo_root: The root of the repository. Defaults to finding it.
             user: The current user. Defaults to the logged-in user.
         """
-        super().__init__(args, env, repo_root, user)
+        super().__init__(args, env=env, repo_root=repo_root, user=user)
         self.build_id = args.build_id if hasattr(args, "build_id") else "PNONE"
-        self.build_target = env.get("BUILD_TARGET_NAME")
+        self.build_target = self._cmd_env.get("BUILD_TARGET_NAME")
         self.is_presubmit = self.build_id.startswith("P")
-        self.is_release = "release" in args.config
+        self.is_release = "release" in getattr(args, "config", [])
         self.dist_dir = (
-            pathlib.Path(args.dist) if hasattr(args, "build_id") else "PNONE"
+            pathlib.Path(args.dist)
+            if hasattr(args, "dist") and args.dist
+            else pathlib.Path("PNONE")
         )
 
-        self.crashpad_symbol_server_key = os.environ.get("EMULATOR_SYMBOL_SERVER_KEY")
+        self.crashpad_symbol_server_key = self._cmd_env.get(
+            "EMULATOR_SYMBOL_SERVER_KEY"
+        )
         self.crashpad_server = self.CRASHPAD_PROD
         if self.is_presubmit:
             self.crashpad_server = self.CRASHPAD_STAGING
@@ -397,66 +453,64 @@ class BuildEnvironment(BazelEnvironment):
                 with open(key_path, "r") as f:
                     self.crashpad_symbol_server_key = f.read().strip()
             except FileNotFoundError:
-                logging.error("Error: Symbol server key file not found at %s", key_path)
+                log_fn = logger.debug if self.is_presubmit else logger.info
+                log_fn(
+                    "Symbol server key file not found at %s (skipped if not uploading symbols)",
+                    key_path,
+                )
+        if isinstance(self.crashpad_symbol_server_key, str):
+            register_secret(self.crashpad_symbol_server_key)
 
         self.gemini_api_key = None
         try:
+            try:
+                from gemini.auth import GeminiAuthenticator
+            except ImportError:
+                from gemini_auth import GeminiAuthenticator
             auth = GeminiAuthenticator()
             creds = auth.get_credentials("gemini-flash-latest")
             self.gemini_api_key = creds.get("api_key")
-        except Exception as e:
-            logging.warning("Could not obtain Gemini API key: %s", e)
+            if isinstance(self.gemini_api_key, str):
+                register_secret(self.gemini_api_key)
+        except Exception as e:  # noqa: BLE001  # Fallback gracefully if Gemini credentials cannot be resolved
+            logger.warning(
+                "Could not obtain Gemini API key: %s", redact_secrets(str(e))
+            )
 
     def __enter__(self):
         self.dist_dir.mkdir(exist_ok=True, parents=True)
+        mode = "presubmit" if self.is_presubmit else "postsubmit"
+        metrics = self.get_host_memory_metrics()
+        total_bytes = getattr(metrics, "total_bytes", 0)
+        ram_str = (
+            f"{metrics.total_gb:.1f} GiB"
+            if isinstance(total_bytes, (int, float)) and total_bytes > 0
+            else "unknown"
+        )
+        logger.info(
+            "Build config: build_id=%s (%s), target=%s, host=%s (RAM=%s, constrained=%s), dist=%s",
+            self.build_id,
+            mode,
+            self.target_platform,
+            self.host_platform,
+            ram_str,
+            self.is_memory_constrained(),
+            self.dist_dir,
+        )
         return super().__enter__()
 
 
 class LinuxBazelEnvironment(BazelEnvironment):
-    """Linux-specific Bazel environment configuration.
-
-    Attributes:
-        python: Path to the Python executable.
-    """
-
-    python: pathlib.Path
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        python_dir = (
-            self.repo_root / "prebuilts" / "python" / f"{self.host_platform}-x86"
-        )
-        self.python = python_dir / "bin" / "python3"
-
-        if not self.python.exists():
-            self.python = pathlib.Path(sys.executable)
+    """Linux-specific Bazel environment configuration."""
 
     def is_linux(self):
         return True
 
 
 class WindowsBazelEnvironment(BazelEnvironment):
-    """Windows-specific Bazel environment configuration.
-
-    Attributes:
-        python: Path to the Python executable.
-    """
-
-    python: pathlib.Path
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        python_dir = (
-            self.repo_root / "prebuilts" / "python" / f"{self.host_platform}-x86"
-        )
-        self.python = python_dir / "python.exe"
-
-        if not self.python.exists():
-            self.python = pathlib.Path(sys.executable)
+    """Windows-specific Bazel environment configuration."""
 
     def __enter__(self):
-        """Configure windows policy if needed."""
-        # On windows we do not want debug ui to be activated.
         disable_debug_policy()
         return super().__enter__()
 
@@ -465,53 +519,48 @@ class WindowsBazelEnvironment(BazelEnvironment):
 
 
 class MacOSBazelEnvironment(BazelEnvironment):
-    """macOS-specific Bazel environment configuration.
-
-    Attributes:
-        python: Path to the Python executable.
-    """
-
-    python: pathlib.Path
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        python_dir = (
-            self.repo_root / "prebuilts" / "python" / f"{self.host_platform}-x86"
-        )
-        self.python = python_dir / "bin" / "python3"
-
-        if not self.python.exists():
-            self.python = pathlib.Path(sys.executable)
-
-        xcode_path = subprocess.check_output(["xcode-select", "-p"], text=True).strip()
-        self._cmd_env["DEVELOPER_DIR"] = xcode_path
+    """macOS-specific Bazel environment configuration."""
 
     def is_macos(self):
         return True
 
 
-class WindowsBuildEnvironment(WindowsBazelEnvironment, BuildEnvironment):
-    """Environment for Windows builds, combining Windows and build settings."""
+class WindowsBuildEnvironment(BuildEnvironment):
+    """Environment for Windows builds, configuring Windows debug policies."""
 
-    def __init__(self, *args, **kwargs):
-        WindowsBazelEnvironment.__init__(self, *args, **kwargs)
-        BuildEnvironment.__init__(self, *args, **kwargs)
+    def __enter__(self):
+        disable_debug_policy()
+        return super().__enter__()
 
-
-class LinuxBuildEnvironment(LinuxBazelEnvironment, BuildEnvironment):
-    """Environment for Linux builds, combining Linux and build settings."""
-
-    def __init__(self, *args, **kwargs):
-        LinuxBazelEnvironment.__init__(self, *args, **kwargs)
-        BuildEnvironment.__init__(self, *args, **kwargs)
+    def is_windows(self):
+        return True
 
 
-class MacOSBuildEnvironment(MacOSBazelEnvironment, BuildEnvironment):
-    """Environment for macOS builds, combining macOS and build settings."""
+class LinuxBuildEnvironment(BuildEnvironment):
+    """Environment for Linux builds, configuring prebuilt Python."""
 
-    def __init__(self, *args, **kwargs):
-        MacOSBazelEnvironment.__init__(self, *args, **kwargs)
-        BuildEnvironment.__init__(self, *args, **kwargs)
+    def is_linux(self):
+        return True
+
+
+class MacOSBuildEnvironment(BuildEnvironment):
+    """Environment for macOS builds, configuring Xcode and prebuilt Python."""
+
+    def __enter__(self):
+        if "DEVELOPER_DIR" not in self._cmd_env:
+            try:
+                xcode_path = subprocess.check_output(
+                    ["xcode-select", "-p"], text=True
+                ).strip()
+                self._cmd_env["DEVELOPER_DIR"] = xcode_path
+            except (subprocess.SubprocessError, FileNotFoundError, OSError) as e:
+                logger.warning(
+                    "Could not determine DEVELOPER_DIR via xcode-select: %s", e
+                )
+        return super().__enter__()
+
+    def is_macos(self):
+        return True
 
 
 def create_build_environment(args: argparse.Namespace) -> BuildEnvironment:
@@ -527,7 +576,7 @@ def create_build_environment(args: argparse.Namespace) -> BuildEnvironment:
         raise ValueError(f"Unsupported platform: {host_platform}")
 
 
-def create_bazel_environment(args: argparse.Namespace) -> BuildEnvironment:
+def create_bazel_environment(args: argparse.Namespace) -> BazelEnvironment:
     """Factory function to create the appropriate BazelEnvironment subclass."""
     host_platform = platform.system().lower()
     if host_platform == "windows":

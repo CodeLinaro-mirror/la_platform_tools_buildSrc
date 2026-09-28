@@ -1,26 +1,31 @@
-#!/usr/bin/env python3
-#
 # Copyright 2025 - The Android Open Source Project
 #
-# Licensed under the Apache License, Version 2.0 (the',  help="License");
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an',  help="AS IS" BASIS,
+# distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+from __future__ import annotations
+
 import logging
 import tempfile
-from typing import List
 import zipfile
 from pathlib import Path
 
-import bazel
-import build_environment
+logger = logging.getLogger(__name__)
+
+try:
+    from engine import bazel
+    from host import build_environment
+except ImportError:
+    import bazel
+    import build_environment
 
 
 class Symuploader:
@@ -41,7 +46,7 @@ class Symuploader:
         self.env = env
         self.bzl = bzl
 
-    def upload_artifact(self, symbol_or_exe: Path, server: str = None) -> None:
+    def upload_artifact(self, symbol_or_exe: Path, server: str | None = None) -> None:
         """
         Uploads a single symbol or windows exectuable file to the crashpad server.
 
@@ -76,11 +81,11 @@ class Symuploader:
             )
         except build_environment.CommandFailedException as cfe:
             if cfe.result.returncode == 2:
-                logging.debug("Symbols already present in the server.")
+                logger.debug("Symbols already present in the server.")
             else:
                 raise
 
-    def upload_artifacts(self, artifacts: List[str], server: str = None) -> None:
+    def upload_artifacts(self, artifacts: list[str], server: str | None = None) -> None:
         """
         Uploads multiple symbol files from a list of bazel targets.
 
@@ -92,7 +97,7 @@ class Symuploader:
             self.upload_artifact(symbol_or_exe, server=server)
 
     def upload_from_zip(
-        self, zip: Path, ignore_failures: bool = False, server: str = None
+        self, zip: Path, ignore_failures: bool = False, server: str | None = None
     ) -> None:
         """
         Uploads symbol files (.sym or .exe/.dll) extracted from a zip archive.
@@ -108,6 +113,11 @@ class Symuploader:
         if not zip.exists():
             raise FileNotFoundError(f"Zip file not found: {zip}")
 
+        target_server = server or self.env.crashpad_server
+        logger.info("Uploading symbols from '%s' to %s...", zip.name, target_server)
+        processed_count = 0
+        failed_count = 0
+
         with tempfile.TemporaryDirectory() as extract_dir_str:
             extract_dir = Path(extract_dir_str)
             with zipfile.ZipFile(zip, "r") as zip_ref:
@@ -119,10 +129,20 @@ class Symuploader:
                 ):
                     try:
                         self.upload_artifact(symbol_file, server=server)
+                        processed_count += 1
                     except build_environment.CommandFailedException as cfe:
+                        failed_count += 1
                         if not ignore_failures:
                             raise
                         else:
-                            logging.warning(
+                            logger.warning(
                                 "Failed to process %s, due to %s", symbol_file, cfe
                             )
+
+        logger.info(
+            "Symbol upload complete for '%s' (%s): %d succeeded, %d failed.",
+            zip.name,
+            target_server,
+            processed_count,
+            failed_count,
+        )

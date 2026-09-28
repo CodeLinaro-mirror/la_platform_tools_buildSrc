@@ -1,20 +1,22 @@
 # Copyright 2024 - The Android Open Source Project
 #
-# Licensed under the Apache License, Version 2.0 (the',  help='License');
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an',  help='AS IS' BASIS,
+# distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 import json
-import re
 import logging
+import re
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 class ChangeInfo:
@@ -44,10 +46,21 @@ class ChangeInfo:
         if filename and Path(filename).exists():
             with open(filename, "r") as f:
                 self.data = json.load(f)
-                logging.info("Change info file loaded successfully: %s.", self.data)
+                changes = self.data.get("changes", [])
+                projects = sorted({c.get("project", "unknown") for c in changes})
+                logger.info(
+                    "Change info file loaded: %d change(s) across %d project(s) %s.",
+                    len(changes),
+                    len(projects),
+                    projects,
+                )
+                logger.debug("Change info raw payload: %s", self.data)
+        elif filename:
+            self.data = {}
+            logger.warning("Change info file not found: %s", filename)
         else:
             self.data = {}
-            logging.warning("No change info file provided.")
+            logger.debug("No change info file provided.")
 
     def get_commits_by_project(self, project):
         """
@@ -111,7 +124,7 @@ class ChangeInfo:
                 for revision in change.get("revisions", []):
                     commit_data = revision.get("gitRevision", "HEAD")
                     if commit_data:
-                        logging.info(
+                        logger.info(
                             "Running `git show` for commit %s in project %s.",
                             commit_data,
                             project_path,
@@ -126,7 +139,7 @@ class ChangeInfo:
                         if result.returncode == 0:
                             diffs[project_path].append(result.stdout)
                         else:
-                            logging.error(
+                            logger.error(
                                 "Failed to run `git show` for commit %s. Error: %s",
                                 commit_data,
                                 result.stderr,
@@ -160,7 +173,7 @@ class ChangeInfo:
 
         filters = []
 
-        for _, diffs_list in all_diffs.items():
+        for diffs_list in all_diffs.values():
             # Extract changed files and their modified line ranges [start, end] from each commit's unified diff.
             for diff_text in diffs_list:
                 file_lines = {}

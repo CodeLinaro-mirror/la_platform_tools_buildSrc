@@ -1,4 +1,4 @@
-# Copyright 2025 - The Android Open Source Project
+# Copyright 2026 - The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -11,17 +11,21 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
 import base64
 import json
 import os
-import socket
 import urllib.error
 import urllib.request
 
+try:
+    from services.log_handler import redact_secrets, register_secret
+except ImportError:
+    from log_handler import redact_secrets, register_secret
+
 
 class GeminiAuthenticator:
-    """
-    Handles authentication for the Gemini API.
+    """Handles authentication for the Gemini API.
 
     It prioritizes a GEMINI_API_KEY environment variable. If not found, it
     retrieves an API key from Google Secret Manager using the service account
@@ -36,19 +40,20 @@ class GeminiAuthenticator:
 
     def __init__(
         self,
-        service_account_email="build-runner@emulator-builds.iam.gserviceaccount.com",
+        service_account_email: str = "build-runner@emulator-builds.iam.gserviceaccount.com",
     ):
         self.service_account_email = service_account_email
 
-    def get_credentials(self, model):
-        """
-        Configures authentication by trying different methods in order.
+    def get_credentials(self, model: str):
+        """Configures authentication by trying different methods in order.
+
         1. API key from GEMINI_API_KEY environment variable.
         2. API key from Secret Manager using the machine's service account.
         """
         # 1. Try environment variable
         api_key = os.getenv("GEMINI_API_KEY")
         if api_key:
+            register_secret(api_key)
             return {
                 "api_key": api_key,
                 "endpoint": f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
@@ -75,6 +80,7 @@ class GeminiAuthenticator:
                     secret_payload = json.loads(response.read().decode())
                     secret_b64 = secret_payload["payload"]["data"]
                     api_key = base64.b64decode(secret_b64).decode("utf-8").strip()
+                    register_secret(api_key)
 
                 return {
                     "api_key": api_key,
@@ -82,16 +88,17 @@ class GeminiAuthenticator:
                     "headers": {"Content-Type": "application/json"},
                     "endpoint": f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}",
                 }
-            except (urllib.error.URLError, ValueError, socket.timeout, KeyError) as e:
+            except (TimeoutError, urllib.error.URLError, ValueError, KeyError) as e:
+                safe_err = redact_secrets(str(e), extra_secrets=[access_token])
                 raise RuntimeError(
-                    f"Failed to retrieve API key from Secret Manager: {e}"
-                ) from e
+                    f"Failed to retrieve API key from Secret Manager: {safe_err}"
+                ) from None
 
         raise RuntimeError(
             "Failed to configure Gemini client with any authentication method."
         )
 
-    def _get_access_token_for_sa(self, service_account):
+    def _get_access_token_for_sa(self, service_account: str):
         """Retrieves an access token from the metadata server for the current machine."""
         try:
             metadata_server = "metadata.google.internal"
@@ -108,6 +115,7 @@ class GeminiAuthenticator:
                     raise ValueError(
                         "Access token not found in metadata server response."
                     )
+                register_secret(access_token)
                 return access_token
-        except (urllib.error.URLError, ValueError, socket.timeout):
+        except (TimeoutError, urllib.error.URLError, ValueError):
             return None

@@ -2,37 +2,45 @@
 #
 # Copyright 2023 - The Android Open Source Project
 #
-# Licensed under the Apache License, Version 2.0 (the',  help="License");
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an',  help="AS IS" BASIS,
+# distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
 import argparse
-import datetime
-import json
 import logging
-import os
 import platform
 import shutil
-import subprocess
 import sys
-import time
 from pathlib import Path
-from typing import Iterable, List
 
-import bazel
-import build_environment
-import sym_upload
-from change_info import ChangeInfo
-from gemini_explainer import GeminiExplainer
-from log_handler import config_logging
+logger = logging.getLogger(__name__)
+
+from engine import bazel
+from gemini.explainer import GeminiExplainer
+from host import build_environment
+from pipeline import Pipeline
+from pipeline.context import BuildContext, copy_all, safe_copy_file
+from pipeline.stages import (
+    AospStage,
+    ClangTidyStage,
+    EtsIntegrationStage,
+    PostsubmitStage,
+    ReleasePackageStage,
+    SymbolUploadStage,
+    UnitTestStage,
+    reclaim_and_stabilize_resources,
+)
+from services.log_handler import config_logging
+
+_reclaim_and_stabilize_resources = reclaim_and_stabilize_resources
 
 _DEFAULT_CONFIG_BY_OS = {
     "linux": ["release", "debug_symbols", "ci", "dynamic"],
@@ -42,18 +50,8 @@ _DEFAULT_CONFIG_BY_OS = {
 }
 
 
-def copy_all(srcs: Iterable[Path], dest: Path, not_found_ok=False):
-    for f in srcs:
-        try:
-            f_dest = shutil.copy2(f, dest)
-            logging.info("Copied '%s' to '%s'", f, f_dest)
-        except FileNotFoundError:
-            if not_found_ok:
-                continue
-            raise
-
-
 def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
+    """Copies Bazel server logs, worker logs, and testlogs into logs_dir."""
     try:
         logs_dir_bazel = logs_dir / "bazel"
         logs_dir_bazel.mkdir(parents=True, exist_ok=True)
@@ -73,92 +71,52 @@ def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
             if testlogs_dir.is_dir():
                 testlogs_dest = logs_dir / "testlogs"
                 testlogs_dest.mkdir(parents=True, exist_ok=True)
+                copied_testlogs = 0
                 for ext in ("*.log", "*.xml"):
                     for f in testlogs_dir.rglob(ext):
                         rel = f.relative_to(testlogs_dir)
                         dest = testlogs_dest / rel
                         dest.parent.mkdir(parents=True, exist_ok=True)
                         try:
-                            shutil.copy2(f, dest)
+                            safe_copy_file(f, dest)
+                            copied_testlogs += 1
                         except FileNotFoundError:
                             continue
-    except Exception as e:
-        logging.warning("Failed to copy bazel logs: %s", e)
+                        except (OSError, shutil.Error) as file_err:
+                            logger.warning(
+                                "Failed to copy testlog %s to %s: %s",
+                                f,
+                                dest,
+                                file_err,
+                            )
+                if copied_testlogs > 0:
+                    logger.info(
+                        "Copied %d test log/XML file(s) to '%s'",
+                        copied_testlogs,
+                        testlogs_dest,
+                    )
+    except (OSError, shutil.Error, KeyError) as e:
+        logger.warning("Failed to copy bazel logs: %s", e)
 
 
-def _log_host_memory_status(
+def get_common_build_flags(
     env: build_environment.BuildEnvironment,
-    label: str = "",
-):
-    """Logs host memory and swap metrics for telemetry and diagnostics."""
-    suffix = f" [{label}]" if label else ""
-    try:
-        if env.is_macos():
-            swap_res = subprocess.run(
-                ["sysctl", "-n", "vm.swapusage"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=5,
-            )
-            swap_info = swap_res.stdout.strip() if swap_res.returncode == 0 else "unknown"
-            vm_res = subprocess.run(
-                ["vm_stat"],
-                capture_output=True,
-                text=True,
-                check=False,
-                timeout=5,
-            )
-            logging.info("Host memory status%s (macOS): swap=[%s]", suffix, swap_info)
-            if vm_res.returncode == 0:
-                lines = [line.strip() for line in vm_res.stdout.splitlines() if line.strip()]
-                logging.info("Host vm_stat%s: %s", suffix, "; ".join(lines[:7]))
-        elif env.is_linux():
-            meminfo_path = Path("/proc/meminfo")
-            if meminfo_path.exists():
-                metrics = {}
-                for line in meminfo_path.read_text().splitlines():
-                    parts = line.split(":")
-                    if len(parts) == 2 and parts[0] in (
-                        "MemTotal",
-                        "MemFree",
-                        "MemAvailable",
-                        "SwapTotal",
-                        "SwapFree",
-                    ):
-                        metrics[parts[0]] = parts[1].strip()
-                logging.info("Host memory status%s (Linux): %s", suffix, metrics)
-    except Exception as e:
-        logging.warning("Failed to collect host memory status%s: %s", suffix, e)
-
-
-def _reclaim_and_stabilize_resources(
-    env: build_environment.BuildEnvironment,
-    *bzl_instances: bazel.BazelCmd,
-):
-    """Reclaims system memory and logs host state before heavy integration tests."""
-    logging.info("Reclaiming resources before ETS integration tests...")
-
-    # 1. Log host memory telemetry before shutdown.
-    _log_host_memory_status(env, "before shutdown")
-
-    # 2. Shut down any active Bazel servers to reclaim resident JVM heap (typically 2.5-4 GB).
-    for bzl in bzl_instances:
-        if bzl:
-            try:
-                bzl.shutdown()
-            except Exception as e:
-                logging.warning("Failed to shutdown Bazel server: %s", e)
-
-    # 3. Flush file buffers to disk.
-    try:
-        if hasattr(os, "sync"):
-            os.sync()
-    except Exception as e:
-        logging.warning("os.sync failed: %s", e)
-
-    # 4. Log host memory telemetry after shutdown.
-    _log_host_memory_status(env, "after shutdown")
+    base_build_options: list[str],
+) -> list[str]:
+    """Assembles standardized Bazel build flags across pipelines."""
+    flags = list(base_build_options) + [
+        f"--build_metadata=ab_build_id={env.build_id}",
+        f"--build_metadata=ab_target={env.build_target}",
+        "--verbose_failures",
+        "--stamp",
+        f"--embed_label={env.build_id}",
+        f"--@goldfish//emulator:build_id={env.build_id}",
+        f"--@qemu//google/toolchain:build_id={env.build_id}",
+        f"--@goldfish//emulator:is_presubmit={str(env.is_presubmit).lower()}",
+    ]
+    if env.target_platform.startswith("linux"):
+        flags.append("--config=lto")
+    return flags
 
 
 def build_trusty(args, env):
@@ -177,514 +135,50 @@ def build_trusty(args, env):
     env.run(command, timeout=1200)
 
 
-def _extract_and_log_clang_tidy_failures(bzl_tidy: bazel.BazelCmd):
-    """Extracts and logs clang-tidy violations from bazel test logs."""
-    try:
-        if "bazel-testlogs" not in bzl_tidy.info:
-            return
-        testlogs_dir = Path(bzl_tidy.info["bazel-testlogs"])
-        if not testlogs_dir.is_dir():
-            return
-
-        for log_val in testlogs_dir.rglob("test.log"):
-            content = log_val.read_text(encoding="utf-8", errors="replace")
-            if "Clang-tidy found issues" in content or "clang-tidy crashed" in content:
-                try:
-                    rel_path = log_val.relative_to(testlogs_dir)
-                except ValueError:
-                    rel_path = log_val
-                logging.error(
-                    "\n"
-                    + "=" * 80
-                    + f"\n[LINT FAILURE] Report from: {rel_path}\n"
-                    + "=" * 80
-                    + f"\n{content}\n"
-                    + "=" * 80
-                )
-    except (OSError, KeyError, build_environment.CommandFailedException) as e:
-        logging.warning("Failed to extract clang-tidy logs: %s", e)
-
-
-def _find_tidy_targets(
-    env: build_environment.BuildEnvironment, clang_tidy_filters: str
-) -> List[str]:
-    """Finds specific Bazel test targets for the modified files to avoid analyzing the whole repo."""
-    try:
-        filters = json.loads(clang_tidy_filters)
-    except Exception as e:
-        logging.warning("Could not parse clang-tidy filters: %s", e)
-        return ["@goldfish//..."]
-
-    goldfish_root = env.repo_root / "hardware" / "generic" / "goldfish"
-    targets = set()
-
-    for filter_obj in filters:
-        rel_path = filter_obj.get("name")
-        if not rel_path:
-            continue
-        file_path = goldfish_root / rel_path
-        curr = file_path.parent
-        while curr != goldfish_root and curr != curr.parent:
-            if (curr / "BUILD.bazel").exists() or (curr / "BUILD").exists():
-                pkg_rel = curr.relative_to(goldfish_root).as_posix()
-                targets.add(f"@goldfish//{pkg_rel}:all")
-                break
-            curr = curr.parent
-
-    if targets:
-        logging.info("Scoped clang-tidy pre-pass to targets: %s", sorted(list(targets)))
-        return sorted(list(targets))
-
-    return ["@goldfish//..."]
-
-
-def _enforce_clang_tidy_prepass(
-    env: build_environment.BuildEnvironment,
-    startup_options: List[str],
-    build_options: List[str],
-    clang_tidy_filters: str,
-):
-    """Executes a fast-fail standalone Bazel pass exclusively running clang-tidy checks."""
-    logging.info("Enabling clang-tidy targets for modified C/C++ lines")
-    tidy_build_options = list(build_options) + [
-        "--@goldfish_build//:clang_tidy_enabled=true",
-        f"--@goldfish_build//:clang_tidy_line_filter={clang_tidy_filters}",
-    ]
-    for filter_obj in json.loads(clang_tidy_filters):
-        # Also restrict the files checked by Bazel aspect to avoid processing unaffected files
-        tidy_build_options.append(
-            f"--@goldfish_build//:clang_tidy_check_files={filter_obj['name']}"
-        )
-
-    targets = _find_tidy_targets(env, clang_tidy_filters)
-    logging.info(
-        "Running fast-fail pre-pass exclusively for clang-tidy checks on %s...",
-        targets,
-    )
-    bzl_tidy = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
-        tidy_build_options
-    )
-    try:
-        res = bzl_tidy.test(
-            targets,
-            invocation_flags=[
-                "--build_tests_only",
-                "--test_tag_filters=tidy-test",
-                "--test_output=errors",
-                "--modify_execution_info=ClangTidy.*=+no-remote",  # b/545839186
-            ],
-            allow_analysis_cache_discard=True,
-            allow_no_test=True,
-            fail_on_test_failure=False,
-            timeout=600,
-        )
-        if res.returncode == bazel.BuildExitCode.TESTS_NOT_FOUND:
-            logging.info(
-                "No clang-tidy tests found for %s, skipping pre-pass.", targets
-            )
-            return
-        if res.returncode != 0:
-            raise build_environment.CommandFailedException(
-                "Clang-tidy pre-pass encountered violations.", res
-            )
-    except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
-        _extract_and_log_clang_tidy_failures(bzl_tidy)
-        raise
-
-
-def get_common_build_flags(
-    env: build_environment.BuildEnvironment,
-    base_build_options: List[str],
-) -> List[str]:
-    """Assembles standardized Bazel build flags across pipelines."""
-    flags = list(base_build_options) + [
-        f"--build_metadata=ab_build_id={env.build_id}",
-        f"--build_metadata=ab_target={env.build_target}",
-        "--verbose_failures",
-        "--stamp",
-        f"--embed_label={env.build_id}",
-        f"--@goldfish//emulator:build_id={env.build_id}",
-        f"--@qemu//google/toolchain:build_id={env.build_id}",
-        f"--@goldfish//emulator:is_presubmit={env.is_presubmit}",
-    ]
-    if env.target_platform.startswith("linux"):
-        flags.append("--config=lto")
-    return flags
-
-
 def build_aosp(
     args,
     env: build_environment.BuildEnvironment,
-    startup_options: List[str],
-    build_options: List[str],
+    startup_options: list[str],
+    build_options: list[str],
 ):
-    """Executes the minimal AOSP build pipeline.
-
-    Builds exclusively @goldfish//emulator:release under --config=aosp and copies
-    the resultant package zip into dist_dir.
-    """
-    aosp_build_options = list(build_options)
-    if "--config=aosp" not in aosp_build_options:
-        aosp_build_options.append("--config=aosp")
-    if "--lockfile_mode=off" not in aosp_build_options:
-        aosp_build_options.append("--lockfile_mode=off")
-
-    common_flags = get_common_build_flags(env, aosp_build_options)
-    bzl = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
-        common_flags
-    )
-
-    logs_dir = env.dist_dir / "logs"
-    (logs_dir / "bazel").mkdir(parents=True, exist_ok=True)
-
-    release_target = "@goldfish//emulator:release"
-    logging.info("Starting AOSP build for target %s...", release_target)
-    try:
-        bzl.build(
-            [release_target],
-            invocation_flags=[
-                f"--profile={logs_dir / 'bazel' / 'aosp_build.profile.gz'}",
-            ],
-            allow_analysis_cache_discard=True,
-            timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
-        )
-    except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
-        copy_bazel_logs(bzl, logs_dir)
-        raise
-
-    artifacts = bzl.query_artifacts([release_target], allow_analysis_cache_discard=True)
-    copy_all(artifacts, env.dist_dir)
-    copy_bazel_logs(bzl, logs_dir)
-    logging.info("AOSP build complete. Artifacts placed in %s", env.dist_dir)
+    """Executes the minimal AOSP build pipeline."""
+    ctx = BuildContext(args, env, startup_options, build_options)
+    pipeline = Pipeline(ctx, [AospStage()])
+    pipeline.run()
 
 
 def build_aemu(
     args,
     env: build_environment.BuildEnvironment,
-    startup_options: List[str],
-    build_options: List[str],
+    startup_options: list[str],
+    build_options: list[str],
 ):
-    release_targets = [
-        "@goldfish//emulator:release",
-    ]
-    if not env.is_presubmit:
-        release_targets.extend(
-            [
-                "@goldfish//emulator:package_goldfish_symbols",
-                "@goldfish//emulator:package_goldfish_native_symbols",
-            ]
-        )
-    if env.target_platform.startswith("linux"):
-        release_targets.append("@goldfish//emulator:release_unstripped")
-        release_targets.append("@goldfish//emulator:release_internal")
-
-    # Needs special handling on windows.
-    android_ets_zip = ["@goldfish_test//ets:android_ets_zip"]
-    always_test_targets = [
-        "@goldfish//emulator:release_build_test",
-        "@goldfish_build//:sanity_checks",
-    ]
-    test_targets = [
-        # Build everything (including tests marked manual) but only run the non-manual ones...
-        "@goldfish//...",
-        # clang_tidy_report needs visibility checking to be disabled and should be run separately.
-        "-@goldfish//:clang_tidy_report",
-        # Crashpad tests currently fail on Windows.
-        "-@goldfish//emulator:external_unit_tests",
-        # We also want to run the manual boot_tests.
-        "@goldfish//emulator/launcher:boot_tests",
-    ]
-
-    if args.change_info:
-        change_info = ChangeInfo(args.change_info)
-        # Only check clang-tidy issues in the goldfish project
-        clang_tidy_filters = change_info.get_clang_tidy_line_filter_json_by_project(
-            "hardware/generic/goldfish", env
-        )
-        if clang_tidy_filters:
-            _enforce_clang_tidy_prepass(
-                env, startup_options, build_options, clang_tidy_filters
-            )
-
-    if _should_run_meson_generator(args, env):
-        logging.info("Qemu changes detected, generating bazel build files.")
-        release_targets.append("@qemu//google/toolchain:zip")
-        test_targets.append("@qemu//google/toolchain:generated_diff")
-
-    external_tests = ["@goldfish//emulator:external_unit_tests"]
-    xts_test_targets = ["@goldfish_test//xts:postsubmit"]
-
-    ets_test_targets = [
-        # Do not run all of @goldfish_test as there are test rules which will only pass when run as
-        # a part of tradefed.
-        # Goldfish E2E test libraries.
-        "@goldfish_test//testlib/...",
-    ]
-    prefix = "@goldfish_test//ets:"
-    # For mac force the use of the exclusive ETS tests.
-    if env.is_macos():
-        prefix = "@goldfish_test//ets:exclusive_"
-
-    # Run only a subset of tests in presubmit.
-    if env.is_presubmit:
-        ets_test_targets.append(prefix + "presubmit")
-    else:
-        ets_test_targets.append(prefix + "postsubmit")
-
-    logs_dir = env.dist_dir / "logs"
-    (logs_dir / "bazel").mkdir(parents=True, exist_ok=True)
-    bzl_release = bazel.BazelCmd(env, startup_options=startup_options).with_build_flags(
-        get_common_build_flags(env, build_options)
-        + [
-            "--build_manual_tests",
-        ]
+    """Executes the complete AEMU presubmit or postsubmit pipeline."""
+    ctx = BuildContext(args, env, startup_options, build_options)
+    pipeline = Pipeline(
+        ctx,
+        [
+            ClangTidyStage(),
+            ReleasePackageStage(),
+            UnitTestStage(),
+            EtsIntegrationStage(),
+            PostsubmitStage(),
+            SymbolUploadStage(),
+        ],
     )
-
-    if not env.is_windows():
-        # ETS zip file does not yet build on Windows.
-        release_targets += android_ets_zip
-
-    if env.is_presubmit:
-        # In presubmit, decouple release packaging & boot tests from unit tests and ETS.
-        # Stage 1: Build release binaries and run fast boot tests under --config=release.
-        # ThinLTO remains enabled for shipping binaries (~31k actions).
-        stage1_targets = release_targets + always_test_targets + [
-            "@goldfish//emulator/launcher:boot_tests",
-        ]
-        if _should_run_meson_generator(args, env):
-            stage1_targets.append("@qemu//google/toolchain:generated_diff")
-
-        stage1_invocation_flags = [
-            "--config=ants",
-            f"--profile={logs_dir / 'bazel' / 'command.profile.gz'}",
-            "--build_metadata=test_definition_name=android_emulator/release",
-            "--test_output=errors",
-            "--test_summary=detailed",
-            "--test_timeout=1200,1800,2400,3000",
-        ]
-
-        try:
-            bzl_release.test(
-                stage1_targets,
-                invocation_flags=stage1_invocation_flags,
-                allow_analysis_cache_discard=True,
-                timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
-            )
-        except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
-            copy_bazel_logs(bzl_release, logs_dir)
-            raise
-
-        artifacts = bzl_release.query_artifacts(release_targets)
-        copy_all(artifacts, env.dist_dir)
-
-        # Stage 2: Run unit tests without ThinLTO and with --build_tests_only.
-        # This bypasses the ~185k LTO backend compile actions and remote cache checks.
-        # Unit tests fail fast before entering heavy integration tests.
-        bzl_unit_tests = bazel.BazelCmd(
-            env, startup_options=startup_options
-        ).with_build_flags(
-            build_options
-            + [
-                f"--build_metadata=ab_build_id={env.build_id}",
-                f"--build_metadata=ab_target={env.build_target}",
-                "--verbose_failures",
-                "--features=-thin_lto",
-                f"--@goldfish//emulator:build_id={env.build_id}",
-                f"--@qemu//google/toolchain:build_id={env.build_id}",
-                f"--@goldfish//emulator:is_presubmit={env.is_presubmit}",
-            ]
-        )
-        unit_test_targets = [
-            "@goldfish//...",
-            "-@goldfish//:clang_tidy_report",
-        ]
-        if env.is_windows():
-            unit_test_targets.append("-@goldfish//emulator:external_unit_tests")
-
-        stage2_invocation_flags = [
-            "--config=ants",
-            f"--profile={logs_dir / 'bazel' / 'unit_tests.profile.gz'}",
-            "--build_metadata=test_definition_name=android_emulator/unit_tests",
-            "--test_output=errors",
-            "--test_summary=detailed",
-            "--test_timeout=1200,1800,2400,3000",
-            "--build_tests_only",
-        ]
-
-        try:
-            bzl_unit_tests.test(
-                unit_test_targets,
-                invocation_flags=stage2_invocation_flags,
-                allow_analysis_cache_discard=True,
-                timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
-            )
-        except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
-            copy_bazel_logs(bzl_unit_tests, logs_dir)
-            raise
-
-        # Stage 3: Dedicated ETS Integration Tests.
-        # Run heavyweight emulator tests last, after all unit tests pass and after
-        # reclaiming resident memory and stabilizing host resources.
-        if not env.is_windows() and env.is_release:
-            _reclaim_and_stabilize_resources(env, bzl_unit_tests, bzl_release)
-
-            ets_startup_options = list(startup_options) + ["--host_jvm_args=-Xmx1g"]
-            bzl_ets = bazel.BazelCmd(
-                env, startup_options=ets_startup_options
-            ).with_build_flags(
-                get_common_build_flags(env, build_options)
-                + [
-                    "--build_manual_tests",
-                ]
-            )
-            stage3_invocation_flags = [
-                "--config=ants",
-                f"--profile={logs_dir / 'bazel' / 'ets.profile.gz'}",
-                "--build_metadata=test_definition_name=android_emulator/ets",
-                "--test_output=errors",
-                "--test_summary=detailed",
-                "--test_timeout=1200,1800,2400,3000",
-                "--build_tests_only",
-            ]
-            if env.is_macos():
-                stage3_invocation_flags.extend([
-                    "--jobs=2",
-                    "--local_resources=memory=HOST_RAM*.3",
-                ])
-
-            try:
-                bzl_ets.test(
-                    ets_test_targets,
-                    invocation_flags=stage3_invocation_flags,
-                    allow_analysis_cache_discard=True,
-                    timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
-                )
-            except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
-                copy_bazel_logs(bzl_ets, logs_dir)
-                raise
-
-        logging.info("Presubmit run detected; skipping symbol upload.")
-    else:
-        targets = release_targets + test_targets + always_test_targets
-        # crashpad tests and ETS don't currently run on Windows.
-        if not env.is_windows():
-            # Don't run ETS on ASAN, TSAN or debug builds
-            if env.is_release:
-                targets += ets_test_targets
-            # Only add the 3rd party code tests to postsubmit release builds
-            if not env.is_presubmit and env.is_release:
-                targets += external_tests
-
-        if (
-            env.is_release
-            and not env.is_presubmit
-            and not env.is_windows()
-            and not env.is_macos()
-        ):
-            # b/490122946 some buildbot macs can not execute cts-tradefed due to
-            # the missing executable `realpath`, which cts-tradefed assumes
-            # exists.
-            targets += xts_test_targets
-
-        invocation_flags = [
-            "--config=ants",
-            f"--profile={logs_dir / 'bazel' / 'command.profile.gz'}",
-            "--build_metadata=test_definition_name=android_emulator/release",
-            "--test_output=errors",
-            "--test_summary=detailed",
-            "--test_timeout=1200,1800,2400,3000",
-            "--nocache_test_results",
-        ]
-
-        try:
-            postsubmit_res = bzl_release.test(
-                targets,
-                invocation_flags=invocation_flags,
-                allow_analysis_cache_discard=True,
-                fail_on_test_failure=False,
-                timeout=(3600 * 5 if env.is_macos() else 3600 * 2),
-            )
-        except (build_environment.CommandFailedException, subprocess.TimeoutExpired):
-            copy_bazel_logs(bzl_release, logs_dir)
-            raise
-        artifacts = bzl_release.query_artifacts(release_targets)
-        copy_all(artifacts, env.dist_dir)
-
-        if env.crashpad_symbol_server_key:
-            upload_symbols(
-                env,
-                bzl_release.with_build_flags(
-                    bzl_release.build_flags + ("--config=no_sponge",),
-                ),
-            )
-        else:
-            logging.warning("No server API key available, not uploading symbols.")
-
-        if postsubmit_res.returncode != bazel.BuildExitCode.SUCCESS:
-            logging.warning(
-                "Postsubmit tests encountered failures (exit code %s).",
-                postsubmit_res.returncode,
-            )
-            copy_bazel_logs(bzl_release, logs_dir)
+    pipeline.run()
 
 
 def upload_symbols(env: build_environment.BuildEnvironment, bzl: bazel.BazelCmd):
-    if env.is_presubmit:
-        logging.info("Presubmit run detected; skipping symbol upload.")
-        return
-
-    uploader = sym_upload.Symuploader(env, bzl)
-
-    if env.is_windows():
-        symbol_zip_file = bzl.query_artifacts(["@goldfish//emulator:release"])[0]
-        # Ignoring an issue around processing of .dll's for now
-        uploader.upload_from_zip(symbol_zip_file, ignore_failures=True)
-        if not env.is_presubmit:
-            logging.info("Pushing symbols to staging as well.")
-            uploader.upload_from_zip(
-                symbol_zip_file, ignore_failures=True, server=env.CRASHPAD_STAGING
-            )
-    else:
-        symbol_zip_file = bzl.query_artifacts(
-            ["@goldfish//emulator:package_goldfish_symbols"]
-        )[0]
-        uploader.upload_from_zip(symbol_zip_file)
-        if not env.is_presubmit:
-            logging.info("Pushing symbols to staging as well.")
-            uploader.upload_from_zip(symbol_zip_file, server=env.CRASHPAD_STAGING)
+    """Packages and uploads Crashpad symbols."""
+    ctx = BuildContext(argparse.Namespace(dist=str(env.dist_dir)), env)
+    ctx.active_bzl = bzl
+    SymbolUploadStage().execute(ctx)
 
 
 def _should_run_meson_generator(args, env):
-    change_info = ChangeInfo(args.change_info)
-
-    # Don't try to run AMC for debug or TSAN or ASAN builds.
-    if not env.is_release:
-        return False
-
-    # Always run in post submit.
-    if not env.is_presubmit:
-        logging.error("-------Running generator because no in presubmit")
-        return True
-
-    # Always run presubmit when qemu project is affected or projects that affect
-    # AMC tool
-    if change_info.get_commits_by_project("platform/external/qemu"):
-        logging.error("-------Running generator because change affects qemu")
-        return True
-    if change_info.get_commits_by_project("trusty/external/qemu-meson"):
-        logging.error("-------Running generator because change affects meson")
-        return True
-    if change_info.get_commits_by_project("platform/hardware/google/aemu"):
-        logging.error("-------Running generator because change affects aemu")
-        return True
-
-    # We now always run the generator for Linux.
-    # TODO(whollins): Consider adding a mechanism to force NOT running the generator.
-    if platform.system().lower() == "linux":
-        logging.error("-------Running generator because we're on Linux")
-        return True
-
-    return False
+    ctx = BuildContext(args, env)
+    return ctx.should_run_meson_generator()
 
 
 def _create_argument_parser() -> argparse.ArgumentParser:
@@ -728,7 +222,7 @@ def _create_argument_parser() -> argparse.ArgumentParser:
         Must be one of:
         'trusty_x64' - Stock qemu, used by security team
         Or one of the following emulator releases:
-        {", ".join([f"'{key}'" for key in bazel._PLATFORM_TARGETS_BY_NAME.keys()])}
+        {", ".join([f"'{key}'" for key in bazel._PLATFORM_TARGETS_BY_NAME])}
         """,
     )
     parser.add_argument(
@@ -768,9 +262,10 @@ def main():
     parser = _create_argument_parser()
     args = parser.parse_args()
     with (
-        GeminiExplainer(args) as _,
+        GeminiExplainer(args) as explainer,
         build_environment.create_build_environment(args) as env,
     ):
+        explainer.env = env
         startup_options = []
         if env.tmp_dir:
             startup_options += [
@@ -792,14 +287,9 @@ def main():
 
 
 if __name__ == "__main__":
-    start_time = time.monotonic()
     try:
         main()
-    except Exception as e:
-        logging.fatal("Build failed due to %s", e)
+    except Exception as e:  # noqa: BLE001  # Top-level CLI entry point exception containment
+        if not getattr(e, "_logged_by_pipeline", False):
+            logger.fatal("Build failed due to %s", e)
         sys.exit(1)
-    finally:
-        end_time = time.monotonic()
-        logging.info(
-            "Completed in: %s", datetime.timedelta(seconds=end_time - start_time)
-        )

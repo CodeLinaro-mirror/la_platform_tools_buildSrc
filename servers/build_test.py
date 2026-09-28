@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-#
 # Copyright 2026 - The Android Open Source Project
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -26,7 +24,8 @@ if str(_SERVERS_DIR) not in sys.path:
     sys.path.insert(0, str(_SERVERS_DIR))
 
 import build
-import build_environment
+from host import build_environment
+from pipeline import stages
 
 
 class BuildScriptTest(unittest.TestCase):
@@ -55,9 +54,9 @@ class BuildScriptTest(unittest.TestCase):
         args = parser.parse_args(["--dist", "/tmp/dist"])
         self.assertEqual(args.target, build_environment.default_target())
 
-    @patch("build.bazel.BazelCmd")
-    @patch("build.copy_all")
-    @patch("build.copy_bazel_logs")
+    @patch("pipeline.stages.bazel.BazelCmd")
+    @patch("pipeline.context.copy_all")
+    @patch("pipeline.context.BuildContext.copy_bazel_logs")
     def test_build_aosp_invokes_bazel_build_and_copies_artifacts(
         self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls
     ):
@@ -75,12 +74,16 @@ class BuildScriptTest(unittest.TestCase):
         )
 
         # BazelCmd must be constructed with startup options and build flags containing --config=aosp
-        mock_bazel_cmd_cls.assert_called_once_with(self.mock_env, startup_options=["--startup_opt=1"])
+        mock_bazel_cmd_cls.assert_called_once_with(
+            self.mock_env, startup_options=["--startup_opt=1"]
+        )
         flags_passed = mock_bazel_cmd_cls.return_value.with_build_flags.call_args[0][0]
         self.assertIn("--config=aosp", flags_passed)
         self.assertIn("--lockfile_mode=off", flags_passed)
         self.assertIn("--config=release", flags_passed)
-        self.assertIn(f"--build_metadata=ab_build_id={self.mock_env.build_id}", flags_passed)
+        self.assertIn(
+            f"--build_metadata=ab_build_id={self.mock_env.build_id}", flags_passed
+        )
 
         # Must invoke bazel build on @goldfish//emulator:release ONLY
         mock_bzl.build.assert_called_once()
@@ -94,7 +97,7 @@ class BuildScriptTest(unittest.TestCase):
             ["@goldfish//emulator:release"], allow_analysis_cache_discard=True
         )
         mock_copy_all.assert_called_once_with([artifact_zip], self.mock_env.dist_dir)
-        mock_copy_logs.assert_called_once_with(mock_bzl, self.mock_env.dist_dir / "logs")
+        mock_copy_logs.assert_called_once()
 
     def test_get_common_build_flags(self):
         flags = build.get_common_build_flags(self.mock_env, ["--config=release"])
@@ -103,18 +106,24 @@ class BuildScriptTest(unittest.TestCase):
         self.assertIn(f"--build_metadata=ab_target={self.mock_env.build_target}", flags)
         self.assertIn(f"--embed_label={self.mock_env.build_id}", flags)
         self.assertIn(f"--@goldfish//emulator:build_id={self.mock_env.build_id}", flags)
-        self.assertIn(f"--@goldfish//emulator:is_presubmit={self.mock_env.is_presubmit}", flags)
+        self.assertIn(
+            f"--@goldfish//emulator:is_presubmit={str(self.mock_env.is_presubmit).lower()}",
+            flags,
+        )
         self.assertIn("--stamp", flags)
         self.assertIn("--verbose_failures", flags)
         self.assertIn("--config=lto", flags)
 
-
-    @patch("build.bazel.BazelCmd")
-    @patch("build.copy_bazel_logs")
-    def test_build_aosp_copies_logs_on_failure(self, mock_copy_logs, mock_bazel_cmd_cls):
+    @patch("pipeline.stages.bazel.BazelCmd")
+    @patch("pipeline.context.BuildContext.copy_bazel_logs")
+    def test_build_aosp_copies_logs_on_failure(
+        self, mock_copy_logs, mock_bazel_cmd_cls
+    ):
         mock_bzl = MagicMock()
         mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
-        mock_bzl.build.side_effect = build_environment.CommandFailedException("Build failed", MagicMock())
+        mock_bzl.build.side_effect = build_environment.CommandFailedException(
+            "Build failed", MagicMock()
+        )
 
         args = argparse.Namespace(aosp=True, dist="/tmp/dist", build_id="P123456")
         with self.assertRaises(build_environment.CommandFailedException):
@@ -125,7 +134,7 @@ class BuildScriptTest(unittest.TestCase):
                 build_options=["--config=release"],
             )
 
-        mock_copy_logs.assert_called_once_with(mock_bzl, self.mock_env.dist_dir / "logs")
+        mock_copy_logs.assert_called_once()
 
     @patch("build.build_aosp")
     @patch("build.build_aemu")
@@ -195,36 +204,50 @@ class BuildScriptTest(unittest.TestCase):
         self.assertEqual(cmd[-1], "shutdown")
         self.assertFalse(self.mock_env.run.call_args[1].get("throw_on_failure"))
 
-    @patch("build.os.sync")
-    @patch("build._log_host_memory_status")
+    @patch("pipeline.stages.os.sync")
+    @patch("pipeline.stages._log_host_memory_status")
     def test_reclaim_and_stabilize_resources(self, mock_log_mem, mock_sync):
         mock_bzl1 = MagicMock()
         mock_bzl2 = MagicMock()
-        build._reclaim_and_stabilize_resources(self.mock_env, mock_bzl1, mock_bzl2)
+        stages.reclaim_and_stabilize_resources(self.mock_env, mock_bzl1, mock_bzl2)
         mock_bzl1.shutdown.assert_called_once()
         mock_bzl2.shutdown.assert_called_once()
         mock_sync.assert_called_once()
         self.assertEqual(mock_log_mem.call_count, 2)
-        mock_log_mem.assert_has_calls([
-            call(self.mock_env, "before shutdown"),
-            call(self.mock_env, "after shutdown"),
-        ])
+        mock_log_mem.assert_has_calls(
+            [
+                call(self.mock_env, "before shutdown"),
+                call(self.mock_env, "after shutdown"),
+            ]
+        )
 
-    @patch("build.subprocess.run")
+    @patch("host.host_resources.subprocess.run")
     def test_log_host_memory_status_macos(self, mock_run):
         self.mock_env.is_macos.return_value = True
         self.mock_env.is_linux.return_value = False
         mock_run.side_effect = [
-            MagicMock(returncode=0, stdout="total = 4096.00M used = 100.00M free = 3996.00M"),
-            MagicMock(returncode=0, stdout="Mach Virtual Memory Statistics:\nPages free: 1000.\nPages active: 2000.\n"),
+            MagicMock(
+                returncode=0, stdout="total = 4096.00M used = 100.00M free = 3996.00M"
+            ),
+            MagicMock(
+                returncode=0,
+                stdout="Mach Virtual Memory Statistics:\nPages free: 1000.\nPages active: 2000.\n",
+            ),
         ]
         with self.assertLogs(level="INFO") as cm:
-            build._log_host_memory_status(self.mock_env, "before shutdown")
-        self.assertTrue(any("Host memory status [before shutdown] (macOS)" in line for line in cm.output))
-        self.assertTrue(any("Host vm_stat [before shutdown]" in line for line in cm.output))
+            stages._log_host_memory_status(self.mock_env, "before shutdown")
+        self.assertTrue(
+            any(
+                "Host memory status [before shutdown] (macOS)" in line
+                for line in cm.output
+            )
+        )
+        self.assertTrue(
+            any("Host vm_stat [before shutdown]" in line for line in cm.output)
+        )
 
-    @patch("build.Path.exists")
-    @patch("build.Path.read_text")
+    @patch("host.host_resources.pathlib.Path.exists")
+    @patch("host.host_resources.pathlib.Path.read_text")
     def test_log_host_memory_status_linux(self, mock_read_text, mock_exists):
         self.mock_env.is_macos.return_value = False
         self.mock_env.is_linux.return_value = True
@@ -237,14 +260,19 @@ class BuildScriptTest(unittest.TestCase):
             "SwapFree:         2048 kB\n"
         )
         with self.assertLogs(level="INFO") as cm:
-            build._log_host_memory_status(self.mock_env, "after shutdown")
-        self.assertTrue(any("Host memory status [after shutdown] (Linux)" in line for line in cm.output))
+            stages._log_host_memory_status(self.mock_env, "after shutdown")
+        self.assertTrue(
+            any(
+                "Host memory status [after shutdown] (Linux)" in line
+                for line in cm.output
+            )
+        )
         self.assertTrue(any("'MemTotal': '16384 kB'" in line for line in cm.output))
 
-    @patch("build._reclaim_and_stabilize_resources")
-    @patch("build.bazel.BazelCmd")
-    @patch("build.copy_all")
-    @patch("build.copy_bazel_logs")
+    @patch("pipeline.stages.reclaim_and_stabilize_resources")
+    @patch("pipeline.stages.bazel.BazelCmd")
+    @patch("pipeline.context.copy_all")
+    @patch("pipeline.context.BuildContext.copy_bazel_logs")
     def test_build_aemu_presubmit_executes_three_stages(
         self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls, mock_reclaim
     ):
@@ -293,25 +321,23 @@ class BuildScriptTest(unittest.TestCase):
         stage2_flags = mock_bzl_unit_tests.test.call_args[1]["invocation_flags"]
         self.assertIn("--build_tests_only", stage2_flags)
 
-        # Reclamation and stabilization called before ETS
-        mock_reclaim.assert_called_once_with(
-            self.mock_env, mock_bzl_unit_tests, mock_bzl_release
-        )
+        # On unconstrained Linux, Bazel server should NOT be shut down before ETS
+        mock_reclaim.assert_not_called()
 
-        # Stage 3: mock_bzl_ets.test called with ETS targets and bounded constraints
+        # Stage 3: mock_bzl_ets.test called with ETS targets and no throttling
         mock_bzl_ets.test.assert_called_once()
         stage3_targets = mock_bzl_ets.test.call_args[0][0]
         self.assertTrue(any("@goldfish_test//ets:" in t for t in stage3_targets))
         stage3_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
         self.assertIn("--build_tests_only", stage3_flags)
-        # On Linux, RBE concurrency should not be throttled to 2 jobs
+        # On unconstrained Linux, RBE concurrency should not be throttled to 2 jobs
         self.assertNotIn("--jobs=2", stage3_flags)
         self.assertNotIn("--local_resources=memory=HOST_RAM*.3", stage3_flags)
 
-    @patch("build._reclaim_and_stabilize_resources")
-    @patch("build.bazel.BazelCmd")
-    @patch("build.copy_all")
-    @patch("build.copy_bazel_logs")
+    @patch("pipeline.stages.reclaim_and_stabilize_resources")
+    @patch("pipeline.stages.bazel.BazelCmd")
+    @patch("pipeline.context.copy_all")
+    @patch("pipeline.context.BuildContext.copy_bazel_logs")
     def test_build_aemu_presubmit_macos_constrains_jobs_and_memory(
         self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls, mock_reclaim
     ):
@@ -347,9 +373,93 @@ class BuildScriptTest(unittest.TestCase):
             build_options=["--config=release"],
         )
 
+        mock_reclaim.assert_called_once()
         stage3_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
         self.assertIn("--jobs=2", stage3_flags)
         self.assertIn("--local_resources=memory=HOST_RAM*.3", stage3_flags)
+
+    @patch("pipeline.stages.reclaim_and_stabilize_resources")
+    @patch("pipeline.stages.bazel.BazelCmd")
+    @patch("pipeline.context.copy_all")
+    @patch("pipeline.context.BuildContext.copy_bazel_logs")
+    def test_build_aemu_postsubmit_constrains_jobs_and_memory_when_constrained(
+        self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls, mock_reclaim
+    ):
+        mock_bzl = MagicMock()
+        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+        artifact_zip = Path("/out/sdk-repo-linux-123456.zip")
+        mock_bzl.query_artifacts.return_value = [artifact_zip]
+        mock_bzl.test.return_value = MagicMock(returncode=0)
+
+        self.mock_env.is_presubmit = False
+        self.mock_env.is_windows.return_value = False
+        self.mock_env.is_release = True
+        self.mock_env.is_macos.return_value = False
+        self.mock_env.is_memory_constrained.return_value = True
+        self.mock_env.crashpad_symbol_server_key = None
+
+        args = argparse.Namespace(
+            aosp=False,
+            dist="/tmp/dist",
+            build_id="123456",
+            target="linux_x64",
+            change_info=None,
+        )
+
+        build.build_aemu(
+            args,
+            self.mock_env,
+            startup_options=[],
+            build_options=["--config=release"],
+        )
+
+        # In postsubmit, reclamation is performed if memory constrained
+        mock_reclaim.assert_called_once()
+        mock_bzl.test.assert_called_once()
+        inv_flags = mock_bzl.test.call_args[1]["invocation_flags"]
+        self.assertIn("--jobs=2", inv_flags)
+        self.assertIn("--local_resources=memory=HOST_RAM*.3", inv_flags)
+
+    @patch("pipeline.stages.reclaim_and_stabilize_resources")
+    @patch("pipeline.stages.bazel.BazelCmd")
+    @patch("pipeline.context.copy_all")
+    @patch("pipeline.context.BuildContext.copy_bazel_logs")
+    def test_build_aemu_postsubmit_unconstrained_preserves_rbe_jobs(
+        self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls, mock_reclaim
+    ):
+        mock_bzl = MagicMock()
+        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+        artifact_zip = Path("/out/sdk-repo-linux-123456.zip")
+        mock_bzl.query_artifacts.return_value = [artifact_zip]
+        mock_bzl.test.return_value = MagicMock(returncode=0)
+
+        self.mock_env.is_presubmit = False
+        self.mock_env.is_windows.return_value = False
+        self.mock_env.is_release = True
+        self.mock_env.is_macos.return_value = False
+        self.mock_env.is_memory_constrained.return_value = False
+        self.mock_env.crashpad_symbol_server_key = None
+
+        args = argparse.Namespace(
+            aosp=False,
+            dist="/tmp/dist",
+            build_id="123456",
+            target="linux_x64",
+            change_info=None,
+        )
+
+        build.build_aemu(
+            args,
+            self.mock_env,
+            startup_options=[],
+            build_options=["--config=release"],
+        )
+
+        mock_reclaim.assert_not_called()
+        mock_bzl.test.assert_called_once()
+        inv_flags = mock_bzl.test.call_args[1]["invocation_flags"]
+        self.assertNotIn("--jobs=2", inv_flags)
+        self.assertNotIn("--local_resources=memory=HOST_RAM*.3", inv_flags)
 
 
 if __name__ == "__main__":

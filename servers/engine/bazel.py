@@ -1,24 +1,41 @@
 # Copyright 2024 - The Android Open Source Project
 #
-# Licensed under the Apache License, Version 2.0 (the',  help='License');
+# Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
 #
 #     http://www.apache.org/licenses/LICENSE-2.0
 #
 # Unless required by applicable law or agreed to in writing, software
-# distributed under the License is distributed on an',  help='AS IS' BASIS,
+# distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+
+from __future__ import annotations
 
 import enum
 import functools
 import pathlib
 import subprocess
 import types
-from typing import Iterable, List, Mapping, Tuple, Type, TypeVar, Union
-import build_environment
+from collections.abc import Iterable, Mapping
+from typing import TypeVar
+
+try:
+    from typing import Self
+except ImportError:
+    from typing_extensions import Self
+
+try:
+    from host import build_environment
+except ImportError:
+    import build_environment
+
+try:
+    from services.log_handler import mask_command, redact_secrets, register_secret
+except ImportError:
+    from log_handler import mask_command, redact_secrets, register_secret
 
 _PLATFORM_TARGETS_BY_NAME = {
     "linux_x64": "@goldfish_build//platforms:linux_x64",
@@ -32,7 +49,7 @@ ExitCodeType = TypeVar("ExitCodeType", bound="BaseExitCode")
 
 class _ExitCode(enum.IntEnum):
     @classmethod
-    def try_convert(cls: Type[ExitCodeType], code: int) -> Union[ExitCodeType, int]:
+    def try_convert(cls, code: int) -> Self | int:
         try:
             return cls(code)
         except ValueError:
@@ -89,13 +106,17 @@ class QueryExitCode(_ExitCode):
 
 
 def _bazel_error_msg(
-    cmd: List[str], returncode: Union[int, _ExitCode], stderr: str = None
+    cmd: list[str],
+    returncode: int | _ExitCode,
+    stderr: str | None = None,
+    extra_secrets: Iterable[str] = (),
 ) -> str:
     if isinstance(returncode, _ExitCode):
         returncode = returncode.name
-    msg = f"Bazel command {' '.join(cmd)} returned {returncode}"
+    masked_cmd = mask_command(cmd, extra_secrets=extra_secrets)
+    msg = f"Bazel command {' '.join(masked_cmd)} returned {returncode}"
     if stderr:
-        msg += f"\nSTDERR:\n{stderr}"
+        msg += f"\nSTDERR:\n{redact_secrets(stderr, extra_secrets=extra_secrets)}"
     return msg
 
 
@@ -123,8 +144,8 @@ class BazelCmd:
 
     _env: build_environment.BuildEnvironment
     _path: pathlib.Path
-    _startup_options: Tuple[str, ...]
-    _build_flags: Tuple[str, ...]
+    _startup_options: tuple[str, ...]
+    _build_flags: tuple[str, ...]
     _capture_output: bool
 
     def __init__(
@@ -149,7 +170,7 @@ class BazelCmd:
         self._path = build_env.repo_root / "prebuilts" / "bazel" / system / "bazel"
         self._capture_output = capture_output
 
-    def with_build_flags(self, flags: Iterable[str]) -> "BazelCmd":
+    def with_build_flags(self, flags: Iterable[str]) -> BazelCmd:
         """Creates a new ``BazelCmd`` instance with build flags attached.
 
         This is roughly equivalent to passing the same flags as
@@ -171,7 +192,7 @@ class BazelCmd:
         return instance
 
     @property
-    def build_flags(self) -> Tuple[str, ...]:
+    def build_flags(self) -> tuple[str, ...]:
         """Returns the build flags attached to the instance."""
         return self._build_flags
 
@@ -181,7 +202,7 @@ class BazelCmd:
         queries: Iterable[str] = (),
         extra_flags: Iterable[str] = (),
         allow_analysis_cache_discard: bool = False,
-    ) -> List[str]:
+    ) -> list[str]:
         cmd = [str(self._path)]
         cmd.extend(self._startup_options)
         cmd.append(verb)
@@ -189,9 +210,7 @@ class BazelCmd:
         # Info doesn't seem to have access to other modules
         if verb != "info":
             cmd.append(
-                "--platforms={}".format(
-                    _PLATFORM_TARGETS_BY_NAME[self._env.target_platform]
-                )
+                f"--platforms={_PLATFORM_TARGETS_BY_NAME[self._env.target_platform]}"
             )
         cmd.extend(extra_flags)
         if not allow_analysis_cache_discard:
@@ -200,6 +219,13 @@ class BazelCmd:
             cmd.append("--")
             cmd.extend(queries)
         return cmd
+
+    def _env_secrets(self) -> list[str]:
+        secrets = [
+            getattr(self._env, "crashpad_symbol_server_key", None),
+            getattr(self._env, "gemini_api_key", None),
+        ]
+        return [s for s in secrets if isinstance(s, str) and s]
 
     @functools.cached_property
     def info(self) -> Mapping[str, str]:
@@ -214,7 +240,10 @@ class BazelCmd:
         if result.returncode != BaseExitCode.SUCCESS:
             raise build_environment.CommandFailedException(
                 _bazel_error_msg(
-                    cmd, BaseExitCode.try_convert(result.returncode), result.stderr
+                    cmd,
+                    BaseExitCode.try_convert(result.returncode),
+                    result.stderr,
+                    extra_secrets=self._env_secrets(),
                 ),
                 result,
             )
@@ -235,7 +264,7 @@ class BazelCmd:
         allow_analysis_cache_discard: bool = False,
         allow_no_test: bool = False,
         fail_on_test_failure: bool = True,
-        timeout: Union[float, None] = 3600,
+        timeout: float | None = 3600,
     ) -> subprocess.CompletedProcess:
         """Runs ``bazel test`` and returns the result.
 
@@ -255,8 +284,10 @@ class BazelCmd:
             it contains only the commandline and the return code.
         """
         flags = list(invocation_flags)
-        if getattr(self._env, "gemini_api_key", None):
-            flags.append(f"--test_env=GEMINI_API_KEY={self._env.gemini_api_key}")
+        gemini_key = getattr(self._env, "gemini_api_key", None)
+        if isinstance(gemini_key, str) and gemini_key:
+            register_secret(gemini_key)
+            flags.append(f"--test_env=GEMINI_API_KEY={gemini_key}")
         cmd = self._build_cmd("test", targets, flags, allow_analysis_cache_discard)
         result = self._env.run(
             cmd,
@@ -271,7 +302,11 @@ class BazelCmd:
             normal_return_codes.append(BuildExitCode.TESTS_NOT_FOUND)
         if result.returncode not in normal_return_codes:
             raise build_environment.CommandFailedException(
-                _bazel_error_msg(cmd, BuildExitCode.try_convert(result.returncode)),
+                _bazel_error_msg(
+                    cmd,
+                    BuildExitCode.try_convert(result.returncode),
+                    extra_secrets=self._env_secrets(),
+                ),
                 result,
             )
         return result
@@ -282,7 +317,7 @@ class BazelCmd:
         *,
         invocation_flags: Iterable[str] = (),
         allow_analysis_cache_discard: bool = False,
-        timeout: Union[float, None] = 3600,
+        timeout: float | None = 3600,
     ) -> subprocess.CompletedProcess:
         """Runs ``bazel build`` and returns the result..
 
@@ -308,7 +343,11 @@ class BazelCmd:
         )
         if result.returncode != BuildExitCode.SUCCESS:
             raise build_environment.CommandFailedException(
-                _bazel_error_msg(cmd, BuildExitCode.try_convert(result.returncode)),
+                _bazel_error_msg(
+                    cmd,
+                    BuildExitCode.try_convert(result.returncode),
+                    extra_secrets=self._env_secrets(),
+                ),
                 result,
             )
         return result
@@ -320,7 +359,7 @@ class BazelCmd:
         invocation_flags: Iterable[str] = (),
         params: Iterable[str] = (),
         allow_analysis_cache_discard: bool = False,
-        timeout: Union[float, None] = 3600,
+        timeout: float | None = 3600,
     ) -> subprocess.CompletedProcess:
         """Runs ``bazel run`` and returns the result..
 
@@ -349,7 +388,7 @@ class BazelCmd:
         return result
 
     def shutdown(
-        self, timeout: Union[float, None] = 120
+        self, timeout: float | None = 120
     ) -> subprocess.CompletedProcess:
         """Runs ``bazel shutdown`` to stop the server and release resident memory."""
         cmd = [str(self._path)]
@@ -369,7 +408,7 @@ class BazelCmd:
         invocation_flags: Iterable[str] = (),
         allow_analysis_cache_discard: bool = False,
         keep_going: bool = False,
-        timeout: Union[float, None] = 300,
+        timeout: float | None = 300,
     ) -> subprocess.CompletedProcess:
         """Runs ``bazel cquery`` and returns the result.
 
@@ -401,7 +440,10 @@ class BazelCmd:
         if result.returncode not in normal_return_codes:
             raise build_environment.CommandFailedException(
                 _bazel_error_msg(
-                    cmd, QueryExitCode.try_convert(result.returncode), result.stderr
+                    cmd,
+                    QueryExitCode.try_convert(result.returncode),
+                    result.stderr,
+                    extra_secrets=self._env_secrets(),
                 ),
                 result,
             )
@@ -412,8 +454,8 @@ class BazelCmd:
         targets: Iterable[str],
         *,
         allow_analysis_cache_discard: bool = False,
-        timeout: Union[float, None] = 300,
-    ) -> List[pathlib.Path]:
+        timeout: float | None = 300,
+    ) -> list[pathlib.Path]:
         """Queries the output files of the passed targets.
 
         This runs a ``cquery`` and an ``info`` under the hood, and passes the
@@ -439,7 +481,7 @@ class BazelCmd:
         return artifacts
 
     def mod(
-        self, args: Iterable[str], *, timeout: Union[float, None] = 300
+        self, args: Iterable[str], *, timeout: float | None = 300
     ) -> subprocess.CompletedProcess:
         """Runs bazel mod command.
 
