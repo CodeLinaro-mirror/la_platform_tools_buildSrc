@@ -72,7 +72,8 @@ def reclaim_and_stabilize_resources(
         if bzl:
             try:
                 bzl.shutdown()
-            except Exception as e:  # noqa: BLE001  # Resource cleanup must not abort pipeline
+            except Exception as e:  # noqa: BLE001
+                # Resource cleanup must not abort pipeline
                 logger.warning("Failed to shutdown Bazel server: %s", e)
 
     try:
@@ -165,9 +166,7 @@ class ClangTidyStage(Stage):
             timeout=600,
         )
         if res.returncode == bazel.BuildExitCode.TESTS_NOT_FOUND:
-            logger.info(
-                "No clang-tidy tests found for %s, skipping pre-pass.", targets
-            )
+            logger.info("No clang-tidy tests found for %s, skipping pre-pass.", targets)
             return
         if res.returncode != 0:
             raise build_environment.CommandFailedException(
@@ -202,7 +201,8 @@ class ClangTidyStage(Stage):
                         + f"\n{content}\n"
                         + "=" * 80
                     )
-        except Exception as e:  # noqa: BLE001  # Telemetry extraction must not mask the primary failure
+        except Exception as e:  # noqa: BLE001
+            # Telemetry extraction must not mask the primary failure
             logger.warning("Failed to extract clang-tidy logs: %s", e)
 
 
@@ -252,7 +252,7 @@ class AospStage(Stage):
 
 
 class ReleasePackageStage(Stage):
-    """Builds release binaries and runs fast boot tests under --config=release (ThinLTO)."""
+    """Builds release binaries, symbol archives (in postsubmit), and runs fast boot tests."""
 
     def __init__(self):
         self.release_targets: list[str] = []
@@ -262,10 +262,19 @@ class ReleasePackageStage(Stage):
         return "Release Packaging & Boot Tests"
 
     def should_run(self, ctx: BuildContext) -> bool:
-        return ctx.env.is_presubmit and not getattr(ctx.args, "aosp", False)
+        return not getattr(ctx.args, "aosp", False) and "trusty" not in getattr(
+            ctx.args, "target", ""
+        )
 
     def execute(self, ctx: BuildContext) -> None:
         self.release_targets = ["@goldfish//emulator:release"]
+        if not ctx.env.is_presubmit:
+            self.release_targets.extend(
+                [
+                    "@goldfish//emulator:package_goldfish_symbols",
+                    "@goldfish//emulator:package_goldfish_native_symbols",
+                ]
+            )
         if ctx.env.target_platform.startswith("linux"):
             self.release_targets.extend(
                 [
@@ -286,32 +295,52 @@ class ReleasePackageStage(Stage):
             self.release_targets.append("@qemu//google/toolchain:zip")
             test_targets.append("@qemu//google/toolchain:generated_diff")
 
-        targets = list(self.release_targets) + test_targets
+        aux_targets = (
+            [sym_upload.Symuploader.SYM_UPLOAD_TARGET]
+            if not ctx.env.is_presubmit and ctx.env.crashpad_symbol_server_key
+            else []
+        )
 
-        inv = (
+        targets = list(self.release_targets) + aux_targets + test_targets
+
+        inv_builder = (
             BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
             .with_targets(targets)
             .with_common_flags(ctx.build_options)
             .with_build_flags(["--build_manual_tests"])
             .with_test_defaults("android_emulator/release")
             .with_profile(ctx.bazel_logs_dir / "command.profile.gz")
-            .build_invocation()
+            .with_fail_on_test_failure(ctx.env.is_presubmit)
         )
+        if not ctx.env.is_presubmit:
+            inv_builder.with_invocation_flags(["--nocache_test_results"])
+        inv = inv_builder.build_invocation()
 
         bzl = bazel.BazelCmd(
             ctx.env, startup_options=inv.startup_options
         ).with_build_flags(inv.build_flags)
         ctx.active_bzl = bzl
 
-        bzl.test(
+        res = bzl.test(
             inv.targets,
             invocation_flags=inv.invocation_flags,
             allow_analysis_cache_discard=True,
+            fail_on_test_failure=inv.fail_on_test_failure,
             timeout=inv.timeout,
         )
 
         artifacts = bzl.query_artifacts(self.release_targets)
         ctx.copy_artifacts(artifacts)
+
+        if (
+            not ctx.env.is_presubmit
+            and isinstance(getattr(res, "returncode", None), int)
+            and res.returncode != bazel.BuildExitCode.SUCCESS
+        ):
+            logger.warning(
+                "Release packaging tests encountered failures (exit code %s).",
+                res.returncode,
+            )
 
 
 class UnitTestStage(Stage):
@@ -322,15 +351,19 @@ class UnitTestStage(Stage):
         return "Fast-Fail Unit Tests"
 
     def should_run(self, ctx: BuildContext) -> bool:
-        return ctx.env.is_presubmit and not getattr(ctx.args, "aosp", False)
+        return not getattr(ctx.args, "aosp", False) and "trusty" not in getattr(
+            ctx.args, "target", ""
+        )
 
     def execute(self, ctx: BuildContext) -> None:
         unit_test_targets = [
             "@goldfish//...",
             "-@goldfish//:clang_tidy_report",
         ]
-        if ctx.env.is_windows():
+        if ctx.env.is_windows() or not ctx.env.is_release:
             unit_test_targets.append("-@goldfish//emulator:external_unit_tests")
+        elif not ctx.env.is_presubmit:
+            unit_test_targets.append("@goldfish//emulator:external_unit_tests")
 
         unit_test_build_options = list(ctx.build_options) + [
             f"--build_metadata=ab_build_id={ctx.env.build_id}",
@@ -342,27 +375,40 @@ class UnitTestStage(Stage):
             f"--@goldfish//emulator:is_presubmit={str(ctx.env.is_presubmit).lower()}",
         ]
 
-        inv = (
+        inv_builder = (
             BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
             .with_targets(unit_test_targets)
             .with_build_flags(unit_test_build_options)
             .with_test_defaults("android_emulator/unit_tests")
             .with_profile(ctx.bazel_logs_dir / "unit_tests.profile.gz")
             .with_build_tests_only()
-            .build_invocation()
+            .with_fail_on_test_failure(ctx.env.is_presubmit)
         )
+        if not ctx.env.is_presubmit:
+            inv_builder.with_invocation_flags(["--nocache_test_results"])
+        inv = inv_builder.build_invocation()
 
         bzl = bazel.BazelCmd(
             ctx.env, startup_options=inv.startup_options
         ).with_build_flags(inv.build_flags)
         ctx.active_bzl = bzl
 
-        bzl.test(
+        res = bzl.test(
             inv.targets,
             invocation_flags=inv.invocation_flags,
             allow_analysis_cache_discard=True,
+            fail_on_test_failure=inv.fail_on_test_failure,
             timeout=inv.timeout,
         )
+        if (
+            not ctx.env.is_presubmit
+            and isinstance(getattr(res, "returncode", None), int)
+            and res.returncode != bazel.BuildExitCode.SUCCESS
+        ):
+            logger.warning(
+                "Unit tests encountered failures (exit code %s).",
+                res.returncode,
+            )
 
 
 class EtsIntegrationStage(Stage):
@@ -377,8 +423,8 @@ class EtsIntegrationStage(Stage):
 
     def should_run(self, ctx: BuildContext) -> bool:
         return (
-            ctx.env.is_presubmit
-            and not getattr(ctx.args, "aosp", False)
+            not getattr(ctx.args, "aosp", False)
+            and "trusty" not in getattr(ctx.args, "target", "")
             and not ctx.env.is_windows()
             and ctx.env.is_release
         )
@@ -396,11 +442,14 @@ class EtsIntegrationStage(Stage):
         ets_prefix = "@goldfish_test//ets:"
         if ctx.env.is_macos():
             ets_prefix = "@goldfish_test//ets:exclusive_"
+        ets_suite = "presubmit" if ctx.env.is_presubmit else "postsubmit"
 
         ets_test_targets = [
             "@goldfish_test//testlib/...",
-            ets_prefix + "presubmit",
+            ets_prefix + ets_suite,
         ]
+        if not ctx.env.is_presubmit and not ctx.env.is_macos():
+            ets_test_targets.append("@goldfish_test//xts:postsubmit")
 
         is_constrained = _is_env_memory_constrained(ctx.env)
         inv_builder = (
@@ -411,8 +460,11 @@ class EtsIntegrationStage(Stage):
             .with_test_defaults("android_emulator/ets")
             .with_profile(ctx.bazel_logs_dir / "ets.profile.gz")
             .with_build_tests_only()
+            .with_fail_on_test_failure(ctx.env.is_presubmit)
             .with_memory_pressure_limits(constrained=is_constrained)
         )
+        if not ctx.env.is_presubmit:
+            inv_builder.with_invocation_flags(["--nocache_test_results"])
         if is_constrained:
             inv_builder.with_jvm_heap_limit(host_resources.get_jvm_heap_limit(ctx.env))
         inv = inv_builder.build_invocation()
@@ -422,125 +474,21 @@ class EtsIntegrationStage(Stage):
         ).with_build_flags(inv.build_flags)
         ctx.active_bzl = bzl
 
-        bzl.test(
+        res = bzl.test(
             inv.targets,
             invocation_flags=inv.invocation_flags,
             allow_analysis_cache_discard=True,
+            fail_on_test_failure=inv.fail_on_test_failure,
             timeout=inv.timeout,
         )
-
-
-class PostsubmitStage(Stage):
-    """Executes the monolithic full test matrix and release build for postsubmit."""
-
-    def __init__(self):
-        self.release_targets: list[str] = []
-
-    @property
-    def name(self) -> str:
-        return "Postsubmit Full Build & Test Matrix"
-
-    def should_run(self, ctx: BuildContext) -> bool:
-        return (
+        if (
             not ctx.env.is_presubmit
-            and not getattr(ctx.args, "aosp", False)
-            and "trusty" not in ctx.args.target
-        )
-
-    def pre_execute(self, ctx: BuildContext) -> None:
-        if _is_env_memory_constrained(ctx.env):
-            reclaim_and_stabilize_resources(ctx.env, ctx.active_bzl)
-        else:
-            _log_host_memory_status(ctx.env, "postsubmit start")
-
-    def execute(self, ctx: BuildContext) -> None:
-        self.release_targets = [
-            "@goldfish//emulator:release",
-            "@goldfish//emulator:package_goldfish_symbols",
-            "@goldfish//emulator:package_goldfish_native_symbols",
-        ]
-        if ctx.env.target_platform.startswith("linux"):
-            self.release_targets.extend(
-                [
-                    "@goldfish//emulator:release_unstripped",
-                    "@goldfish//emulator:release_internal",
-                ]
-            )
-        if not ctx.env.is_windows():
-            self.release_targets.append("@goldfish_test//ets:android_ets_zip")
-
-        test_targets = [
-            "@goldfish//...",
-            "-@goldfish//:clang_tidy_report",
-            "-@goldfish//emulator:external_unit_tests",
-            "@goldfish//emulator/launcher:boot_tests",
-            "@goldfish//emulator:release_build_test",
-            "@goldfish_build//:sanity_checks",
-        ]
-
-        if not ctx.env.is_windows() and ctx.env.is_release:
-            prefix = (
-                "@goldfish_test//ets:exclusive_"
-                if ctx.env.is_macos()
-                else "@goldfish_test//ets:"
-            )
-            test_targets.extend(
-                [
-                    "@goldfish_test//testlib/...",
-                    prefix + "postsubmit",
-                    "@goldfish//emulator:external_unit_tests",
-                ]
-            )
-
-        if ctx.env.is_release and not ctx.env.is_windows() and not ctx.env.is_macos():
-            test_targets.append("@goldfish_test//xts:postsubmit")
-
-        if ctx.should_run_meson_generator():
-            self.release_targets.append("@qemu//google/toolchain:zip")
-            test_targets.append("@qemu//google/toolchain:generated_diff")
-
-        aux_targets = (
-            [sym_upload.Symuploader.SYM_UPLOAD_TARGET]
-            if ctx.env.crashpad_symbol_server_key
-            else []
-        )
-
-        is_constrained = _is_env_memory_constrained(ctx.env)
-        inv_builder = (
-            BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
-            .with_targets(self.release_targets + aux_targets + test_targets)
-            .with_common_flags(ctx.build_options)
-            .with_build_flags(["--build_manual_tests"])
-            .with_test_defaults("android_emulator/release")
-            .with_profile(ctx.bazel_logs_dir / "command.profile.gz")
-            .with_invocation_flags(["--nocache_test_results"])
-            .with_fail_on_test_failure(False)
-            .with_memory_pressure_limits(constrained=is_constrained)
-        )
-        if is_constrained:
-            inv_builder.with_jvm_heap_limit(host_resources.get_jvm_heap_limit(ctx.env))
-        inv = inv_builder.build_invocation()
-
-        bzl = bazel.BazelCmd(
-            ctx.env, startup_options=inv.startup_options
-        ).with_build_flags(inv.build_flags)
-        ctx.active_bzl = bzl
-
-        postsubmit_res = bzl.test(
-            inv.targets,
-            invocation_flags=inv.invocation_flags,
-            allow_analysis_cache_discard=True,
-            fail_on_test_failure=False,
-            timeout=inv.timeout,
-        )
-
-        artifacts = bzl.query_artifacts(self.release_targets)
-        ctx.copy_artifacts(artifacts)
-
-        if postsubmit_res.returncode != bazel.BuildExitCode.SUCCESS:
+            and isinstance(getattr(res, "returncode", None), int)
+            and res.returncode != bazel.BuildExitCode.SUCCESS
+        ):
             logger.warning(
-                "Postsubmit tests encountered failures (exit code %s).",
-                postsubmit_res.returncode,
+                "ETS integration tests encountered failures (exit code %s).",
+                res.returncode,
             )
 
 
@@ -555,7 +503,7 @@ class SymbolUploadStage(Stage):
         return (
             not ctx.env.is_presubmit
             and not getattr(ctx.args, "aosp", False)
-            and "trusty" not in ctx.args.target
+            and "trusty" not in getattr(ctx.args, "target", "")
             and bool(ctx.env.crashpad_symbol_server_key)
         )
 

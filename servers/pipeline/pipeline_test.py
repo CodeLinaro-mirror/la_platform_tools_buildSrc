@@ -123,7 +123,6 @@ class PipelineTest(unittest.TestCase):
             stages.ReleasePackageStage(),
             stages.UnitTestStage(),
             stages.EtsIntegrationStage(),
-            stages.PostsubmitStage(),
             stages.SymbolUploadStage(),
         ]
         for s in all_stages:
@@ -367,10 +366,9 @@ class PipelineTest(unittest.TestCase):
         startup_opts = mock_bazel_cmd_cls.call_args[1]["startup_options"]
         self.assertFalse(any("-Xmx" in opt for opt in startup_opts))
 
-    @patch("pipeline.stages.reclaim_and_stabilize_resources")
     @patch("pipeline.stages.bazel.BazelCmd")
-    def test_postsubmit_stage_memory_constrained(
-        self, mock_bazel_cmd_cls, mock_reclaim
+    def test_release_package_stage_postsubmit_unthrottled_and_builds_symbols(
+        self, mock_bazel_cmd_cls
     ):
         mock_bzl = MagicMock()
         mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
@@ -379,62 +377,101 @@ class PipelineTest(unittest.TestCase):
 
         self.mock_env.is_presubmit = False
         self.mock_env.is_memory_constrained.return_value = True
+        self.mock_env.is_macos.return_value = True
         self.mock_env.is_windows.return_value = False
         self.mock_env.is_release = True
 
-        stage = stages.PostsubmitStage()
+        stage = stages.ReleasePackageStage()
         self.assertTrue(stage.should_run(self.ctx))
 
-        # pre_execute must reclaim resources when memory constrained
-        stage.pre_execute(self.ctx)
-        mock_reclaim.assert_called_once_with(self.mock_env, self.ctx.active_bzl)
-
-        # execute must apply job, local_resources, and JVM heap bounds
-        stage.execute(self.ctx)
-        mock_bzl.test.assert_called_once()
-        invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
-        self.assertIn("--jobs=2", invocation_flags)
-        self.assertIn("--local_resources=memory=HOST_RAM*.3", invocation_flags)
-
-        startup_opts = mock_bazel_cmd_cls.call_args[1]["startup_options"]
-        self.assertIn("--host_jvm_args=-Xmx4g", startup_opts)
-
-    @patch("pipeline.stages._log_host_memory_status")
-    @patch("pipeline.stages.reclaim_and_stabilize_resources")
-    @patch("pipeline.stages.bazel.BazelCmd")
-    def test_postsubmit_stage_unconstrained(
-        self, mock_bazel_cmd_cls, mock_reclaim, mock_log_mem
-    ):
-        mock_bzl = MagicMock()
-        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
-        mock_bzl.query_artifacts.return_value = [Path("/out/rel.zip")]
-        mock_bzl.test.return_value = MagicMock(returncode=0)
-
-        self.mock_env.is_presubmit = False
-        self.mock_env.is_memory_constrained.return_value = False
-        self.mock_env.is_windows.return_value = False
-        self.mock_env.is_release = True
-
-        stage = stages.PostsubmitStage()
-        self.assertTrue(stage.should_run(self.ctx))
-
-        # pre_execute logs memory status without tearing down servers
-        stage.pre_execute(self.ctx)
-        mock_reclaim.assert_not_called()
-        mock_log_mem.assert_called_once_with(self.mock_env, "postsubmit start")
-
-        # execute preserves full RBE concurrency and pre-builds @breakpad//:sym_upload
         stage.execute(self.ctx)
         mock_bzl.test.assert_called_once()
         tested_targets = mock_bzl.test.call_args[0][0]
+        self.assertIn("@goldfish//emulator:package_goldfish_symbols", tested_targets)
+        self.assertIn(
+            "@goldfish//emulator:package_goldfish_native_symbols", tested_targets
+        )
         self.assertIn("@breakpad//:sym_upload", tested_targets)
         self.assertNotIn("@breakpad//:sym_upload", stage.release_targets)
+
         invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
+        self.assertIn("--nocache_test_results", invocation_flags)
         self.assertNotIn("--jobs=2", invocation_flags)
         self.assertNotIn("--local_resources=memory=HOST_RAM*.3", invocation_flags)
+        self.assertFalse(mock_bzl.test.call_args[1]["fail_on_test_failure"])
 
         startup_opts = mock_bazel_cmd_cls.call_args[1]["startup_options"]
         self.assertFalse(any("-Xmx" in opt for opt in startup_opts))
+
+    @patch("pipeline.stages.bazel.BazelCmd")
+    def test_unit_test_stage_postsubmit_unthrottled_and_includes_external_tests(
+        self, mock_bazel_cmd_cls
+    ):
+        mock_bzl = MagicMock()
+        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+        mock_bzl.test.return_value = MagicMock(returncode=0)
+
+        self.mock_env.is_presubmit = False
+        self.mock_env.is_memory_constrained.return_value = True
+        self.mock_env.is_macos.return_value = True
+        self.mock_env.is_windows.return_value = False
+        self.mock_env.is_release = True
+
+        stage = stages.UnitTestStage()
+        self.assertTrue(stage.should_run(self.ctx))
+
+        stage.execute(self.ctx)
+        mock_bzl.test.assert_called_once()
+        tested_targets = mock_bzl.test.call_args[0][0]
+        self.assertIn("@goldfish//emulator:external_unit_tests", tested_targets)
+
+        invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
+        self.assertIn("--nocache_test_results", invocation_flags)
+        self.assertNotIn("--jobs=2", invocation_flags)
+        self.assertFalse(mock_bzl.test.call_args[1]["fail_on_test_failure"])
+
+        # Debug postsubmit must exclude external_unit_tests
+        self.mock_env.is_release = False
+        mock_bzl.test.reset_mock()
+        stage.execute(self.ctx)
+        debug_targets = mock_bzl.test.call_args[0][0]
+        self.assertIn("-@goldfish//emulator:external_unit_tests", debug_targets)
+
+    @patch("pipeline.stages.reclaim_and_stabilize_resources")
+    @patch("pipeline.stages.bazel.BazelCmd")
+    def test_ets_integration_stage_postsubmit_and_skipped_in_debug(
+        self, mock_bazel_cmd_cls, mock_reclaim
+    ):
+        mock_bzl = MagicMock()
+        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+        mock_bzl.test.return_value = MagicMock(returncode=0)
+
+        self.mock_env.is_presubmit = False
+        self.mock_env.is_memory_constrained.return_value = True
+        self.mock_env.is_macos.return_value = False
+        self.mock_env.is_windows.return_value = False
+        self.mock_env.is_release = True
+
+        stage = stages.EtsIntegrationStage()
+        self.assertTrue(stage.should_run(self.ctx))
+
+        stage.pre_execute(self.ctx)
+        mock_reclaim.assert_called_once_with(self.mock_env, self.ctx.active_bzl)
+
+        stage.execute(self.ctx)
+        tested_targets = mock_bzl.test.call_args[0][0]
+        self.assertIn("@goldfish_test//ets:postsubmit", tested_targets)
+        self.assertIn("@goldfish_test//xts:postsubmit", tested_targets)
+
+        invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
+        self.assertIn("--nocache_test_results", invocation_flags)
+        self.assertIn("--jobs=2", invocation_flags)
+        self.assertIn("--local_resources=memory=HOST_RAM*.3", invocation_flags)
+        self.assertFalse(mock_bzl.test.call_args[1]["fail_on_test_failure"])
+
+        # Debug postsubmit (e.g. emulator_mac_aarch64_debug) must skip EtsIntegrationStage
+        self.mock_env.is_release = False
+        self.assertFalse(stage.should_run(self.ctx))
 
 
 class ContextCopyTest(unittest.TestCase):

@@ -35,8 +35,8 @@ The codebase is organized into four modular, cohesive subpackages under
   - [`stage.py`](pipeline/stage.py): Abstract `Stage` contract (`pre_execute`,
     `execute`, `on_failure`).
   - [`stages.py`](pipeline/stages.py): Concrete build and test stages
-    (`ClangTidyStage`, `ReleasePackageStage`, `UnitTestStage`,
-    `EtsIntegrationStage`, `PostsubmitStage`, `SymbolUploadStage`).
+    (`ClangTidyStage`, `ReleasePackageStage`, `SymbolUploadStage`,
+    `UnitTestStage`, `EtsIntegrationStage`).
   - [`pipeline.py`](pipeline/pipeline.py): Pipeline execution loop with
     lifecycle telemetry and error handling.
   - [`pipeline_test.py`](pipeline/pipeline_test.py): Co-located unit tests.
@@ -133,38 +133,44 @@ When `change_info.json` specifies modified C/C++ files under
 - Runs a fast-fail check (`--test_tag_filters=tidy-test`) before heavy
   compilation begins.
 
-### 2. Release Packaging & Boot Tests (Presubmit)
+### 2. Release Packaging & Boot Tests (Presubmit & Postsubmit)
 
-- Builds `@goldfish//emulator:release` and related delivery archives under
-  `--config=release`.
+- Builds `@goldfish//emulator:release` and related delivery archives (plus
+  `package_goldfish_symbols` and `package_goldfish_native_symbols` in
+  postsubmit) at full concurrency.
 - Preserves ThinLTO optimizations for shipping binaries.
 - Executes fast boot tests (`@goldfish//emulator/launcher:boot_tests`).
-- Immediately stages release artifacts into `--dist` so partial outputs are
+- Immediately stages release and symbol archives into `--dist` so outputs are
   preserved if subsequent tests fail.
 
-### 3. Fast-Fail Unit Tests (Presubmit)
+### 3. Crashpad Symbol Upload (Postsubmit)
 
-- Runs all unit tests (`@goldfish//...`) with ThinLTO explicitly disabled
-  (`--features=-thin_lto`) and `--build_tests_only`.
-- Bypasses ~185k redundant LTO backend compile actions and remote cache checks,
-  failing fast on logic defects.
-
-### 4. ETS Integration Tests (Presubmit)
-
-- Preceded by a **Resource Stabilization Hook** (`bzl.shutdown()` + `os.sync()`)
-  to reclaim resident JVM heap (2.5–4 GB) and flush buffers.
-- Runs heavy emulator integration tests (`@goldfish_test//ets:...`) with bounded
-  JVM heap (`--host_jvm_args=-Xmx1g`).
-- On memory-constrained macOS builders, throttles concurrency (`--jobs=2`,
-  `--local_resources=memory=HOST_RAM*.3`) to eliminate memory-pressure crashes
-  and swap trashing.
-
-### 5. Symbol Generation & Upload (Postsubmit)
-
-- Packages Breakpad/Crashpad symbols (`package_goldfish_symbols`).
-- Uses [`sym_upload.py`](sym_upload.py) to push symbol files to:
+- Reuses the warm Stage 2 Bazel server to locate `package_goldfish_symbols` and
+  `@breakpad//:sym_upload`.
+- Uses [`sym_upload.py`](services/sym_upload.py) to push symbol files in
+  parallel to:
   - Production: `https://prod-crashsymbolcollector-pa.googleapis.com`
   - Staging: `https://staging-crashsymbolcollector-pa.googleapis.com`
+
+### 4. Fast-Fail Unit Tests (Presubmit & Postsubmit)
+
+- Runs all unit tests (`@goldfish//...`, plus `external_unit_tests` in
+  non-Windows release postsubmit) with ThinLTO explicitly disabled
+  (`--features=-thin_lto`) and `--build_tests_only` at full concurrency.
+- Bypasses redundant LTO backend compile actions and shares action caches
+  between presubmit and postsubmit.
+
+### 5. ETS Integration Tests (Presubmit & Postsubmit)
+
+- Preceded by a **Resource Stabilization Hook** (`bzl.shutdown()` + `os.sync()`)
+  on memory-constrained hosts to reclaim resident JVM heap (2.5–4 GB) and flush
+  buffers.
+- Runs heavy emulator integration tests (`@goldfish_test//ets:presubmit` or
+  `postsubmit`, plus `@goldfish_test//xts:postsubmit` on Linux postsubmit) with
+  bounded JVM heap (`--host_jvm_args=-Xmx...`).
+- On memory-constrained hosts ($\le 34\text{ GiB}$ RAM), throttles concurrency
+  (`--jobs=2`, `--local_resources=memory=HOST_RAM*.3`) to prevent guest VM
+  memory pressure and swap thrashing without slowing down earlier compile stages.
 
 ---
 

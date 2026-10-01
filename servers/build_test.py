@@ -382,19 +382,29 @@ class BuildScriptTest(unittest.TestCase):
     @patch("pipeline.stages.bazel.BazelCmd")
     @patch("pipeline.context.copy_all")
     @patch("pipeline.context.BuildContext.copy_bazel_logs")
-    def test_build_aemu_postsubmit_constrains_jobs_and_memory_when_constrained(
+    def test_build_aemu_postsubmit_constrains_jobs_only_in_ets_stage(
         self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls, mock_reclaim
     ):
-        mock_bzl = MagicMock()
-        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
-        artifact_zip = Path("/out/sdk-repo-linux-123456.zip")
-        mock_bzl.query_artifacts.return_value = [artifact_zip]
-        mock_bzl.test.return_value = MagicMock(returncode=0)
+        mock_bzl_release = MagicMock()
+        mock_bzl_unit_tests = MagicMock()
+        mock_bzl_ets = MagicMock()
+
+        mock_bazel_cmd_cls.side_effect = [
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_release)),
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_unit_tests)),
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_ets)),
+        ]
+
+        artifact_zip = Path("/out/sdk-repo-darwin_aarch64-123456.zip")
+        mock_bzl_release.query_artifacts.return_value = [artifact_zip]
+        mock_bzl_release.test.return_value = MagicMock(returncode=0)
+        mock_bzl_unit_tests.test.return_value = MagicMock(returncode=0)
+        mock_bzl_ets.test.return_value = MagicMock(returncode=0)
 
         self.mock_env.is_presubmit = False
         self.mock_env.is_windows.return_value = False
         self.mock_env.is_release = True
-        self.mock_env.is_macos.return_value = False
+        self.mock_env.is_macos.return_value = True
         self.mock_env.is_memory_constrained.return_value = True
         self.mock_env.crashpad_symbol_server_key = None
 
@@ -402,7 +412,7 @@ class BuildScriptTest(unittest.TestCase):
             aosp=False,
             dist="/tmp/dist",
             build_id="123456",
-            target="linux_x64",
+            target="mac_aarch64",
             change_info=None,
         )
 
@@ -413,12 +423,24 @@ class BuildScriptTest(unittest.TestCase):
             build_options=["--config=release"],
         )
 
-        # In postsubmit, reclamation is performed if memory constrained
-        mock_reclaim.assert_called_once()
-        mock_bzl.test.assert_called_once()
-        inv_flags = mock_bzl.test.call_args[1]["invocation_flags"]
-        self.assertIn("--jobs=2", inv_flags)
-        self.assertIn("--local_resources=memory=HOST_RAM*.3", inv_flags)
+        # Stage 1 (ReleasePackageStage) and Stage 2 (UnitTestStage) must run unthrottled
+        mock_bzl_release.test.assert_called_once()
+        stage1_flags = mock_bzl_release.test.call_args[1]["invocation_flags"]
+        self.assertNotIn("--jobs=2", stage1_flags)
+        self.assertNotIn("--local_resources=memory=HOST_RAM*.3", stage1_flags)
+
+        mock_bzl_unit_tests.test.assert_called_once()
+        stage2_flags = mock_bzl_unit_tests.test.call_args[1]["invocation_flags"]
+        self.assertNotIn("--jobs=2", stage2_flags)
+
+        # Stage 3 (EtsIntegrationStage) reclaims resources and throttles to --jobs=2
+        mock_reclaim.assert_called_once_with(self.mock_env, mock_bzl_unit_tests)
+        mock_bzl_ets.test.assert_called_once()
+        stage3_targets = mock_bzl_ets.test.call_args[0][0]
+        self.assertIn("@goldfish_test//ets:exclusive_postsubmit", stage3_targets)
+        stage3_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
+        self.assertIn("--jobs=2", stage3_flags)
+        self.assertIn("--local_resources=memory=HOST_RAM*.3", stage3_flags)
 
     @patch("pipeline.stages.reclaim_and_stabilize_resources")
     @patch("pipeline.stages.bazel.BazelCmd")
@@ -427,11 +449,21 @@ class BuildScriptTest(unittest.TestCase):
     def test_build_aemu_postsubmit_unconstrained_preserves_rbe_jobs(
         self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls, mock_reclaim
     ):
-        mock_bzl = MagicMock()
-        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+        mock_bzl_release = MagicMock()
+        mock_bzl_unit_tests = MagicMock()
+        mock_bzl_ets = MagicMock()
+
+        mock_bazel_cmd_cls.side_effect = [
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_release)),
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_unit_tests)),
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_ets)),
+        ]
+
         artifact_zip = Path("/out/sdk-repo-linux-123456.zip")
-        mock_bzl.query_artifacts.return_value = [artifact_zip]
-        mock_bzl.test.return_value = MagicMock(returncode=0)
+        mock_bzl_release.query_artifacts.return_value = [artifact_zip]
+        mock_bzl_release.test.return_value = MagicMock(returncode=0)
+        mock_bzl_unit_tests.test.return_value = MagicMock(returncode=0)
+        mock_bzl_ets.test.return_value = MagicMock(returncode=0)
 
         self.mock_env.is_presubmit = False
         self.mock_env.is_windows.return_value = False
@@ -456,10 +488,12 @@ class BuildScriptTest(unittest.TestCase):
         )
 
         mock_reclaim.assert_not_called()
-        mock_bzl.test.assert_called_once()
-        inv_flags = mock_bzl.test.call_args[1]["invocation_flags"]
-        self.assertNotIn("--jobs=2", inv_flags)
-        self.assertNotIn("--local_resources=memory=HOST_RAM*.3", inv_flags)
+        mock_bzl_release.test.assert_called_once()
+        mock_bzl_unit_tests.test.assert_called_once()
+        mock_bzl_ets.test.assert_called_once()
+        ets_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
+        self.assertNotIn("--jobs=2", ets_flags)
+        self.assertNotIn("--local_resources=memory=HOST_RAM*.3", ets_flags)
 
 
 if __name__ == "__main__":

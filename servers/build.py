@@ -32,7 +32,6 @@ from pipeline.stages import (
     AospStage,
     ClangTidyStage,
     EtsIntegrationStage,
-    PostsubmitStage,
     ReleasePackageStage,
     SymbolUploadStage,
     UnitTestStage,
@@ -160,10 +159,9 @@ def build_aemu(
         [
             ClangTidyStage(),
             ReleasePackageStage(),
+            SymbolUploadStage(),
             UnitTestStage(),
             EtsIntegrationStage(),
-            PostsubmitStage(),
-            SymbolUploadStage(),
         ],
     )
     pipeline.run()
@@ -289,7 +287,8 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception as e:  # noqa: BLE001  # Top-level CLI entry point exception containment
+    except Exception as e:  # noqa: BLE001
+        # Top-level CLI entry point exception containment
         if not getattr(e, "_logged_by_pipeline", False):
             logger.fatal("Build failed due to %s", e)
         sys.exit(1)
