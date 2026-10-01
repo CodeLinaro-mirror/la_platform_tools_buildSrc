@@ -81,6 +81,7 @@ class PipelineTest(unittest.TestCase):
         self.mock_env.is_release = True
         self.mock_env.is_macos.return_value = False
         self.mock_env.is_windows.return_value = False
+        self.mock_env.is_linux.return_value = True
         self.mock_env.dist_dir = Path("/tmp/dist")
         self.mock_env.crashpad_symbol_server_key = "key123"
 
@@ -221,6 +222,7 @@ class PipelineTest(unittest.TestCase):
         targets = mock_bzl.test.call_args[0][0]
         self.assertIn("@goldfish//...", targets)
         self.assertIn("-@goldfish//:clang_tidy_report", targets)
+        self.assertIn("@gfxstream//:gfxstream_unit_tests", targets)
 
         # Presubmit has no --config=lto, so --features must not be mutated (avoiding analysis cache discard)
         flags_passed = mock_bazel_cmd_cls.return_value.with_build_flags.call_args[0][0]
@@ -302,6 +304,13 @@ class PipelineTest(unittest.TestCase):
             self.assertTrue(
                 any("[LINT FAILURE] Report from:" in line for line in cm.output)
             )
+
+        # Non-Linux builds must skip @gfxstream//:gfxstream_unit_tests
+        self.mock_env.is_linux.return_value = False
+        mock_bzl.test.reset_mock()
+        stage.execute(self.ctx)
+        non_linux_targets = mock_bzl.test.call_args[0][0]
+        self.assertNotIn("@gfxstream//:gfxstream_unit_tests", non_linux_targets)
 
     @patch("pipeline.stages.reclaim_and_stabilize_resources")
     @patch("pipeline.stages.bazel.BazelCmd")

@@ -238,6 +238,8 @@ class UnitTestStage(Stage):
             unit_test_targets.append("-@goldfish//emulator:external_unit_tests")
         elif not ctx.env.is_presubmit:
             unit_test_targets.append("@goldfish//emulator:external_unit_tests")
+        if ctx.env.is_linux():
+            unit_test_targets.append("@gfxstream//:gfxstream_unit_tests")
 
         tidy_build_flags = ctx.get_clang_tidy_build_flags()
 
