@@ -499,10 +499,16 @@ class PostsubmitStage(Stage):
             self.release_targets.append("@qemu//google/toolchain:zip")
             test_targets.append("@qemu//google/toolchain:generated_diff")
 
+        aux_targets = (
+            [sym_upload.Symuploader.SYM_UPLOAD_TARGET]
+            if ctx.env.crashpad_symbol_server_key
+            else []
+        )
+
         is_constrained = _is_env_memory_constrained(ctx.env)
         inv_builder = (
             BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
-            .with_targets(self.release_targets + test_targets)
+            .with_targets(self.release_targets + aux_targets + test_targets)
             .with_common_flags(ctx.build_options)
             .with_build_flags(["--build_manual_tests"])
             .with_test_defaults("android_emulator/release")
@@ -559,26 +565,12 @@ class SymbolUploadStage(Stage):
                 ctx.env, startup_options=ctx.startup_options
             )
 
-        bzl_upload = ctx.active_bzl.with_build_flags(
-            ctx.active_bzl.build_flags + ("--config=no_sponge",)
+        uploader = sym_upload.Symuploader(ctx.env, ctx.active_bzl)
+        symbol_zip_file = ctx.active_bzl.query_artifacts(
+            ["@goldfish//emulator:package_goldfish_symbols"]
+        )[0]
+        uploader.upload_from_zip(
+            symbol_zip_file,
+            ignore_failures=ctx.env.is_windows(),
+            servers=[ctx.env.crashpad_server, ctx.env.CRASHPAD_STAGING],
         )
-        uploader = sym_upload.Symuploader(ctx.env, bzl_upload)
-
-        if ctx.env.is_windows():
-            symbol_zip_file = bzl_upload.query_artifacts(
-                ["@goldfish//emulator:release"]
-            )[0]
-            uploader.upload_from_zip(symbol_zip_file, ignore_failures=True)
-            logger.info("Pushing symbols to staging as well.")
-            uploader.upload_from_zip(
-                symbol_zip_file,
-                ignore_failures=True,
-                server=ctx.env.CRASHPAD_STAGING,
-            )
-        else:
-            symbol_zip_file = bzl_upload.query_artifacts(
-                ["@goldfish//emulator:package_goldfish_symbols"]
-            )[0]
-            uploader.upload_from_zip(symbol_zip_file)
-            logger.info("Pushing symbols to staging as well.")
-            uploader.upload_from_zip(symbol_zip_file, server=ctx.env.CRASHPAD_STAGING)

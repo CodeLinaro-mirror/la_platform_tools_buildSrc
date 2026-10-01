@@ -18,7 +18,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 _SERVERS_DIR = Path(__file__).resolve().parent.parent
 if str(_SERVERS_DIR) not in sys.path:
@@ -265,9 +265,10 @@ class PipelineTest(unittest.TestCase):
         self, mock_bazel_cmd_cls, mock_uploader_cls
     ):
         self.mock_env.is_presubmit = False
+        self.mock_env.crashpad_server = "https://prod.crashpad"
+        self.mock_env.CRASHPAD_STAGING = "https://staging.crashpad"
         mock_bzl = MagicMock()
-        mock_bzl.build_flags = ()
-        mock_bzl.with_build_flags.return_value = mock_bzl
+        mock_bzl.build_flags = ("--config=release",)
         mock_bzl.query_artifacts.return_value = [Path("/out/symbols.zip")]
         self.ctx.active_bzl = mock_bzl
 
@@ -279,11 +280,45 @@ class PipelineTest(unittest.TestCase):
 
         stage.execute(self.ctx)
 
-        mock_uploader.upload_from_zip.assert_has_calls(
-            [
-                call(Path("/out/symbols.zip")),
-                call(Path("/out/symbols.zip"), server=self.mock_env.CRASHPAD_STAGING),
-            ]
+        # Must reuse ctx.active_bzl without mutating build flags (preserves analysis cache)
+        mock_bzl.with_build_flags.assert_not_called()
+        mock_uploader_cls.assert_called_once_with(self.mock_env, mock_bzl)
+        mock_bzl.query_artifacts.assert_called_once_with(
+            ["@goldfish//emulator:package_goldfish_symbols"]
+        )
+        mock_uploader.upload_from_zip.assert_called_once_with(
+            Path("/out/symbols.zip"),
+            ignore_failures=False,
+            servers=["https://prod.crashpad", "https://staging.crashpad"],
+        )
+
+    @patch("pipeline.stages.sym_upload.Symuploader")
+    @patch("pipeline.stages.bazel.BazelCmd")
+    def test_symbol_upload_stage_postsubmit_windows(
+        self, mock_bazel_cmd_cls, mock_uploader_cls
+    ):
+        self.mock_env.is_presubmit = False
+        self.mock_env.is_windows.return_value = True
+        self.mock_env.crashpad_server = "https://prod.crashpad"
+        self.mock_env.CRASHPAD_STAGING = "https://staging.crashpad"
+        mock_bzl = MagicMock()
+        mock_bzl.query_artifacts.return_value = [Path("C:/out/symbols.zip")]
+        self.ctx.active_bzl = mock_bzl
+
+        mock_uploader = MagicMock()
+        mock_uploader_cls.return_value = mock_uploader
+
+        stage = stages.SymbolUploadStage()
+        stage.execute(self.ctx)
+
+        mock_bzl.with_build_flags.assert_not_called()
+        mock_bzl.query_artifacts.assert_called_once_with(
+            ["@goldfish//emulator:package_goldfish_symbols"]
+        )
+        mock_uploader.upload_from_zip.assert_called_once_with(
+            Path("C:/out/symbols.zip"),
+            ignore_failures=True,
+            servers=["https://prod.crashpad", "https://staging.crashpad"],
         )
 
     @patch("pipeline.stages.reclaim_and_stabilize_resources")
@@ -388,9 +423,12 @@ class PipelineTest(unittest.TestCase):
         mock_reclaim.assert_not_called()
         mock_log_mem.assert_called_once_with(self.mock_env, "postsubmit start")
 
-        # execute preserves full RBE concurrency
+        # execute preserves full RBE concurrency and pre-builds @breakpad//:sym_upload
         stage.execute(self.ctx)
         mock_bzl.test.assert_called_once()
+        tested_targets = mock_bzl.test.call_args[0][0]
+        self.assertIn("@breakpad//:sym_upload", tested_targets)
+        self.assertNotIn("@breakpad//:sym_upload", stage.release_targets)
         invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
         self.assertNotIn("--jobs=2", invocation_flags)
         self.assertNotIn("--local_resources=memory=HOST_RAM*.3", invocation_flags)
