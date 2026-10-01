@@ -113,7 +113,11 @@ def get_common_build_flags(
         f"--@qemu//google/toolchain:build_id={env.build_id}",
         f"--@goldfish//emulator:is_presubmit={str(env.is_presubmit).lower()}",
     ]
-    if env.target_platform.startswith("linux"):
+    if (
+        env.target_platform.startswith("linux")
+        and env.is_release
+        and not env.is_presubmit
+    ):
         flags.append("--config=lto")
     return flags
 
@@ -179,6 +183,20 @@ def _should_run_meson_generator(args, env):
     return ctx.should_run_meson_generator()
 
 
+class _ConfigExtendAction(argparse.Action):
+    """Replaces the default config list on first use and extends on repeated --config flags."""
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        if not getattr(namespace, "_config_overridden", False):
+            setattr(namespace, self.dest, [])
+            namespace._config_overridden = True
+        items = getattr(namespace, self.dest)
+        if isinstance(values, list):
+            items.extend(values)
+        elif values is not None:
+            items.append(values)
+
+
 def _create_argument_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description="""Builds the android emulator by invoking bazel.
@@ -238,7 +256,8 @@ def _create_argument_parser() -> argparse.ArgumentParser:
         "--config",
         type=str,
         nargs="*",
-        default=_DEFAULT_CONFIG_BY_OS[platform.system().lower()],
+        action=_ConfigExtendAction,
+        default=list(_DEFAULT_CONFIG_BY_OS[platform.system().lower()]),
         help="""The configurations to use.
 
         'ci' is intended for use by buildbots.

@@ -113,7 +113,11 @@ class BazelInvocationBuilder:
             f"--@qemu//google/toolchain:build_id={self.env.build_id}",
             f"--@goldfish//emulator:is_presubmit={str(self.env.is_presubmit).lower()}",
         ]
-        if self.env.target_platform.startswith("linux"):
+        if (
+            self.env.target_platform.startswith("linux")
+            and self.env.is_release
+            and not self.env.is_presubmit
+        ):
             flags.append("--config=lto")
         self.build_flags.extend(flags)
         return self

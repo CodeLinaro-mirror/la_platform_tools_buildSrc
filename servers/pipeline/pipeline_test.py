@@ -403,6 +403,22 @@ class PipelineTest(unittest.TestCase):
         startup_opts = mock_bazel_cmd_cls.call_args[1]["startup_options"]
         self.assertFalse(any("-Xmx" in opt for opt in startup_opts))
 
+        # Debug postsubmit must skip symbol packaging and upload targets
+        self.mock_env.is_release = False
+        mock_bzl.test.reset_mock()
+        stage.execute(self.ctx)
+        debug_tested_targets = mock_bzl.test.call_args[0][0]
+        self.assertNotIn(
+            "@goldfish//emulator:package_goldfish_symbols", debug_tested_targets
+        )
+        self.assertNotIn(
+            "@goldfish//emulator:package_goldfish_native_symbols", debug_tested_targets
+        )
+        self.assertNotIn("@breakpad//:sym_upload", debug_tested_targets)
+
+        sym_stage = stages.SymbolUploadStage()
+        self.assertFalse(sym_stage.should_run(self.ctx))
+
     @patch("pipeline.stages.bazel.BazelCmd")
     def test_unit_test_stage_postsubmit_unthrottled_and_includes_external_tests(
         self, mock_bazel_cmd_cls

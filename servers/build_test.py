@@ -37,6 +37,7 @@ class BuildScriptTest(unittest.TestCase):
         self.mock_env.host_platform = "linux"
         self.mock_env.target_platform = "linux_x64"
         self.mock_env.is_presubmit = True
+        self.mock_env.is_release = True
         self.mock_env.dist_dir = Path("/tmp/dist")
         self.mock_env.tmp_dir = None
         self.mock_env.repo_root = Path("/repo")
@@ -53,6 +54,24 @@ class BuildScriptTest(unittest.TestCase):
         parser = build._create_argument_parser()
         args = parser.parse_args(["--dist", "/tmp/dist"])
         self.assertEqual(args.target, build_environment.default_target())
+
+    def test_argument_parser_multiple_config_flags(self):
+        parser = build._create_argument_parser()
+        args_repeated = parser.parse_args(
+            [
+                "--dist",
+                "/tmp/dist",
+                "--config=debug",
+                "--config=ci",
+                "--config=remote",
+            ]
+        )
+        self.assertEqual(args_repeated.config, ["debug", "ci", "remote"])
+
+        args_space = parser.parse_args(
+            ["--dist", "/tmp/dist", "--config", "debug", "ci"]
+        )
+        self.assertEqual(args_space.config, ["debug", "ci"])
 
     @patch("pipeline.stages.bazel.BazelCmd")
     @patch("pipeline.context.copy_all")
@@ -112,7 +131,22 @@ class BuildScriptTest(unittest.TestCase):
         )
         self.assertIn("--stamp", flags)
         self.assertIn("--verbose_failures", flags)
-        self.assertIn("--config=lto", flags)
+        self.assertNotIn("--config=lto", flags)
+
+        # Postsubmit release on Linux enables --config=lto
+        self.mock_env.is_presubmit = False
+        self.mock_env.is_release = True
+        postsubmit_flags = build.get_common_build_flags(
+            self.mock_env, ["--config=release"]
+        )
+        self.assertIn("--config=lto", postsubmit_flags)
+
+        # Postsubmit debug on Linux omits --config=lto
+        self.mock_env.is_release = False
+        debug_postsubmit_flags = build.get_common_build_flags(
+            self.mock_env, ["--config=debug"]
+        )
+        self.assertNotIn("--config=lto", debug_postsubmit_flags)
 
     @patch("pipeline.stages.bazel.BazelCmd")
     @patch("pipeline.context.BuildContext.copy_bazel_logs")

@@ -268,7 +268,7 @@ class ReleasePackageStage(Stage):
 
     def execute(self, ctx: BuildContext) -> None:
         self.release_targets = ["@goldfish//emulator:release"]
-        if not ctx.env.is_presubmit:
+        if not ctx.env.is_presubmit and ctx.env.is_release:
             self.release_targets.extend(
                 [
                     "@goldfish//emulator:package_goldfish_symbols",
@@ -297,7 +297,9 @@ class ReleasePackageStage(Stage):
 
         aux_targets = (
             [sym_upload.Symuploader.SYM_UPLOAD_TARGET]
-            if not ctx.env.is_presubmit and ctx.env.crashpad_symbol_server_key
+            if not ctx.env.is_presubmit
+            and ctx.env.is_release
+            and ctx.env.crashpad_symbol_server_key
             else []
         )
 
@@ -502,6 +504,7 @@ class SymbolUploadStage(Stage):
     def should_run(self, ctx: BuildContext) -> bool:
         return (
             not ctx.env.is_presubmit
+            and ctx.env.is_release
             and not getattr(ctx.args, "aosp", False)
             and "trusty" not in getattr(ctx.args, "target", "")
             and bool(ctx.env.crashpad_symbol_server_key)

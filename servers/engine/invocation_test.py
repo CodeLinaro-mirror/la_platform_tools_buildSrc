@@ -33,6 +33,7 @@ class InvocationTest(unittest.TestCase):
         self.mock_env.build_target = "linux_x64"
         self.mock_env.target_platform = "linux_x64"
         self.mock_env.is_presubmit = True
+        self.mock_env.is_release = True
         self.mock_env.is_macos.return_value = False
 
     def test_builder_common_flags(self):
@@ -46,7 +47,26 @@ class InvocationTest(unittest.TestCase):
         self.assertEqual(inv.targets, ["@goldfish//emulator:release"])
         self.assertIn("--config=ci", inv.build_flags)
         self.assertIn("--build_metadata=ab_build_id=P12345", inv.build_flags)
-        self.assertIn("--config=lto", inv.build_flags)
+        self.assertNotIn("--config=lto", inv.build_flags)
+
+        # Postsubmit release on Linux adds --config=lto
+        self.mock_env.is_presubmit = False
+        self.mock_env.is_release = True
+        inv_postsubmit = (
+            BazelInvocationBuilder("test", self.mock_env)
+            .with_common_flags(["--config=ci"])
+            .build_invocation()
+        )
+        self.assertIn("--config=lto", inv_postsubmit.build_flags)
+
+        # Postsubmit debug on Linux omits --config=lto
+        self.mock_env.is_release = False
+        inv_debug = (
+            BazelInvocationBuilder("test", self.mock_env)
+            .with_common_flags(["--config=ci"])
+            .build_invocation()
+        )
+        self.assertNotIn("--config=lto", inv_debug.build_flags)
 
     def test_builder_test_defaults(self):
         builder = (
