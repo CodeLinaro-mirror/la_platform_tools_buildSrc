@@ -85,9 +85,31 @@ class InvocationTest(unittest.TestCase):
         self.assertIn("--build_tests_only", inv.invocation_flags)
 
     def test_builder_thin_lto_disabled(self):
-        builder = BazelInvocationBuilder("test", self.mock_env).with_thin_lto_disabled()
+        # Presubmit has no --config=lto, so --features must not be mutated (preserving analysis cache)
+        self.mock_env.is_presubmit = True
+        self.mock_env.is_release = True
+        presubmit_inv = (
+            BazelInvocationBuilder("test", self.mock_env)
+            .with_common_flags(["--config=release"])
+            .with_thin_lto_disabled()
+            .build_invocation()
+        )
+        self.assertNotIn("--features=-thin_lto", presubmit_inv.build_flags)
+        self.assertNotIn("--config=lto", presubmit_inv.build_flags)
+
+        # Postsubmit Linux release has --config=lto, so it is stripped and --features=-thin_lto added
+        self.mock_env.is_presubmit = False
+        self.mock_env.is_release = True
+        builder = (
+            BazelInvocationBuilder("test", self.mock_env)
+            .with_common_flags(["--config=release"])
+            .with_thin_lto_disabled()
+        )
         inv = builder.build_invocation()
         self.assertIn("--features=-thin_lto", inv.build_flags)
+        self.assertNotIn("--config=lto", inv.build_flags)
+        self.assertIn("--stamp", inv.build_flags)
+        self.assertIn(f"--embed_label={self.mock_env.build_id}", inv.build_flags)
 
     def test_builder_macos_limits(self):
         self.mock_env.is_macos.return_value = True

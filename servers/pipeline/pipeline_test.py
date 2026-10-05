@@ -221,9 +221,11 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("@goldfish//...", targets)
         self.assertIn("-@goldfish//:clang_tidy_report", targets)
 
-        # Build flags must disable ThinLTO
+        # Build flags must disable ThinLTO while preserving --stamp and --embed_label
         flags_passed = mock_bazel_cmd_cls.return_value.with_build_flags.call_args[0][0]
         self.assertIn("--features=-thin_lto", flags_passed)
+        self.assertIn("--stamp", flags_passed)
+        self.assertIn(f"--embed_label={self.mock_env.build_id}", flags_passed)
 
     @patch("pipeline.stages.reclaim_and_stabilize_resources")
     @patch("pipeline.stages.bazel.BazelCmd")
@@ -267,10 +269,14 @@ class PipelineTest(unittest.TestCase):
         self.mock_env.crashpad_server = "https://prod.crashpad"
         self.mock_env.CRASHPAD_STAGING = "https://staging.crashpad"
         mock_bzl = MagicMock()
-        mock_bzl.build_flags = ("--config=release",)
-        mock_bzl.query_artifacts.return_value = [Path("/out/symbols.zip")]
-        self.ctx.active_bzl = mock_bzl
+        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+        symbol_artifacts = [
+            Path("/out/symbols.zip"),
+            Path("/out/native_symbols.zip"),
+        ]
+        mock_bzl.query_artifacts.return_value = symbol_artifacts
 
+        mock_uploader_cls.SYM_UPLOAD_TARGET = "@breakpad//:sym_upload"
         mock_uploader = MagicMock()
         mock_uploader_cls.return_value = mock_uploader
 
@@ -279,12 +285,24 @@ class PipelineTest(unittest.TestCase):
 
         stage.execute(self.ctx)
 
-        # Must reuse ctx.active_bzl without mutating build flags (preserves analysis cache)
-        mock_bzl.with_build_flags.assert_not_called()
-        mock_uploader_cls.assert_called_once_with(self.mock_env, mock_bzl)
-        mock_bzl.query_artifacts.assert_called_once_with(
-            ["@goldfish//emulator:package_goldfish_symbols"]
+        mock_bzl.build.assert_called_once()
+        built_targets = mock_bzl.build.call_args[0][0]
+        self.assertIn("@goldfish//emulator:package_goldfish_symbols", built_targets)
+        self.assertIn(
+            "@goldfish//emulator:package_goldfish_native_symbols", built_targets
         )
+        self.assertIn("@breakpad//:sym_upload", built_targets)
+        invocation_flags = mock_bzl.build.call_args[1]["invocation_flags"]
+        self.assertTrue(any("symbols.profile.gz" in f for f in invocation_flags))
+
+        mock_bzl.query_artifacts.assert_called_once_with(
+            [
+                "@goldfish//emulator:package_goldfish_symbols",
+                "@goldfish//emulator:package_goldfish_native_symbols",
+            ]
+        )
+        self.ctx.copy_artifacts.assert_called_once_with(symbol_artifacts)
+        mock_uploader_cls.assert_called_once_with(self.mock_env, mock_bzl)
         mock_uploader.upload_from_zip.assert_called_once_with(
             Path("/out/symbols.zip"),
             ignore_failures=False,
@@ -301,19 +319,28 @@ class PipelineTest(unittest.TestCase):
         self.mock_env.crashpad_server = "https://prod.crashpad"
         self.mock_env.CRASHPAD_STAGING = "https://staging.crashpad"
         mock_bzl = MagicMock()
-        mock_bzl.query_artifacts.return_value = [Path("C:/out/symbols.zip")]
-        self.ctx.active_bzl = mock_bzl
+        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+        symbol_artifacts = [
+            Path("C:/out/symbols.zip"),
+            Path("C:/out/native_symbols.zip"),
+        ]
+        mock_bzl.query_artifacts.return_value = symbol_artifacts
 
+        mock_uploader_cls.SYM_UPLOAD_TARGET = "@breakpad//:sym_upload"
         mock_uploader = MagicMock()
         mock_uploader_cls.return_value = mock_uploader
 
         stage = stages.SymbolUploadStage()
         stage.execute(self.ctx)
 
-        mock_bzl.with_build_flags.assert_not_called()
+        mock_bzl.build.assert_called_once()
         mock_bzl.query_artifacts.assert_called_once_with(
-            ["@goldfish//emulator:package_goldfish_symbols"]
+            [
+                "@goldfish//emulator:package_goldfish_symbols",
+                "@goldfish//emulator:package_goldfish_native_symbols",
+            ]
         )
+        self.ctx.copy_artifacts.assert_called_once_with(symbol_artifacts)
         mock_uploader.upload_from_zip.assert_called_once_with(
             Path("C:/out/symbols.zip"),
             ignore_failures=True,
@@ -367,7 +394,7 @@ class PipelineTest(unittest.TestCase):
         self.assertFalse(any("-Xmx" in opt for opt in startup_opts))
 
     @patch("pipeline.stages.bazel.BazelCmd")
-    def test_release_package_stage_postsubmit_unthrottled_and_builds_symbols(
+    def test_release_package_stage_postsubmit_unthrottled_and_decouples_symbols(
         self, mock_bazel_cmd_cls
     ):
         mock_bzl = MagicMock()
@@ -387,12 +414,11 @@ class PipelineTest(unittest.TestCase):
         stage.execute(self.ctx)
         mock_bzl.test.assert_called_once()
         tested_targets = mock_bzl.test.call_args[0][0]
-        self.assertIn("@goldfish//emulator:package_goldfish_symbols", tested_targets)
-        self.assertIn(
+        self.assertNotIn("@goldfish//emulator:package_goldfish_symbols", tested_targets)
+        self.assertNotIn(
             "@goldfish//emulator:package_goldfish_native_symbols", tested_targets
         )
-        self.assertIn("@breakpad//:sym_upload", tested_targets)
-        self.assertNotIn("@breakpad//:sym_upload", stage.release_targets)
+        self.assertNotIn("@breakpad//:sym_upload", tested_targets)
 
         invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
         self.assertIn("--nocache_test_results", invocation_flags)
@@ -403,19 +429,8 @@ class PipelineTest(unittest.TestCase):
         startup_opts = mock_bazel_cmd_cls.call_args[1]["startup_options"]
         self.assertFalse(any("-Xmx" in opt for opt in startup_opts))
 
-        # Debug postsubmit must skip symbol packaging and upload targets
+        # Debug postsubmit must skip SymbolUploadStage
         self.mock_env.is_release = False
-        mock_bzl.test.reset_mock()
-        stage.execute(self.ctx)
-        debug_tested_targets = mock_bzl.test.call_args[0][0]
-        self.assertNotIn(
-            "@goldfish//emulator:package_goldfish_symbols", debug_tested_targets
-        )
-        self.assertNotIn(
-            "@goldfish//emulator:package_goldfish_native_symbols", debug_tested_targets
-        )
-        self.assertNotIn("@breakpad//:sym_upload", debug_tested_targets)
-
         sym_stage = stages.SymbolUploadStage()
         self.assertFalse(sym_stage.should_run(self.ctx))
 

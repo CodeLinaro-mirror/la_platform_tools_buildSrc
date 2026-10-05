@@ -420,18 +420,26 @@ class BuildScriptTest(unittest.TestCase):
         self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls, mock_reclaim
     ):
         mock_bzl_release = MagicMock()
+        mock_bzl_symbols = MagicMock()
         mock_bzl_unit_tests = MagicMock()
         mock_bzl_ets = MagicMock()
 
         mock_bazel_cmd_cls.side_effect = [
             MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_release)),
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_symbols)),
             MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_unit_tests)),
             MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_ets)),
         ]
 
         artifact_zip = Path("/out/sdk-repo-darwin_aarch64-123456.zip")
+        symbol_zips = [
+            Path("/out/sdk-repo-darwin_aarch64-breakpad-symbols-123456.zip"),
+            Path("/out/sdk-repo-darwin_aarch64-native-symbols-123456.zip"),
+        ]
         mock_bzl_release.query_artifacts.return_value = [artifact_zip]
+        mock_bzl_symbols.query_artifacts.return_value = symbol_zips
         mock_bzl_release.test.return_value = MagicMock(returncode=0)
+        mock_bzl_symbols.build.return_value = MagicMock(returncode=0)
         mock_bzl_unit_tests.test.return_value = MagicMock(returncode=0)
         mock_bzl_ets.test.return_value = MagicMock(returncode=0)
 
@@ -457,24 +465,25 @@ class BuildScriptTest(unittest.TestCase):
             build_options=["--config=release"],
         )
 
-        # Stage 1 (ReleasePackageStage) and Stage 2 (UnitTestStage) must run unthrottled
+        # Stage 1 (ReleasePackageStage), Stage 2 (SymbolUploadStage), and Stage 3 (UnitTestStage) run unthrottled
         mock_bzl_release.test.assert_called_once()
         stage1_flags = mock_bzl_release.test.call_args[1]["invocation_flags"]
         self.assertNotIn("--jobs=2", stage1_flags)
         self.assertNotIn("--local_resources=memory=HOST_RAM*.3", stage1_flags)
 
+        mock_bzl_symbols.build.assert_called_once()
         mock_bzl_unit_tests.test.assert_called_once()
-        stage2_flags = mock_bzl_unit_tests.test.call_args[1]["invocation_flags"]
-        self.assertNotIn("--jobs=2", stage2_flags)
+        stage3_flags = mock_bzl_unit_tests.test.call_args[1]["invocation_flags"]
+        self.assertNotIn("--jobs=2", stage3_flags)
 
-        # Stage 3 (EtsIntegrationStage) reclaims resources and throttles to --jobs=2
+        # Stage 4 (EtsIntegrationStage) reclaims resources and throttles to --jobs=2
         mock_reclaim.assert_called_once_with(self.mock_env, mock_bzl_unit_tests)
         mock_bzl_ets.test.assert_called_once()
-        stage3_targets = mock_bzl_ets.test.call_args[0][0]
-        self.assertIn("@goldfish_test//ets:exclusive_postsubmit", stage3_targets)
-        stage3_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
-        self.assertIn("--jobs=2", stage3_flags)
-        self.assertIn("--local_resources=memory=HOST_RAM*.3", stage3_flags)
+        stage4_targets = mock_bzl_ets.test.call_args[0][0]
+        self.assertIn("@goldfish_test//ets:exclusive_postsubmit", stage4_targets)
+        stage4_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
+        self.assertIn("--jobs=2", stage4_flags)
+        self.assertIn("--local_resources=memory=HOST_RAM*.3", stage4_flags)
 
     @patch("pipeline.stages.reclaim_and_stabilize_resources")
     @patch("pipeline.stages.bazel.BazelCmd")
@@ -484,18 +493,26 @@ class BuildScriptTest(unittest.TestCase):
         self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls, mock_reclaim
     ):
         mock_bzl_release = MagicMock()
+        mock_bzl_symbols = MagicMock()
         mock_bzl_unit_tests = MagicMock()
         mock_bzl_ets = MagicMock()
 
         mock_bazel_cmd_cls.side_effect = [
             MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_release)),
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_symbols)),
             MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_unit_tests)),
             MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_ets)),
         ]
 
         artifact_zip = Path("/out/sdk-repo-linux-123456.zip")
+        symbol_zips = [
+            Path("/out/sdk-repo-linux-breakpad-symbols-123456.zip"),
+            Path("/out/sdk-repo-linux-native-symbols-123456.zip"),
+        ]
         mock_bzl_release.query_artifacts.return_value = [artifact_zip]
+        mock_bzl_symbols.query_artifacts.return_value = symbol_zips
         mock_bzl_release.test.return_value = MagicMock(returncode=0)
+        mock_bzl_symbols.build.return_value = MagicMock(returncode=0)
         mock_bzl_unit_tests.test.return_value = MagicMock(returncode=0)
         mock_bzl_ets.test.return_value = MagicMock(returncode=0)
 
@@ -523,6 +540,7 @@ class BuildScriptTest(unittest.TestCase):
 
         mock_reclaim.assert_not_called()
         mock_bzl_release.test.assert_called_once()
+        mock_bzl_symbols.build.assert_called_once()
         mock_bzl_unit_tests.test.assert_called_once()
         mock_bzl_ets.test.assert_called_once()
         ets_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]

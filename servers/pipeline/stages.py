@@ -252,7 +252,7 @@ class AospStage(Stage):
 
 
 class ReleasePackageStage(Stage):
-    """Builds release binaries, symbol archives (in postsubmit), and runs fast boot tests."""
+    """Builds release binaries and runs fast boot tests."""
 
     def __init__(self):
         self.release_targets: list[str] = []
@@ -268,13 +268,6 @@ class ReleasePackageStage(Stage):
 
     def execute(self, ctx: BuildContext) -> None:
         self.release_targets = ["@goldfish//emulator:release"]
-        if not ctx.env.is_presubmit and ctx.env.is_release:
-            self.release_targets.extend(
-                [
-                    "@goldfish//emulator:package_goldfish_symbols",
-                    "@goldfish//emulator:package_goldfish_native_symbols",
-                ]
-            )
         if ctx.env.target_platform.startswith("linux"):
             self.release_targets.extend(
                 [
@@ -295,15 +288,7 @@ class ReleasePackageStage(Stage):
             self.release_targets.append("@qemu//google/toolchain:zip")
             test_targets.append("@qemu//google/toolchain:generated_diff")
 
-        aux_targets = (
-            [sym_upload.Symuploader.SYM_UPLOAD_TARGET]
-            if not ctx.env.is_presubmit
-            and ctx.env.is_release
-            and ctx.env.crashpad_symbol_server_key
-            else []
-        )
-
-        targets = list(self.release_targets) + aux_targets + test_targets
+        targets = list(self.release_targets) + test_targets
 
         inv_builder = (
             BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
@@ -367,20 +352,11 @@ class UnitTestStage(Stage):
         elif not ctx.env.is_presubmit:
             unit_test_targets.append("@goldfish//emulator:external_unit_tests")
 
-        unit_test_build_options = list(ctx.build_options) + [
-            f"--build_metadata=ab_build_id={ctx.env.build_id}",
-            f"--build_metadata=ab_target={ctx.env.build_target}",
-            "--verbose_failures",
-            "--features=-thin_lto",
-            f"--@goldfish//emulator:build_id={ctx.env.build_id}",
-            f"--@qemu//google/toolchain:build_id={ctx.env.build_id}",
-            f"--@goldfish//emulator:is_presubmit={str(ctx.env.is_presubmit).lower()}",
-        ]
-
         inv_builder = (
             BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
             .with_targets(unit_test_targets)
-            .with_build_flags(unit_test_build_options)
+            .with_common_flags(ctx.build_options)
+            .with_thin_lto_disabled()
             .with_test_defaults("android_emulator/unit_tests")
             .with_profile(ctx.bazel_logs_dir / "unit_tests.profile.gz")
             .with_build_tests_only()
@@ -497,6 +473,9 @@ class EtsIntegrationStage(Stage):
 class SymbolUploadStage(Stage):
     """Packages and uploads Crashpad/Breakpad symbols to production and staging servers."""
 
+    def __init__(self):
+        self.symbol_targets: list[str] = []
+
     @property
     def name(self) -> str:
         return "Crashpad Symbol Upload"
@@ -507,21 +486,48 @@ class SymbolUploadStage(Stage):
             and ctx.env.is_release
             and not getattr(ctx.args, "aosp", False)
             and "trusty" not in getattr(ctx.args, "target", "")
-            and bool(ctx.env.crashpad_symbol_server_key)
         )
 
     def execute(self, ctx: BuildContext) -> None:
-        if not ctx.active_bzl:
-            ctx.active_bzl = bazel.BazelCmd(
-                ctx.env, startup_options=ctx.startup_options
-            )
-
-        uploader = sym_upload.Symuploader(ctx.env, ctx.active_bzl)
-        symbol_zip_file = ctx.active_bzl.query_artifacts(
-            ["@goldfish//emulator:package_goldfish_symbols"]
-        )[0]
-        uploader.upload_from_zip(
-            symbol_zip_file,
-            ignore_failures=ctx.env.is_windows(),
-            servers=[ctx.env.crashpad_server, ctx.env.CRASHPAD_STAGING],
+        self.symbol_targets = [
+            "@goldfish//emulator:package_goldfish_symbols",
+            "@goldfish//emulator:package_goldfish_native_symbols",
+        ]
+        aux_targets = (
+            [sym_upload.Symuploader.SYM_UPLOAD_TARGET]
+            if ctx.env.crashpad_symbol_server_key
+            else []
         )
+        targets = list(self.symbol_targets) + aux_targets
+
+        inv = (
+            BazelInvocationBuilder("build", ctx.env, ctx.startup_options)
+            .with_targets(targets)
+            .with_common_flags(ctx.build_options)
+            .with_profile(ctx.bazel_logs_dir / "symbols.profile.gz")
+            .build_invocation()
+        )
+        bzl = bazel.BazelCmd(
+            ctx.env, startup_options=inv.startup_options
+        ).with_build_flags(inv.build_flags)
+        ctx.active_bzl = bzl
+
+        bzl.build(
+            inv.targets,
+            invocation_flags=inv.invocation_flags,
+            allow_analysis_cache_discard=True,
+            timeout=inv.timeout,
+        )
+
+        artifacts = bzl.query_artifacts(self.symbol_targets)
+        ctx.copy_artifacts(artifacts)
+
+        if ctx.env.crashpad_symbol_server_key:
+            uploader = sym_upload.Symuploader(ctx.env, bzl)
+            uploader.upload_from_zip(
+                artifacts[0],
+                ignore_failures=ctx.env.is_windows(),
+                servers=[ctx.env.crashpad_server, ctx.env.CRASHPAD_STAGING],
+            )
+        else:
+            logger.warning("No server API key available, not uploading symbols.")

@@ -149,7 +149,9 @@ class BazelInvocationBuilder:
 
     def with_thin_lto_disabled(self) -> "BazelInvocationBuilder":
         """Bypasses LTO compile actions for fast unit test compilation."""
-        self.build_flags.append("--features=-thin_lto")
+        if "--config=lto" in self.build_flags:
+            self.build_flags = [f for f in self.build_flags if f != "--config=lto"]
+            self.build_flags.append("--features=-thin_lto")
         return self
 
     def with_build_tests_only(self) -> "BazelInvocationBuilder":
