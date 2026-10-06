@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import argparse
+import json
 import logging
 import pathlib
 import platform
@@ -110,6 +111,49 @@ class BuildContext:
             ChangeInfo(args.change_info) if getattr(args, "change_info", None) else None
         )
         self.active_bzl: bazel.BazelCmd | None = None
+        self._clang_tidy_cache: tuple[tuple[object, ...], list[str]] | None = None
+
+    def get_clang_tidy_build_flags(self) -> list[str]:
+        """Returns Starlark clang-tidy build flags when goldfish C/C++ files are modified."""
+        if (
+            not self.change_info
+            or getattr(self.args, "aosp", False)
+            or self.env.is_windows()
+            or not self.env.is_release
+        ):
+            return []
+
+        cache_key = (
+            id(self.change_info),
+            bool(self.env.is_windows()),
+            bool(self.env.is_release),
+        )
+        if self._clang_tidy_cache and self._clang_tidy_cache[0] == cache_key:
+            return list(self._clang_tidy_cache[1])
+
+        tidy_filters = self.change_info.get_clang_tidy_line_filter_json_by_project(
+            "hardware/generic/goldfish", self.env
+        )
+        flags: list[str] = []
+        if tidy_filters:
+            logger.info("Enabling clang-tidy targets for modified C/C++ lines")
+            flags.extend(
+                [
+                    "--@goldfish_build//:clang_tidy_enabled=true",
+                    f"--@goldfish_build//:clang_tidy_line_filter={tidy_filters}",
+                ]
+            )
+            try:
+                for filter_obj in json.loads(tidy_filters):
+                    if "name" in filter_obj:
+                        flags.append(
+                            f"--@goldfish_build//:clang_tidy_check_files={filter_obj['name']}"
+                        )
+            except (json.JSONDecodeError, ValueError) as e:
+                logger.warning("Could not parse clang-tidy filters: %s", e)
+
+        self._clang_tidy_cache = (cache_key, flags)
+        return list(flags)
 
     def copy_artifacts(self, artifacts: Iterable[pathlib.Path]) -> None:
         """Copies built artifacts into the dist directory."""

@@ -19,7 +19,6 @@ from .pipeline import Pipeline
 from .stage import Stage
 from .stages import (
     AospStage,
-    ClangTidyStage,
     EtsIntegrationStage,
     ReleasePackageStage,
     SymbolUploadStage,
@@ -32,7 +31,6 @@ from .stages import (
 __all__ = [
     "AospStage",
     "BuildContext",
-    "ClangTidyStage",
     "EtsIntegrationStage",
     "Pipeline",
     "ReleasePackageStage",

@@ -35,8 +35,8 @@ The codebase is organized into four modular, cohesive subpackages under
   - [`stage.py`](pipeline/stage.py): Abstract `Stage` contract (`pre_execute`,
     `execute`, `on_failure`).
   - [`stages.py`](pipeline/stages.py): Concrete build and test stages
-    (`ClangTidyStage`, `ReleasePackageStage`, `SymbolUploadStage`,
-    `UnitTestStage`, `EtsIntegrationStage`).
+    (`ReleasePackageStage`, `SymbolUploadStage`, `UnitTestStage`,
+    `EtsIntegrationStage`).
   - [`pipeline.py`](pipeline/pipeline.py): Pipeline execution loop with
     lifecycle telemetry and error handling.
   - [`pipeline_test.py`](pipeline/pipeline_test.py): Co-located unit tests.
@@ -121,46 +121,38 @@ python3 tools/buildSrc/servers/build.py \
 
 ## Pipeline Execution Stages
 
-### 1. Clang-Tidy Pre-Pass (Presubmit)
+### 1. Release Packaging & Boot Tests (Presubmit & Postsubmit)
 
-When `change_info.json` specifies modified C/C++ files under
-`hardware/generic/goldfish`:
-
-- Extracts diff line hunks into a fine-grained
-  `--@goldfish_build//:clang_tidy_line_filter` JSON.
-- Scopes Bazel analysis to the packages containing modified files
-  (`_find_tidy_targets()`).
-- Runs a fast-fail check (`--test_tag_filters=tidy-test`) before heavy
-  compilation begins.
-
-### 2. Release Packaging & Boot Tests (Presubmit & Postsubmit)
-
-- Builds `@goldfish//emulator:release` and related delivery archives (plus
-  `package_goldfish_symbols` and `package_goldfish_native_symbols` in
-  postsubmit) at full concurrency.
-- Preserves ThinLTO optimizations for shipping binaries.
+- Builds `@goldfish//emulator:release` and related delivery archives at full
+  concurrency.
+- Preserves ThinLTO optimizations for shipping binaries on Linux postsubmit.
 - Executes fast boot tests (`@goldfish//emulator/launcher:boot_tests`).
-- Immediately stages release and symbol archives into `--dist` so outputs are
-  preserved if subsequent tests fail.
+- Immediately stages release archives into `--dist` so outputs are preserved if
+  subsequent tests fail.
 
-### 3. Crashpad Symbol Upload (Postsubmit)
+### 2. Crashpad Symbol Upload (Postsubmit Release)
 
-- Reuses the warm Stage 2 Bazel server to locate `package_goldfish_symbols` and
-  `@breakpad//:sym_upload`.
+- Reuses the warm Stage 1 Bazel server to build `package_goldfish_symbols`,
+  `package_goldfish_native_symbols`, and `@breakpad//:sym_upload`.
 - Uses [`sym_upload.py`](services/sym_upload.py) to push symbol files in
   parallel to:
   - Production: `https://prod-crashsymbolcollector-pa.googleapis.com`
   - Staging: `https://staging-crashsymbolcollector-pa.googleapis.com`
 
-### 4. Fast-Fail Unit Tests (Presubmit & Postsubmit)
+### 3. Fast-Fail Unit Tests & Clang-Tidy (Presubmit & Postsubmit)
 
 - Runs all unit tests (`@goldfish//...`, plus `external_unit_tests` in
-  non-Windows release postsubmit) with ThinLTO explicitly disabled
-  (`--features=-thin_lto`) and `--build_tests_only` at full concurrency.
-- Bypasses redundant LTO backend compile actions and shares action caches
-  between presubmit and postsubmit.
+  non-Windows release postsubmit) with ThinLTO disabled and `--build_tests_only`
+  at full concurrency.
+- When `change_info.json` specifies modified C/C++ files under
+  `hardware/generic/goldfish` on Linux/macOS release builds, enables
+  `--@goldfish_build//:clang_tidy_enabled=true` and scopes analysis via
+  `--@goldfish_build//:clang_tidy_line_filter` and
+  `--@goldfish_build//:clang_tidy_check_files` without discarding the warm
+  Skyframe analysis cache; otherwise skips `:tidy` targets via
+  `--test_tag_filters=-tidy-test`.
 
-### 5. ETS Integration Tests (Presubmit & Postsubmit)
+### 4. ETS Integration Tests (Presubmit & Postsubmit)
 
 - Preceded by a **Resource Stabilization Hook** (`bzl.shutdown()` + `os.sync()`)
   on memory-constrained hosts to reclaim resident JVM heap (2.5–4 GB) and flush

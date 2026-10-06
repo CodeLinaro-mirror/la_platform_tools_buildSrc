@@ -30,7 +30,6 @@ from pipeline import Pipeline
 from pipeline.context import BuildContext, copy_all, safe_copy_file
 from pipeline.stages import (
     AospStage,
-    ClangTidyStage,
     EtsIntegrationStage,
     ReleasePackageStage,
     SymbolUploadStage,
@@ -161,7 +160,6 @@ def build_aemu(
     pipeline = Pipeline(
         ctx,
         [
-            ClangTidyStage(),
             ReleasePackageStage(),
             SymbolUploadStage(),
             UnitTestStage(),

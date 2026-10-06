@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import json
 import logging
 import os
 import pathlib
@@ -83,127 +82,6 @@ def reclaim_and_stabilize_resources(
         logger.warning("os.sync failed: %s", e)
 
     _log_host_memory_status(env, "after shutdown")
-
-
-class ClangTidyStage(Stage):
-    """Executes a fast-fail standalone Bazel pass exclusively running clang-tidy checks."""
-
-    def __init__(self):
-        self._tidy_filters: str | None = None
-        self._bzl_tidy: bazel.BazelCmd | None = None
-
-    @property
-    def name(self) -> str:
-        return "Clang-Tidy Pre-Pass"
-
-    def should_run(self, ctx: BuildContext) -> bool:
-        if not ctx.change_info:
-            return False
-        self._tidy_filters = ctx.change_info.get_clang_tidy_line_filter_json_by_project(
-            "hardware/generic/goldfish", ctx.env
-        )
-        return bool(self._tidy_filters)
-
-    def _find_tidy_targets(self, ctx: BuildContext) -> list[str]:
-        try:
-            filters = json.loads(self._tidy_filters or "")
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.warning("Could not parse clang-tidy filters: %s", e)
-            return ["@goldfish//..."]
-
-        goldfish_root = ctx.env.repo_root / "hardware" / "generic" / "goldfish"
-        targets = set()
-        for filter_obj in filters:
-            rel_path = filter_obj.get("name")
-            if not rel_path:
-                continue
-            file_path = goldfish_root / rel_path
-            curr = file_path.parent
-            while curr != goldfish_root and curr != curr.parent:
-                if (curr / "BUILD.bazel").exists() or (curr / "BUILD").exists():
-                    pkg_rel = curr.relative_to(goldfish_root).as_posix()
-                    targets.add(f"@goldfish//{pkg_rel}:all")
-                    break
-                curr = curr.parent
-
-        if targets:
-            logger.info("Scoped clang-tidy pre-pass to targets: %s", sorted(targets))
-            return sorted(targets)
-        return ["@goldfish//..."]
-
-    def execute(self, ctx: BuildContext) -> None:
-        logger.info("Enabling clang-tidy targets for modified C/C++ lines")
-        tidy_build_options = list(ctx.build_options) + [
-            "--@goldfish_build//:clang_tidy_enabled=true",
-            f"--@goldfish_build//:clang_tidy_line_filter={self._tidy_filters}",
-        ]
-        for filter_obj in json.loads(self._tidy_filters or "[]"):
-            tidy_build_options.append(
-                f"--@goldfish_build//:clang_tidy_check_files={filter_obj['name']}"
-            )
-
-        targets = self._find_tidy_targets(ctx)
-        logger.info(
-            "Running fast-fail pre-pass exclusively for clang-tidy checks on %s...",
-            targets,
-        )
-        self._bzl_tidy = bazel.BazelCmd(
-            ctx.env, startup_options=ctx.startup_options
-        ).with_build_flags(tidy_build_options)
-        ctx.active_bzl = self._bzl_tidy
-
-        res = self._bzl_tidy.test(
-            targets,
-            invocation_flags=[
-                "--build_tests_only",
-                "--test_tag_filters=tidy-test",
-                "--test_output=errors",
-                "--modify_execution_info=ClangTidy.*=+no-remote",
-            ],
-            allow_analysis_cache_discard=True,
-            allow_no_test=True,
-            fail_on_test_failure=False,
-            timeout=600,
-        )
-        if res.returncode == bazel.BuildExitCode.TESTS_NOT_FOUND:
-            logger.info("No clang-tidy tests found for %s, skipping pre-pass.", targets)
-            return
-        if res.returncode != 0:
-            raise build_environment.CommandFailedException(
-                "Clang-tidy pre-pass encountered violations.", res
-            )
-
-    def on_failure(self, ctx: BuildContext, exc: Exception) -> None:
-        if not self._bzl_tidy:
-            return
-        try:
-            if "bazel-testlogs" not in self._bzl_tidy.info:
-                return
-            testlogs_dir = pathlib.Path(self._bzl_tidy.info["bazel-testlogs"])
-            if not testlogs_dir.is_dir():
-                return
-
-            for log_val in testlogs_dir.rglob("test.log"):
-                content = log_val.read_text(encoding="utf-8", errors="replace")
-                if (
-                    "Clang-tidy found issues" in content
-                    or "clang-tidy crashed" in content
-                ):
-                    try:
-                        rel_path = log_val.relative_to(testlogs_dir)
-                    except ValueError:
-                        rel_path = log_val
-                    logger.error(
-                        "\n"
-                        + "=" * 80
-                        + f"\n[LINT FAILURE] Report from: {rel_path}\n"
-                        + "=" * 80
-                        + f"\n{content}\n"
-                        + "=" * 80
-                    )
-        except Exception as e:  # noqa: BLE001
-            # Telemetry extraction must not mask the primary failure
-            logger.warning("Failed to extract clang-tidy logs: %s", e)
 
 
 class AospStage(Stage):
@@ -289,12 +167,13 @@ class ReleasePackageStage(Stage):
             test_targets.append("@qemu//google/toolchain:generated_diff")
 
         targets = list(self.release_targets) + test_targets
+        tidy_build_flags = ctx.get_clang_tidy_build_flags()
 
         inv_builder = (
             BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
             .with_targets(targets)
             .with_common_flags(ctx.build_options)
-            .with_build_flags(["--build_manual_tests"])
+            .with_build_flags(["--build_manual_tests"] + tidy_build_flags)
             .with_test_defaults("android_emulator/release")
             .with_profile(ctx.bazel_logs_dir / "command.profile.gz")
             .with_fail_on_test_failure(ctx.env.is_presubmit)
@@ -331,7 +210,10 @@ class ReleasePackageStage(Stage):
 
 
 class UnitTestStage(Stage):
-    """Runs fast-fail unit tests with ThinLTO explicitly disabled."""
+    """Runs fast-fail unit tests and scoped clang-tidy checks with ThinLTO disabled."""
+
+    def __init__(self):
+        self._bzl: bazel.BazelCmd | None = None
 
     @property
     def name(self) -> str:
@@ -352,16 +234,25 @@ class UnitTestStage(Stage):
         elif not ctx.env.is_presubmit:
             unit_test_targets.append("@goldfish//emulator:external_unit_tests")
 
+        tidy_build_flags = ctx.get_clang_tidy_build_flags()
+
         inv_builder = (
             BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
             .with_targets(unit_test_targets)
             .with_common_flags(ctx.build_options)
+            .with_build_flags(tidy_build_flags)
             .with_thin_lto_disabled()
             .with_test_defaults("android_emulator/unit_tests")
             .with_profile(ctx.bazel_logs_dir / "unit_tests.profile.gz")
             .with_build_tests_only()
             .with_fail_on_test_failure(ctx.env.is_presubmit)
         )
+        if tidy_build_flags:
+            inv_builder.with_invocation_flags(
+                ["--modify_execution_info=ClangTidy.*=+no-remote"]
+            )
+        else:
+            inv_builder.with_invocation_flags(["--test_tag_filters=-tidy-test"])
         if not ctx.env.is_presubmit:
             inv_builder.with_invocation_flags(["--nocache_test_results"])
         inv = inv_builder.build_invocation()
@@ -369,6 +260,7 @@ class UnitTestStage(Stage):
         bzl = bazel.BazelCmd(
             ctx.env, startup_options=inv.startup_options
         ).with_build_flags(inv.build_flags)
+        self._bzl = bzl
         ctx.active_bzl = bzl
 
         res = bzl.test(
@@ -387,6 +279,38 @@ class UnitTestStage(Stage):
                 "Unit tests encountered failures (exit code %s).",
                 res.returncode,
             )
+
+    def on_failure(self, ctx: BuildContext, exc: Exception) -> None:
+        if not self._bzl:
+            return
+        try:
+            if "bazel-testlogs" not in self._bzl.info:
+                return
+            testlogs_dir = pathlib.Path(self._bzl.info["bazel-testlogs"])
+            if not testlogs_dir.is_dir():
+                return
+
+            for log_val in testlogs_dir.rglob("test.log"):
+                content = log_val.read_text(encoding="utf-8", errors="replace")
+                if (
+                    "Clang-tidy found issues" in content
+                    or "clang-tidy crashed" in content
+                ):
+                    try:
+                        rel_path = log_val.relative_to(testlogs_dir)
+                    except ValueError:
+                        rel_path = log_val
+                    logger.error(
+                        "\n"
+                        + "=" * 80
+                        + f"\n[LINT FAILURE] Report from: {rel_path}\n"
+                        + "=" * 80
+                        + f"\n{content}\n"
+                        + "=" * 80
+                    )
+        except Exception as e:  # noqa: BLE001
+            # Telemetry extraction must not mask the primary failure
+            logger.warning("Failed to extract clang-tidy logs: %s", e)
 
 
 class EtsIntegrationStage(Stage):
@@ -430,11 +354,12 @@ class EtsIntegrationStage(Stage):
             ets_test_targets.append("@goldfish_test//xts:postsubmit")
 
         is_constrained = _is_env_memory_constrained(ctx.env)
+        tidy_build_flags = ctx.get_clang_tidy_build_flags()
         inv_builder = (
             BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
             .with_targets(ets_test_targets)
             .with_common_flags(ctx.build_options)
-            .with_build_flags(["--build_manual_tests"])
+            .with_build_flags(["--build_manual_tests"] + tidy_build_flags)
             .with_test_defaults("android_emulator/ets")
             .with_profile(ctx.bazel_logs_dir / "ets.profile.gz")
             .with_build_tests_only()

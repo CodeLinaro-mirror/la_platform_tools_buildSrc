@@ -118,7 +118,6 @@ class PipelineTest(unittest.TestCase):
 
     def test_stage_names_exclude_stage_numbers(self):
         all_stages = [
-            stages.ClangTidyStage(),
             stages.AospStage(),
             stages.ReleasePackageStage(),
             stages.UnitTestStage(),
@@ -221,11 +220,85 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("@goldfish//...", targets)
         self.assertIn("-@goldfish//:clang_tidy_report", targets)
 
-        # Build flags must disable ThinLTO while preserving --stamp and --embed_label
+        # Presubmit has no --config=lto, so --features must not be mutated (avoiding analysis cache discard)
         flags_passed = mock_bazel_cmd_cls.return_value.with_build_flags.call_args[0][0]
-        self.assertIn("--features=-thin_lto", flags_passed)
+        self.assertNotIn("--features=-thin_lto", flags_passed)
         self.assertIn("--stamp", flags_passed)
         self.assertIn(f"--embed_label={self.mock_env.build_id}", flags_passed)
+
+        # Without goldfish C/C++ changes, tidy-test targets are skipped
+        invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
+        self.assertIn("--test_tag_filters=-tidy-test", invocation_flags)
+
+    @patch("pipeline.stages.bazel.BazelCmd")
+    def test_unit_test_stage_with_clang_tidy_changes_and_on_failure(
+        self, mock_bazel_cmd_cls
+    ):
+        mock_bzl = MagicMock()
+        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+
+        tidy_json = '[{"name": "emulator/base/foo.cc", "lines": [[10, 20]]}]'
+        mock_change_info = MagicMock()
+        mock_change_info.get_clang_tidy_line_filter_json_by_project.return_value = (
+            tidy_json
+        )
+        self.ctx.change_info = mock_change_info
+
+        # Both ReleasePackageStage and UnitTestStage receive identical clang-tidy build flags
+        rel_stage = stages.ReleasePackageStage()
+        rel_stage.execute(self.ctx)
+        rel_build_flags = list(
+            mock_bazel_cmd_cls.return_value.with_build_flags.call_args[0][0]
+        )
+        self.assertIn("--@goldfish_build//:clang_tidy_enabled=true", rel_build_flags)
+
+        mock_bzl.test.reset_mock()
+        stage = stages.UnitTestStage()
+        stage.execute(self.ctx)
+
+        unit_build_flags = list(
+            mock_bazel_cmd_cls.return_value.with_build_flags.call_args[0][0]
+        )
+        self.assertIn("--@goldfish_build//:clang_tidy_enabled=true", unit_build_flags)
+        self.assertIn(
+            f"--@goldfish_build//:clang_tidy_line_filter={tidy_json}",
+            unit_build_flags,
+        )
+        self.assertIn(
+            "--@goldfish_build//:clang_tidy_check_files=emulator/base/foo.cc",
+            unit_build_flags,
+        )
+        # get_clang_tidy_line_filter_json_by_project is cached across stages
+        mock_change_info.get_clang_tidy_line_filter_json_by_project.assert_called_once_with(
+            "hardware/generic/goldfish", self.mock_env
+        )
+
+        invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
+        self.assertIn(
+            "--modify_execution_info=ClangTidy.*=+no-remote", invocation_flags
+        )
+        self.assertNotIn("--test_tag_filters=-tidy-test", invocation_flags)
+
+        # Windows and debug builds must skip clang-tidy and pass --test_tag_filters=-tidy-test
+        self.mock_env.is_windows.return_value = True
+        mock_bzl.test.reset_mock()
+        stage.execute(self.ctx)
+        win_inv_flags = mock_bzl.test.call_args[1]["invocation_flags"]
+        self.assertIn("--test_tag_filters=-tidy-test", win_inv_flags)
+
+        # Verify on_failure extracts [LINT FAILURE] from bazel-testlogs
+        with tempfile.TemporaryDirectory() as tmpdir:
+            testlog_dir = Path(tmpdir) / "external" / "goldfish+" / "pkg" / "tidy"
+            testlog_dir.mkdir(parents=True)
+            (testlog_dir / "test.log").write_text(
+                "Clang-tidy found issues:\nfoo.cc:12: warning: bug\n"
+            )
+            mock_bzl.info = {"bazel-testlogs": tmpdir}
+            with self.assertLogs(level="ERROR") as cm:
+                stage.on_failure(self.ctx, RuntimeError("test failed"))
+            self.assertTrue(
+                any("[LINT FAILURE] Report from:" in line for line in cm.output)
+            )
 
     @patch("pipeline.stages.reclaim_and_stabilize_resources")
     @patch("pipeline.stages.bazel.BazelCmd")
