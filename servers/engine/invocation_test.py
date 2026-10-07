@@ -81,8 +81,19 @@ class InvocationTest(unittest.TestCase):
             "--build_metadata=test_definition_name=android_emulator/release",
             inv.invocation_flags,
         )
+        self.assertIn("--test_timeout=1200,1800,2400,3000", inv.invocation_flags)
         self.assertIn("--profile=/tmp/profile.gz", inv.invocation_flags)
         self.assertIn("--build_tests_only", inv.invocation_flags)
+
+        unit_inv = (
+            BazelInvocationBuilder("test", self.mock_env)
+            .with_test_defaults(
+                "android_emulator/unit_tests",
+                test_timeout="120,300,600,1200",
+            )
+            .build_invocation()
+        )
+        self.assertIn("--test_timeout=120,300,600,1200", unit_inv.invocation_flags)
 
     def test_builder_thin_lto_disabled(self):
         # Presubmit has no --config=lto, so --features must not be mutated (preserving analysis cache)

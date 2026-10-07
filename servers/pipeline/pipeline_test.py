@@ -180,6 +180,8 @@ class PipelineTest(unittest.TestCase):
         mock_bzl.test.assert_called_once()
         targets = mock_bzl.test.call_args[0][0]
         self.assertIn("@goldfish//emulator:release", targets)
+        self.assertIn("@goldfish//emulator/tests:release_zip_test", targets)
+        self.assertIn("@goldfish//emulator/tests:release_zip_internal_test", targets)
         self.assertIn("@goldfish//emulator/launcher:boot_tests", targets)
         self.ctx.copy_artifacts.assert_called_once_with([artifact_zip])
 
@@ -226,9 +228,10 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("--stamp", flags_passed)
         self.assertIn(f"--embed_label={self.mock_env.build_id}", flags_passed)
 
-        # Without goldfish C/C++ changes, tidy-test targets are skipped
+        # Without goldfish C/C++ changes, tidy-test targets are skipped and unit test timeouts are tightened
         invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
         self.assertIn("--test_tag_filters=-tidy-test", invocation_flags)
+        self.assertIn("--test_timeout=120,300,600,1200", invocation_flags)
 
     @patch("pipeline.stages.bazel.BazelCmd")
     def test_unit_test_stage_with_clang_tidy_changes_and_on_failure(

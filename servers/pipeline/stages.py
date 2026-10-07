@@ -158,9 +158,14 @@ class ReleasePackageStage(Stage):
 
         test_targets = [
             "@goldfish//emulator:release_build_test",
+            "@goldfish//emulator/tests:release_zip_test",
             "@goldfish_build//:sanity_checks",
             "@goldfish//emulator/launcher:boot_tests",
         ]
+        if ctx.env.target_platform.startswith("linux"):
+            test_targets.append(
+                "@goldfish//emulator/tests:release_zip_internal_test"
+            )
         if ctx.should_run_meson_generator():
             logger.info("QEMU changes detected, generating bazel build files.")
             self.release_targets.append("@qemu//google/toolchain:zip")
@@ -242,7 +247,10 @@ class UnitTestStage(Stage):
             .with_common_flags(ctx.build_options)
             .with_build_flags(tidy_build_flags)
             .with_thin_lto_disabled()
-            .with_test_defaults("android_emulator/unit_tests")
+            .with_test_defaults(
+                "android_emulator/unit_tests",
+                test_timeout="120,300,600,1200",
+            )
             .with_profile(ctx.bazel_logs_dir / "unit_tests.profile.gz")
             .with_build_tests_only()
             .with_fail_on_test_failure(ctx.env.is_presubmit)

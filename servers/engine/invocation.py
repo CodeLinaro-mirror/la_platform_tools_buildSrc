@@ -134,7 +134,11 @@ class BazelInvocationBuilder:
         self.invocation_flags.append(f"--profile={profile_path}")
         return self
 
-    def with_test_defaults(self, test_definition_name: str) -> "BazelInvocationBuilder":
+    def with_test_defaults(
+        self,
+        test_definition_name: str,
+        test_timeout: str = "1200,1800,2400,3000",
+    ) -> "BazelInvocationBuilder":
         """Configures standard test flags: Ants config, detailed summary, test definition."""
         self.invocation_flags.extend(
             [
@@ -142,7 +146,7 @@ class BazelInvocationBuilder:
                 f"--build_metadata=test_definition_name={test_definition_name}",
                 "--test_output=errors",
                 "--test_summary=detailed",
-                "--test_timeout=1200,1800,2400,3000",
+                f"--test_timeout={test_timeout}",
             ]
         )
         return self
