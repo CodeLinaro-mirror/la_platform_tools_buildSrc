@@ -1,134 +1,199 @@
-Emulator Build Script
-=====================
+# Android Emulator CI & Build Automation (`tools/buildSrc`)
 
-This directory contains the emulator build scripts.
-These build scripts are usually invoked from the
-android build system when:
+This directory contains the build orchestration scripts executed by the Android
+build bots (`go/ab`) for continuous integration, presubmit validation, release
+packaging, and symbol generation across Linux, macOS, and Windows.
 
-- A presubmit run is requested: Triggered when a developer sends
-  out a review for any of the registered dependent branches.
+## Overview
 
-- Post submit run is requested: Triggered when any of the branches
-  in the manifest has received a new change.
+The primary orchestrator is [`build.py`](build.py). It invokes the AOSP hermetic
+prebuilt Bazel binary (`prebuilts/bazel/<os>-x86_64/bazel`) using rules from
+`hardware/generic/goldfish`, `hardware/google/aemu`, and `third_party/qemu`.
 
-The main script that is invoked is `build_tools.py`
+### Invocation Modes
 
-Caching
--------
+- **Presubmit Runs**: Triggered when a Gerrit change is uploaded. Identified by
+  a build ID starting with `P` (e.g., `P12345678`). Executes a 3-stage fast-fail
+  pipeline.
+- **Postsubmit Runs**: Triggered when changes are merged into the repository.
+  Executes a full test matrix, builds release archives, and uploads crashpad
+  symbol files (`.sym`, `.pdb`) to staging and production symbol collectors.
+- **Local Developer Runs**: Developers can reproduce CI builds using remote
+  caching or local execution.
 
-The emulator build system has support for sccache.
+---
 
-sccache is a [ccache](https://ccache.dev/)-like compiler caching tool.
-It is used as a compiler wrapper and avoids compilation when possible,
-storing cached results either on [local disk](#local) or in
-one of [several cloud storage backends](#storage-options).
+## Package Architecture
 
-The build scripts will configure try to configure sccache as follows:
+The codebase is organized into four modular, cohesive subpackages under
+`servers/`:
 
-- When running in GCE:
+- **[`pipeline/`](pipeline/)**: Build orchestration lifecycle and execution
+  stages.
+  - [`context.py`](pipeline/context.py): Execution context, build options,
+    artifact handling, and log collection.
+  - [`stage.py`](pipeline/stage.py): Abstract `Stage` contract (`pre_execute`,
+    `execute`, `on_failure`).
+  - [`stages.py`](pipeline/stages.py): Concrete build and test stages
+    (`ReleasePackageStage`, `SymbolUploadStage`, `UnitTestStage`,
+    `EtsIntegrationStage`).
+  - [`pipeline.py`](pipeline/pipeline.py): Pipeline execution loop with
+    lifecycle telemetry and error handling.
+  - [`pipeline_test.py`](pipeline/pipeline_test.py): Co-located unit tests.
+- **[`engine/`](engine/)**: Bazel wrapper and invocation builders.
+  - [`bazel.py`](engine/bazel.py): Low-level `BazelCmd` runner, info parsing,
+    build/test execution, artifact querying.
+  - [`invocation.py`](engine/invocation.py): `BazelInvocation` dataclass and
+    fluent `BazelInvocationBuilder`.
+  - [`invocation_test.py`](engine/invocation_test.py): Co-located unit tests.
+- **[`host/`](host/)**: Host environment abstraction and system resource
+  diagnostics.
+  - [`build_environment.py`](host/build_environment.py): Platform-specific
+    environments (`LinuxBuildEnvironment`, `MacOSBuildEnvironment`,
+    `WindowsBuildEnvironment`).
+  - [`host_resources.py`](host/host_resources.py): Cross-platform memory
+    telemetry (`/proc/meminfo`, `sysctl`, `GlobalMemoryStatusEx`) and dynamic
+    constraint checks.
+  - [`build_environment_test.py`](host/build_environment_test.py),
+    [`host_resources_test.py`](host/host_resources_test.py): Co-located unit
+    tests.
+- **[`services/`](services/)**: Integrations, telemetry, and diagnostics.
+  - [`change_info.py`](services/change_info.py): Gerrit `change_info.json`
+    parser.
+  - [`sym_upload.py`](services/sym_upload.py): Crashpad/Breakpad symbol uploader
+    with staging and production support.
+  - [`log_handler.py`](services/log_handler.py): Console logging and secret
+    masking.
+  - [`change_info_test.py`](services/change_info_test.py),
+    [`sym_upload_test.py`](services/sym_upload_test.py): Co-located unit tests.
+- **[`gemini/`](gemini/)**: Gemini AI build failure explainer and credentials.
+  - [`auth.py`](gemini/auth.py): Authenticator resolving API keys via
+    environment or GCP Secret Manager.
+  - [`client.py`](gemini/client.py): REST client for Google Generative Language
+    API.
+  - [`explainer.py`](gemini/explainer.py): Context manager capturing build
+    logs/diffs and prompting Gemini Flash.
+  - [`auth_test.py`](gemini/auth_test.py),
+    [`client_test.py`](gemini/client_test.py),
+    [`explainer_test.py`](gemini/explainer_test.py): Co-located unit tests.
+- **CLI & Hook Entrypoints**:
+  - [`build.py`](build.py): Main CI and development build script.
+  - [`build_test.py`](build_test.py): CLI dispatch and integration test suite.
+  - [`buildifier.py`](buildifier.py): Buildifier pre-upload formatting hook.
+  - [`bazel_lockfile.py`](bazel_lockfile.py): Bazel lockfile update and
+    validation hook.
+  - [`__init__.py`](__init__.py): Root package exports and dynamic legacy import
+    redirection.
 
-  The `gs://emu-dev-sccache` bucket will be used to store results.
-  This bucket is *only* accessible from within google cloud projects.
-  
-  The `default` service account associated with the instance
-  must be given the following bucket permissions:
+---
 
-  - Storage Object Creator
-  - Storage Object Viewer
+## Command Line Usage
 
-  Both the windows and linux builders will use this configuration.
+### Standard CI Invocation
 
-- When running in corp network :
-
-  A redis cache instance will be used. A redis service running in
-  the emu-dev-cts project will be used to serve cache requests.
-  
-  The mac build bots will use this configuration.
-
-- When running locally:
-
-  A local cache will be used.
-
-Both the gce and redis backend act as a distributed cache.
-
-At the end of the build you will see status report:
-
-```
-01:41:14(15:13.12) scc | /buildbot/src/android/emu-master-dev $> /buildbot/src/android/emu-master-dev/prebuilts/android-emulator-build/common/sccache/linux-x86_64/sccache --stop-server
-01:41:14(15:13.67) scc | ============================================================================================================================================
-01:41:14(15:13.84) scc | Stopping sccache server...
-01:41:14(15:13.80) scc | Compile requests                  10579
-01:41:14(15:13.63) scc | Compile requests executed         10553
-01:41:14(15:13.17) scc | Cache hits                         8761
-01:41:14(15:13.88) scc | Cache hits (C/C++)                 8761
-01:41:14(15:13.39) scc | Cache misses                       1792
-01:41:14(15:13.3 ) scc | Cache misses (C/C++)               1792
-01:41:14(15:13.61) scc | Cache timeouts                        0
-01:41:14(15:13.17) scc | Cache read errors                     0
-01:41:14(15:13.72) scc | Forced recaches                       0
-01:41:14(15:13.27) scc | Cache write errors                    0
-01:41:14(15:13.81) scc | Compilation failures                  0
-01:41:14(15:13.42) scc | Build completed!
-01:41:14(15:13.70) scc | Cache errors                          0
-01:41:14(15:13.50) scc | Non-cacheable compilations            0
-01:41:14(15:13.15) scc | Non-cacheable calls                  26
-01:41:14(15:13.4 ) scc | Non-compilation calls                 0
-01:41:14(15:13.10) scc | Unsupported compiler calls            0
-01:41:14(15:13.63) scc | Average cache write               0.985 s
-01:41:14(15:13.18) scc | Average cache read miss           0.985 s
-01:41:14(15:13.67) scc | Average cache read hit            0.000 s
-01:41:14(15:13.19) scc | Failed distributed compilations       0
-01:41:14(15:13.74) scc | 
-01:41:14(15:13.17) scc | Non-cacheable reasons:
-01:41:14(15:13.72) scc | unknown source language              26
-01:41:14(15:13.24) scc | 
-01:41:14(15:13.66) scc | Cache location                  GCS, bucket: Bucket(name=emu-dev-sccache), key_prefix: (none)
-
-```
-
-
-
-Here is a sample of the improvements you get from the cache:
-
-| target                    | normal   | sccache  |
-|---------------------------|----------|----------|
-| emulator-linux_aarch64    | 34:15.57 | 13:19.67 |
-| emulator-linux_x64        | 28:15.38 | 13:51.35 |
-| sdk_tools_windows         | 22:54.00 |    X     |
-| gfxstream_sdk_tools_linux | 15:17.27 | 07:41.28 |
-
-
-Debugging Cache Performance
----------------------------
-
-You can analyze cache misses by changing the line:
-`self.env["SCCACHE_LOG"] = "info"`
-to `self.env["SCCACHE_LOG"] = "debug"`
-
-in [server_config.py](server_config.py). 
-
-After a completed build you should see the file sccache.log in the artifacts
-that contains detailed information about the cache behavior.
-
-Look for lines containing `CannotCache`, and see if there are
-any flags that are not supported by sccache.
-
-Broken Cache
-------------
-
-If you suspect that builds are failing due to a broken cache you simply:
-
-- Erase all contents from gs://emu-dev-sccache
-
-```sh
-    gsutil -m rm -a gs://emu-dev-sccache/**
+```bash
+python3 tools/buildSrc/servers/build.py \
+    --dist /tmp/dist \
+    --build-id P123456 \
+    --target linux_x64 \
+    --config release debug_symbols ci dynamic
 ```
 
-- Restart the docker container sscache-emu-dev:
+### Common Targets
 
-```sh
-    gcloud compute ssh --zone "us-west1-b" "sccache-emu-dev"  --project "emu-dev-cts"
-    docker stop sccache-redis 
-    docker rm sccache-redis
-    docker run -d -p 443:6379 -v /home/redis:/usr/local/etc/redis --name sccache-redis  redis redis-server /usr/local/etc/redis/redis.conf
-```
+- `linux_x64`: Standard Linux 64-bit emulator binaries and tests.
+- `mac_aarch64`: Apple Silicon (M1/M2/M3/M4) macOS host release.
+- `mac_x64`: Intel 64-bit macOS host release.
+- `windows_x64`: Windows 64-bit emulator release (MSVC / Clang).
+- `trusty_x64`: Stock QEMU target used by the security team.
+
+### Useful Flags
+
+- `--aosp`: Minimal build executing exclusively `@goldfish//emulator:release`
+  under `--config=aosp`, skipping internal tests, symbol generation, and
+  linters.
+- `--change_info <path>`: Path to Gerrit `change_info.json`. Enables scoped
+  clang-tidy linting and automatic QEMU Meson generator checks.
+- `--config rcache`: Configures remote caching for local developer builds
+  (requires `gcert` on gLinux or `gcloud auth` application-default login).
+
+---
+
+## Pipeline Execution Stages
+
+### 1. Release Packaging & Boot Tests (Presubmit & Postsubmit)
+
+- Builds `@goldfish//emulator:release` and related delivery archives at full
+  concurrency.
+- Preserves ThinLTO optimizations for shipping binaries on Linux postsubmit.
+- Executes fast boot tests (`@goldfish//emulator/launcher:boot_tests`).
+- Immediately stages release archives into `--dist` so outputs are preserved if
+  subsequent tests fail.
+
+### 2. Crashpad Symbol Upload (Postsubmit Release)
+
+- Reuses the warm Stage 1 Bazel server to build `package_goldfish_symbols`,
+  `package_goldfish_native_symbols`, and `@breakpad//:sym_upload`.
+- Uses [`sym_upload.py`](services/sym_upload.py) to push symbol files in
+  parallel to:
+  - Production: `https://prod-crashsymbolcollector-pa.googleapis.com`
+  - Staging: `https://staging-crashsymbolcollector-pa.googleapis.com`
+
+### 3. Fast-Fail Unit Tests & Clang-Tidy (Presubmit & Postsubmit)
+
+- Runs all unit tests (`@goldfish//...`, plus `external_unit_tests` in
+  non-Windows release postsubmit) with ThinLTO disabled and `--build_tests_only`
+  at full concurrency.
+- When `change_info.json` specifies modified C/C++ files under
+  `hardware/generic/goldfish` on Linux/macOS release builds, enables
+  `--@goldfish_build//:clang_tidy_enabled=true` and scopes analysis via
+  `--@goldfish_build//:clang_tidy_line_filter` and
+  `--@goldfish_build//:clang_tidy_check_files` without discarding the warm
+  Skyframe analysis cache; otherwise skips `:tidy` targets via
+  `--test_tag_filters=-tidy-test`.
+
+### 4. ETS Integration Tests (Presubmit & Postsubmit)
+
+- Preceded by a **Resource Stabilization Hook** (`bzl.shutdown()` + `os.sync()`)
+  on memory-constrained hosts to reclaim resident JVM heap (2.5–4 GB) and flush
+  buffers.
+- Runs heavy emulator integration tests (`@goldfish_test//ets:presubmit` or
+  `postsubmit`, plus `@goldfish_test//xts:postsubmit` on Linux postsubmit) with
+  bounded JVM heap (`--host_jvm_args=-Xmx...`).
+- On memory-constrained hosts ($\le 34\text{ GiB}$ RAM), throttles concurrency
+  (`--jobs=2`, `--local_resources=memory=HOST_RAM*.3`) to prevent guest VM
+  memory pressure and swap thrashing without slowing down earlier compile stages.
+
+---
+
+## Failure Diagnostics & Telemetry
+
+### Gemini AI Root-Cause Explainer
+
+[`explainer.py`](gemini/explainer.py) wraps build execution. When an unhandled
+exception or test failure occurs, it extracts the last 2,000 log lines alongside
+git diffs and queries Gemini Flash to summarize the root cause directly into the
+bot log.
+
+### Bazel Log Extraction
+
+On build completion or failure, [`copy_bazel_logs()`](build.py) extracts:
+
+- Bazel server logs (`server_log`, `jvm.out`, worker logs) into
+  `<dist>/logs/bazel/`.
+- Test execution logs and XMLs (`test.log`, `test.xml`) into
+  `<dist>/logs/testlogs/`.
+- Bazel execution profiles (`command.profile.gz`, `unit_tests.profile.gz`,
+  `ets.profile.gz`).
+
+---
+
+## Pre-Upload Hooks
+
+The following standalone utilities are configured in
+[`GLOBAL-PREUPLOAD.cfg`](../../hardware/generic/goldfish/development/GLOBAL-PREUPLOAD.cfg):
+
+- [`buildifier.py`](buildifier.py): Validates and formats Starlark/Bazel files
+  (`BUILD`, `WORKSPACE`, `.bzl`).
+- [`bazel_lockfile.py`](bazel_lockfile.py): Verifies and updates
+  `MODULE.bazel.lock` dependencies.
