@@ -119,7 +119,7 @@ jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
 jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
 jopt = "net.sf.jopt-simple:jopt-simple:4.9"
 juniversalchardet = "com.googlecode.juniversalchardet:juniversalchardet:1.0.3"
-gradle-tooling-api = "org.gradle:gradle-tooling-api:9.6.0"
+gradle-tooling-api = "org.gradle:gradle-tooling-api:9.7.1"
 kotlin-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinCoroutines" }
 kotlin-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinCoroutines" }
 
