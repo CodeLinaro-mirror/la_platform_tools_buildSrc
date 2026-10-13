@@ -1,0 +1,10 @@
+# Copyright 2026 The Android Open Source Project
+# SPDX-License-Identifier: Apache-2.0
+
+[tool.ruff]
+target-version = "py310"
+line-length = 88
+
+[tool.isort]
+profile = "black"
+line_length = 88
