@@ -55,13 +55,14 @@ class BuildScriptTest(unittest.TestCase):
         args = parser.parse_args(["--dist", "/tmp/dist"])
         self.assertEqual(args.target, build_environment.default_target())
 
-    def test_argument_parser_accepts_unimplemented_targets(self):
+    def test_argument_parser_accepts_all_targets(self):
         parser = build._create_argument_parser()
         for target in [
             "linux-aarch64",
             "linux_aarch64",
             "windows-aarch64",
             "windows_aarch64",
+            "windows_x64",
         ]:
             args = parser.parse_args(["--dist", "/tmp/dist", "--target", target])
             self.assertEqual(args.target, target)
@@ -69,7 +70,7 @@ class BuildScriptTest(unittest.TestCase):
     @patch("build.build_aemu")
     @patch("build.build_aosp")
     @patch("build.build_trusty")
-    def test_main_unimplemented_targets_log_and_exit_zero(
+    def test_main_windows_aarch64_normalizes_and_calls_build_aemu(
         self, mock_trusty, mock_aosp, mock_aemu
     ):
         for target in [
@@ -79,16 +80,15 @@ class BuildScriptTest(unittest.TestCase):
             with self.subTest(target=target):
                 test_args = ["build.py", "--dist", "/tmp/dist", "--target", target]
                 with patch.object(sys, "argv", test_args):
-                    with self.assertLogs(build.logger, level="INFO") as log_capture:
-                        exit_code = build.main()
-                        self.assertEqual(exit_code, 0)
-                        self.assertTrue(
-                            any("not yet implemented" in msg for msg in log_capture.output),
-                            f"Expected 'not yet implemented' in logs: {log_capture.output}",
-                        )
+                    exit_code = build.main()
+                    self.assertEqual(exit_code or 0, 0)
+                mock_aemu.assert_called()
+                call_args = mock_aemu.call_args[0]
+                self.assertEqual(call_args[0].target, "windows_aarch64")
+                self.assertEqual(call_args[1].target_platform, "windows_aarch64")
+                mock_aemu.reset_mock()
                 mock_trusty.assert_not_called()
                 mock_aosp.assert_not_called()
-                mock_aemu.assert_not_called()
 
     def test_argument_parser_multiple_config_flags(self):
         parser = build._create_argument_parser()

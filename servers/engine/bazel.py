@@ -43,6 +43,8 @@ _PLATFORM_TARGETS_BY_NAME = {
     "linux_x64": "@goldfish_build//platforms:linux_x64",
     "mac_aarch64": "@goldfish_build//platforms:macos_aarch64",
     "mac_x64": "@goldfish_build//platforms:macos_x64",
+    "windows-aarch64": "@goldfish_build//platforms:windows_aarch64",
+    "windows_aarch64": "@goldfish_build//platforms:windows_aarch64",
     "windows_x64": "@goldfish_build//platforms:windows_x64",
 }
 
@@ -214,6 +216,14 @@ class BazelCmd:
             cmd.append(
                 f"--platforms={_PLATFORM_TARGETS_BY_NAME[self._env.target_platform]}"
             )
+            if (
+                self._env.target_platform.startswith("windows")
+                and not self._env.is_windows()
+            ):
+                cmd.append(
+                    "--extra_execution_platforms=@goldfish_build//platforms:windows_x64"
+                )
+                cmd.append("--remote_local_fallback=false")
         cmd.extend(extra_flags)
         if not allow_analysis_cache_discard:
             cmd.append("--noallow_analysis_cache_discard")

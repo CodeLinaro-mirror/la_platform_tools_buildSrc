@@ -179,7 +179,9 @@ class ReleasePackageStage(Stage):
                     "@goldfish//emulator:release_internal",
                 ]
             )
-        if not ctx.env.is_windows():
+        if not ctx.env.is_windows() and not ctx.env.target_platform.startswith(
+            "windows"
+        ):
             self.release_targets.append("@goldfish_test//ets:android_ets_zip")
 
         test_targets = [
@@ -285,6 +287,18 @@ class UnitTestStage(Stage):
             unit_test_targets.append("@goldfish//emulator:external_unit_tests")
         if ctx.env.is_linux() and not _is_env_cross_compile(ctx.env):
             unit_test_targets.append("@gfxstream//:gfxstream_unit_tests")
+        if _is_env_cross_compile(ctx.env) and ctx.env.target_platform.startswith(
+            "windows"
+        ):
+            unit_test_targets.extend(
+                [
+                    "-@goldfish//emulator/crashreport/...",
+                    "-@goldfish//emulator/launcher/...",
+                    "-@goldfish//emulator/tests/...",
+                    "-@goldfish//emulator/tools/...",
+                    "-@goldfish//emulator/videobridge/java/...",
+                ]
+            )
 
         tidy_build_flags = ctx.get_clang_tidy_build_flags()
         is_cross_compile = _is_env_cross_compile(ctx.env)
@@ -296,6 +310,7 @@ class UnitTestStage(Stage):
                 .with_common_flags(ctx.build_options)
                 .with_build_flags(tidy_build_flags)
                 .with_thin_lto_disabled()
+                .with_build_tests_only()
                 .with_profile(ctx.bazel_logs_dir / "unit_tests.profile.gz")
             )
             if tidy_build_flags:

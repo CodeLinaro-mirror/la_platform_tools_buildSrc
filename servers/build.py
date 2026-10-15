@@ -40,10 +40,7 @@ from services.log_handler import config_logging
 
 _reclaim_and_stabilize_resources = reclaim_and_stabilize_resources
 
-_UNIMPLEMENTED_TARGETS = {
-    "windows-aarch64",
-    "windows_aarch64",
-}
+_UNIMPLEMENTED_TARGETS: set[str] = set()
 
 _DEFAULT_CONFIG_BY_OS = {
     "linux": ["release", "debug_symbols", "ci", "dynamic"],
@@ -322,10 +319,6 @@ def main():
                 f"--install_base={env.tmp_dir / 'install'}",
             ]
 
-        build_options = [f"--config={c}" for c in args.config]
-        if not env.is_presubmit:
-            build_options.append("--bes_keywords=ab-postsubmit")
-
         if args.target in _UNIMPLEMENTED_TARGETS:
             logger.info("Target %s is not yet implemented", args.target)
             return 0
@@ -333,6 +326,25 @@ def main():
         if args.target == "linux-aarch64":
             args.target = "linux_aarch64"
             env.target_platform = "linux_aarch64"
+
+        if args.target == "windows-aarch64":
+            args.target = "windows_aarch64"
+            env.target_platform = "windows_aarch64"
+
+        configs = list(args.config)
+        if env.target_platform.startswith("windows") and not env.is_windows():
+            # Cross-compiling for Windows from a non-Windows host:
+            # Remote execution is required (Windows actions must run on Windows RBE workers),
+            # and local dynamic execution must be disabled since the host cannot run Windows PE binaries.
+            configs = [c if c != "dynamic" else "remote" for c in configs]
+            if "remote" not in configs:
+                configs.append("remote")
+            if "debug_symbols" in configs:
+                configs.remove("debug_symbols")
+
+        build_options = [f"--config={c}" for c in configs]
+        if not env.is_presubmit:
+            build_options.append("--bes_keywords=ab-postsubmit")
 
         if "trusty" in args.target:
             return build_trusty(args, env)
