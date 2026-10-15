@@ -75,7 +75,9 @@ class BuildEnvironmentTest(unittest.TestCase):
         self.assertFalse(env.is_presubmit)
         self.assertFalse(env.is_release)
 
-        with patch("subprocess.check_output", return_value="/Applications/Xcode.app"), env:
+        with patch(
+            "subprocess.check_output", return_value="/Applications/Xcode.app"
+        ), env:
             self.assertEqual(
                 env.get_env().get("DEVELOPER_DIR"), "/Applications/Xcode.app"
             )
@@ -263,6 +265,30 @@ class BuildEnvironmentTest(unittest.TestCase):
         metrics = env.get_host_memory_metrics()
         self.assertEqual(metrics.total_gb, 16.0)
         mock_get_metrics.assert_called_once_with(env)
+
+    @patch("host.build_environment.platform.system")
+    def test_is_cross_compile(self, mock_system):
+        mock_system.return_value = "Linux"
+        env_native = build_environment.create_build_environment(
+            argparse.Namespace(
+                dist="/tmp/dist", build_id="P123", target="linux_x64", config=[]
+            )
+        )
+        self.assertFalse(env_native.is_cross_compile())
+
+        env_cross = build_environment.create_build_environment(
+            argparse.Namespace(
+                dist="/tmp/dist", build_id="P123", target="linux_aarch64", config=[]
+            )
+        )
+        self.assertTrue(env_cross.is_cross_compile())
+
+        env_trusty = build_environment.create_build_environment(
+            argparse.Namespace(
+                dist="/tmp/dist", build_id="P123", target="trusty_x64", config=[]
+            )
+        )
+        self.assertFalse(env_trusty.is_cross_compile())
 
 
 if __name__ == "__main__":

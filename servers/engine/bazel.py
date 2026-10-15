@@ -38,6 +38,8 @@ except ImportError:
     from log_handler import mask_command, redact_secrets, register_secret
 
 _PLATFORM_TARGETS_BY_NAME = {
+    "linux-aarch64": "@goldfish_build//platforms:linux_aarch64",
+    "linux_aarch64": "@goldfish_build//platforms:linux_aarch64",
     "linux_x64": "@goldfish_build//platforms:linux_x64",
     "mac_aarch64": "@goldfish_build//platforms:macos_aarch64",
     "mac_x64": "@goldfish_build//platforms:macos_x64",
@@ -387,9 +389,7 @@ class BazelCmd:
         )
         return result
 
-    def shutdown(
-        self, timeout: float | None = 120
-    ) -> subprocess.CompletedProcess:
+    def shutdown(self, timeout: float | None = 120) -> subprocess.CompletedProcess:
         """Runs ``bazel shutdown`` to stop the server and release resident memory."""
         cmd = [str(self._path)]
         cmd.extend(self._startup_options)

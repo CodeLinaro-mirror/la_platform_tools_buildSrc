@@ -41,8 +41,6 @@ from services.log_handler import config_logging
 _reclaim_and_stabilize_resources = reclaim_and_stabilize_resources
 
 _UNIMPLEMENTED_TARGETS = {
-    "linux-aarch64",
-    "linux_aarch64",
     "windows-aarch64",
     "windows_aarch64",
 }
@@ -306,6 +304,10 @@ def main():
         if args.target in _UNIMPLEMENTED_TARGETS:
             logger.info("Target %s is not yet implemented", args.target)
             return 0
+
+        if args.target == "linux-aarch64":
+            args.target = "linux_aarch64"
+            env.target_platform = "linux_aarch64"
 
         if "trusty" in args.target:
             return build_trusty(args, env)

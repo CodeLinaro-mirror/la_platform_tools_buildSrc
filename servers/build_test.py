@@ -73,8 +73,6 @@ class BuildScriptTest(unittest.TestCase):
         self, mock_trusty, mock_aosp, mock_aemu
     ):
         for target in [
-            "linux-aarch64",
-            "linux_aarch64",
             "windows-aarch64",
             "windows_aarch64",
         ]:
@@ -583,6 +581,62 @@ class BuildScriptTest(unittest.TestCase):
         ets_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
         self.assertNotIn("--jobs=2", ets_flags)
         self.assertNotIn("--local_resources=memory=HOST_RAM*.3", ets_flags)
+
+    @patch("pipeline.stages.bazel.BazelCmd")
+    @patch("pipeline.context.copy_all")
+    @patch("pipeline.context.BuildContext.copy_bazel_logs")
+    def test_build_aemu_cross_compile_builds_without_running_tests(
+        self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls
+    ):
+        mock_bzl_release = MagicMock()
+        mock_bzl_unit_tests = MagicMock()
+
+        mock_bazel_cmd_cls.side_effect = [
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_release)),
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_unit_tests)),
+        ]
+
+        artifact_zip = Path("/out/sdk-repo-linux_aarch64-P123456.zip")
+        mock_bzl_release.query_artifacts.return_value = [artifact_zip]
+
+        self.mock_env.target_platform = "linux_aarch64"
+        self.mock_env.is_cross_compile.return_value = True
+        self.mock_env.is_windows.return_value = False
+        self.mock_env.is_linux.return_value = True
+        self.mock_env.is_macos.return_value = False
+        self.mock_env.is_release = True
+
+        args = argparse.Namespace(
+            aosp=False,
+            dist="/tmp/dist",
+            build_id="P123456",
+            target="linux_aarch64",
+            change_info=None,
+        )
+
+        build.build_aemu(
+            args,
+            self.mock_env,
+            startup_options=[],
+            build_options=["--config=release"],
+        )
+
+        # Stage 1 (ReleasePackageStage) uses bzl.build on release_targets only (not bzl.test)
+        mock_bzl_release.build.assert_called_once()
+        mock_bzl_release.test.assert_not_called()
+        stage1_targets = mock_bzl_release.build.call_args[0][0]
+        self.assertIn("@goldfish//emulator:release", stage1_targets)
+        self.assertNotIn("@goldfish//emulator/launcher:boot_tests", stage1_targets)
+        mock_copy_all.assert_called_once_with([artifact_zip], self.mock_env.dist_dir)
+
+        # Stage 2 (UnitTestStage) uses bzl.build to compile unit test targets without executing them
+        mock_bzl_unit_tests.build.assert_called_once()
+        mock_bzl_unit_tests.test.assert_not_called()
+        stage2_targets = mock_bzl_unit_tests.build.call_args[0][0]
+        self.assertIn("@goldfish//...", stage2_targets)
+
+        # Stage 3 (EtsIntegrationStage) is skipped when cross-compiling (only 2 BazelCmd instances created)
+        self.assertEqual(mock_bazel_cmd_cls.call_count, 2)
 
 
 if __name__ == "__main__":
