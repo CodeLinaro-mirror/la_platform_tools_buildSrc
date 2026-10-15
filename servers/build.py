@@ -40,6 +40,13 @@ from services.log_handler import config_logging
 
 _reclaim_and_stabilize_resources = reclaim_and_stabilize_resources
 
+_UNIMPLEMENTED_TARGETS = {
+    "linux-aarch64",
+    "linux_aarch64",
+    "windows-aarch64",
+    "windows_aarch64",
+}
+
 _DEFAULT_CONFIG_BY_OS = {
     "linux": ["release", "debug_symbols", "ci", "dynamic"],
     "darwin": ["release", "debug_symbols", "ci"],
@@ -230,13 +237,17 @@ def _create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--target",
         type=str,
-        choices=["trusty_x64"] + list(bazel._PLATFORM_TARGETS_BY_NAME.keys()),
+        choices=["trusty_x64"]
+        + list(bazel._PLATFORM_TARGETS_BY_NAME.keys())
+        + sorted(_UNIMPLEMENTED_TARGETS),
         default=build_environment.default_target(),
         help=f"""The build target
         Must be one of:
         'trusty_x64' - Stock qemu, used by security team
         Or one of the following emulator releases:
-        {", ".join([f"'{key}'" for key in bazel._PLATFORM_TARGETS_BY_NAME])}
+        {", ".join([f"'{key}'" for key in bazel._PLATFORM_TARGETS_BY_NAME])},
+        or pending targets:
+        {", ".join([f"'{key}'" for key in sorted(_UNIMPLEMENTED_TARGETS)])}
         """,
     )
     parser.add_argument(
@@ -292,6 +303,10 @@ def main():
         if not env.is_presubmit:
             build_options.append("--bes_keywords=ab-postsubmit")
 
+        if args.target in _UNIMPLEMENTED_TARGETS:
+            logger.info("Target %s is not yet implemented", args.target)
+            return 0
+
         if "trusty" in args.target:
             return build_trusty(args, env)
 
@@ -303,7 +318,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        sys.exit(main() or 0)
     except Exception as e:  # noqa: BLE001
         # Top-level CLI entry point exception containment
         if not getattr(e, "_logged_by_pipeline", False):
