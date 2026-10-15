@@ -70,6 +70,7 @@ com-android-tools-apkparser-binaryResources = { module = "com.android.tools.apkp
 com-android-tools-apkparser-apkanalyzer = { module = "com.android.tools.apkparser:apkanalyzer", version.ref = "base" }
 com-android-tools-build-apksig = { module = "com.android.tools.build:apksig", version.ref = "build" }
 com-android-tools-build-apkzlib = { module = "com.android.tools.build:apkzlib", version.ref = "build" }
+com-android-tools-build-standaloneTools = { module = "com.android.tools.build:standalone-tools", version.ref = "build" }
 com-android-tools-ddms-ddmlib = { module = "com.android.tools.ddms:ddmlib", version.ref = "base" }
 com-android-tools-ddms-ddmlibtest = { module = "com.android.tools.ddms:ddmlib-test", version.ref = "base" }
 com-android-tools-dvlib = { module = "com.android.tools:dvlib", version.ref = "base" }
