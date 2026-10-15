@@ -43,17 +43,6 @@ project.ext['buildVersion'] = nextMajor ? "${nextMajorIncrementedValue}.0.0-dev"
 
 project.ext['releaseBuildVersion'] = releaseBuildVersion
 
-Properties androidTestProperties = new Properties()
-File androidTestVersionProperties = new File(versionRootDir, "base/android-test/release_version.bzl")
-if (!androidTestVersionProperties.exists()) {
-    throw new IllegalStateException("Android test engine version file not found: ${androidTestVersionProperties.absolutePath}")
-}
-androidTestVersionProperties.withReader { androidTestProperties.load(it) }
-String releaseAndroidTestEngineVersion = androidTestProperties.getProperty('ANDROID_TEST_ENGINE_VERSION_RELEASE') - '"' - '"'
-String devAndroidTestEngineVersion = androidTestProperties.getProperty('ANDROID_TEST_ENGINE_VERSION_DEV') - '"' - '"'
-String androidTestEngineVersion = release ? releaseAndroidTestEngineVersion : devAndroidTestEngineVersion
-project.ext['androidTestEngineVersion'] = androidTestEngineVersion
-
 // This will be replaced with a dependency catalog soon.
 
 // Deep copy the dependency map to give more helpful error messages,
@@ -82,14 +71,12 @@ Map<String, ?> libs = [:]
 // TODO(b/143864616): These will be replaced by a version catalog
 libs['versions'] = [
         'base': provider { project.ext['baseVersion'] },
-        'build': provider { bazelBuildVersion },
-        'androidTestEngine': provider { project.ext['androidTestEngineVersion'] }
+        'build': provider { bazelBuildVersion }
 ]
 for (name in dependencies.stringPropertyNames()) {
     String value = dependencies.getProperty(name)
             .replace(':buildVersion', ':' + libs.versions.build.get())
             .replace(':baseVersion', ':' + libs.versions.base.get())
-            .replace(':androidTestEngineVersion', ':' + libs.versions.androidTestEngine.get())
 
     // Use . separated names in preparation for migration to a version catalog
     Iterator<String> paths = Arrays.asList(name.split('_')).iterator()
