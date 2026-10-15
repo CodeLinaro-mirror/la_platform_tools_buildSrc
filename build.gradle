@@ -32,7 +32,7 @@ dependencies {
     implementation libs.protobuf_gradle_plugin
     implementation libs.apache_commons_lang
     implementation libs.jsoup
-    implementation libs.kotlin_gradle_plugin
+    implementation libs.kotlin_gradle_plugin_for_agp_build
 
     testImplementation libs.junit
 }

@@ -8,8 +8,8 @@ buildscript {
     }
 
     dependencies {
-        classpath libs.kotlin_gradle_plugin
-        classpath libs.kotlin_reflect
+        classpath libs.kotlin_gradle_plugin_for_agp_build
+        classpath libs.kotlin_reflect_for_agp_build
         classpath libs.guava
         classpath "gradle.plugin.org.jetbrains.gradle.plugin.idea-ext:gradle-idea-ext:0.8.1"
     }
