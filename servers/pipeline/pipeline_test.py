@@ -219,6 +219,7 @@ class PipelineTest(unittest.TestCase):
         stage.execute(self.ctx)
 
         mock_bzl.test.assert_called_once()
+        mock_bzl.coverage.assert_not_called()
         targets = mock_bzl.test.call_args[0][0]
         self.assertIn("@goldfish//...", targets)
         self.assertIn("-@goldfish//:clang_tidy_report", targets)
@@ -234,6 +235,34 @@ class PipelineTest(unittest.TestCase):
         invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
         self.assertIn("--test_tag_filters=-tidy-test", invocation_flags)
         self.assertIn("--test_timeout=120,300,600,1200", invocation_flags)
+
+    @patch("pipeline.stages.bazel.BazelCmd")
+    def test_unit_test_stage_postsubmit_runs_coverage_on_linux_release(
+        self, mock_bazel_cmd_cls
+    ):
+        mock_bzl = MagicMock()
+        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+        self.mock_env.is_presubmit = False
+
+        stage = stages.UnitTestStage()
+        stage.execute(self.ctx)
+
+        mock_bzl.coverage.assert_called_once()
+        mock_bzl.test.assert_not_called()
+        targets = mock_bzl.coverage.call_args[0][0]
+        self.assertIn("@goldfish//...", targets)
+        self.assertIn("@goldfish//emulator:external_unit_tests", targets)
+        self.assertIn("@gfxstream//:gfxstream_unit_tests", targets)
+        invocation_flags = mock_bzl.coverage.call_args[1]["invocation_flags"]
+        self.assertIn("--nocache_test_results", invocation_flags)
+        self.assertIn("--test_tag_filters=-tidy-test", invocation_flags)
+
+        # Debug or non-Linux postsubmits fall back to bazel test
+        self.mock_env.is_release = False
+        mock_bzl.coverage.reset_mock()
+        stage.execute(self.ctx)
+        mock_bzl.test.assert_called_once()
+        mock_bzl.coverage.assert_not_called()
 
     @patch("pipeline.stages.bazel.BazelCmd")
     def test_unit_test_stage_with_clang_tidy_changes_and_on_failure(
@@ -258,6 +287,7 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("--@goldfish_build//:clang_tidy_enabled=true", rel_build_flags)
 
         mock_bzl.test.reset_mock()
+        mock_bzl.coverage.reset_mock()
         stage = stages.UnitTestStage()
         stage.execute(self.ctx)
 
@@ -278,6 +308,8 @@ class PipelineTest(unittest.TestCase):
             "hardware/generic/goldfish", self.mock_env
         )
 
+        mock_bzl.test.assert_called_once()
+        mock_bzl.coverage.assert_not_called()
         invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
         self.assertIn(
             "--modify_execution_info=ClangTidy.*=+no-remote", invocation_flags
@@ -287,7 +319,10 @@ class PipelineTest(unittest.TestCase):
         # Windows and debug builds must skip clang-tidy and pass --test_tag_filters=-tidy-test
         self.mock_env.is_windows.return_value = True
         mock_bzl.test.reset_mock()
+        mock_bzl.coverage.reset_mock()
         stage.execute(self.ctx)
+        mock_bzl.test.assert_called_once()
+        mock_bzl.coverage.assert_not_called()
         win_inv_flags = mock_bzl.test.call_args[1]["invocation_flags"]
         self.assertIn("--test_tag_filters=-tidy-test", win_inv_flags)
 
@@ -674,6 +709,78 @@ class ContextCopyTest(unittest.TestCase):
 
         self.assertEqual(dest_test_log.read_text(), "new test log")
         self.assertTrue(bool(dest_test_log.stat().st_mode & stat.S_IWUSR))
+
+    def test_copy_bazel_logs_copies_coverage_reports_and_st_testlogs(self):
+        mock_env = MagicMock()
+        mock_env.dist_dir = self.test_dir / "dist"
+        mock_env.is_presubmit = True
+        mock_env.is_release = True
+        mock_env.is_windows.return_value = False
+        mock_env.is_macos.return_value = False
+
+        args = argparse.Namespace(dist=str(mock_env.dist_dir), change_info=None)
+        ctx = BuildContext(args, mock_env)
+
+        fake_output_base = self.test_dir / "output_base"
+        fake_output_base.mkdir(parents=True, exist_ok=True)
+        (fake_output_base / "server").mkdir(parents=True, exist_ok=True)
+        (fake_output_base / "server" / "jvm.out").write_text("jvm log")
+        server_log = fake_output_base / "server.log"
+        server_log.write_text("server log")
+
+        fake_output_path = self.test_dir / "bazel-out"
+        primary_testlogs = fake_output_path / "k8-opt" / "testlogs"
+        primary_testlogs.mkdir(parents=True, exist_ok=True)
+
+        # Coverage transition testlog directory (k8-opt-ST-*)
+        st_testlogs = (
+            fake_output_path
+            / "k8-opt-ST-f481a530da89"
+            / "testlogs"
+            / "external"
+            / "goldfish+"
+            / "emulator"
+            / "libs"
+            / "ini_file"
+            / "ini_file_test"
+        )
+        st_testlogs.mkdir(parents=True, exist_ok=True)
+        (st_testlogs / "test.log").write_text("passed")
+        (st_testlogs / "coverage.dat").write_text("SF:emulator/libs/ini_file/ini_file.cc\nend_of_record\n")
+
+        # Combined LCOV report under bazel-out/_coverage/_coverage_report.dat
+        coverage_dir = fake_output_path / "_coverage"
+        coverage_dir.mkdir(parents=True, exist_ok=True)
+        combined_report = coverage_dir / "_coverage_report.dat"
+        combined_report.write_text("TN:\nSF:emulator/libs/ini_file/ini_file.cc\nLH:10\nLF:10\nend_of_record\n")
+        combined_report.chmod(stat.S_IREAD)
+
+        mock_bzl = MagicMock()
+        mock_bzl.info = {
+            "output_base": str(fake_output_base),
+            "server_log": str(server_log),
+            "bazel-testlogs": str(primary_testlogs),
+            "output_path": str(fake_output_path),
+        }
+
+        ctx.copy_bazel_logs(mock_bzl)
+
+        dest_combined = mock_env.dist_dir / "coverage_report.dat"
+        self.assertTrue(dest_combined.is_file())
+        self.assertIn("LH:10", dest_combined.read_text())
+
+        dest_per_test_cov = (
+            ctx.testlogs_dest_dir
+            / "external"
+            / "goldfish+"
+            / "emulator"
+            / "libs"
+            / "ini_file"
+            / "ini_file_test"
+            / "coverage.dat"
+        )
+        self.assertTrue(dest_per_test_cov.is_file())
+        self.assertIn("SF:emulator/libs/ini_file/ini_file.cc", dest_per_test_cov.read_text())
 
 
 if __name__ == "__main__":

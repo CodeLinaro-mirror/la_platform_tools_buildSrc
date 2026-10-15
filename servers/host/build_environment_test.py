@@ -229,6 +229,29 @@ class BuildEnvironmentTest(unittest.TestCase):
         self.assertNotIn("bazel_test_secret_key_xyz", str(ctx.exception))
         self.assertIn("--test_env=GEMINI_API_KEY=******", str(ctx.exception))
 
+    def test_bazel_cmd_coverage_invokes_coverage_verb_and_redacts_secrets(self):
+        from engine import bazel
+
+        args = argparse.Namespace(
+            dist="/tmp/dist", build_id="P123", target="linux_x64", config=[]
+        )
+        env = build_environment.BuildEnvironment(args)
+        env.gemini_api_key = "bazel_coverage_secret_key_xyz"
+        env.run = MagicMock(
+            return_value=subprocess.CompletedProcess(
+                args=[], returncode=bazel.BuildExitCode.TESTS_FAILED
+            )
+        )
+
+        bzl = bazel.BazelCmd(env)
+        with self.assertRaises(build_environment.CommandFailedException) as ctx:
+            bzl.coverage(["@goldfish//..."])
+
+        cmd_called = env.run.call_args[0][0]
+        self.assertIn("coverage", cmd_called)
+        self.assertNotIn("bazel_coverage_secret_key_xyz", str(ctx.exception))
+        self.assertIn("--test_env=GEMINI_API_KEY=******", str(ctx.exception))
+
     def test_global_logger_redacts_registered_secrets_and_patterns(self):
         from services.log_handler import register_secret
 

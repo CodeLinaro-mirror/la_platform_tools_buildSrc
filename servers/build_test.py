@@ -385,8 +385,9 @@ class BuildScriptTest(unittest.TestCase):
             self.assertNotIn("@goldfish_test//ets:presubmit", t)
         mock_copy_all.assert_called_once_with([artifact_zip], self.mock_env.dist_dir)
 
-        # Stage 2: mock_bzl_unit_tests.test called with unit test targets
+        # Stage 2: mock_bzl_unit_tests.test called with unit test targets in presubmit
         mock_bzl_unit_tests.test.assert_called_once()
+        mock_bzl_unit_tests.coverage.assert_not_called()
         stage2_flags = mock_bzl_unit_tests.test.call_args[1]["invocation_flags"]
         self.assertIn("--build_tests_only", stage2_flags)
 
@@ -548,7 +549,7 @@ class BuildScriptTest(unittest.TestCase):
         mock_bzl_symbols.query_artifacts.return_value = symbol_zips
         mock_bzl_release.test.return_value = MagicMock(returncode=0)
         mock_bzl_symbols.build.return_value = MagicMock(returncode=0)
-        mock_bzl_unit_tests.test.return_value = MagicMock(returncode=0)
+        mock_bzl_unit_tests.coverage.return_value = MagicMock(returncode=0)
         mock_bzl_ets.test.return_value = MagicMock(returncode=0)
 
         self.mock_env.is_presubmit = False
@@ -576,7 +577,7 @@ class BuildScriptTest(unittest.TestCase):
         mock_reclaim.assert_not_called()
         mock_bzl_release.test.assert_called_once()
         mock_bzl_symbols.build.assert_called_once()
-        mock_bzl_unit_tests.test.assert_called_once()
+        mock_bzl_unit_tests.coverage.assert_called_once()
         mock_bzl_ets.test.assert_called_once()
         ets_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
         self.assertNotIn("--jobs=2", ets_flags)

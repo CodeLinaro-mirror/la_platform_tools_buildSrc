@@ -37,7 +37,7 @@ except ImportError:
 class BazelInvocation:
     """Encapsulates the configuration and flags for a single Bazel execution."""
 
-    verb: str  # "test", "build", "run", "cquery"
+    verb: str  # "test", "coverage", "build", "run", "cquery"
     targets: list[str] = field(default_factory=list)
     startup_options: list[str] = field(default_factory=list)
     build_flags: list[str] = field(default_factory=list)
@@ -57,6 +57,15 @@ class BazelInvocation:
 
         if self.verb == "test":
             return bzl.test(
+                self.targets,
+                invocation_flags=self.invocation_flags,
+                allow_analysis_cache_discard=self.allow_analysis_cache_discard,
+                allow_no_test=self.allow_no_test,
+                fail_on_test_failure=self.fail_on_test_failure,
+                timeout=self.timeout,
+            )
+        elif self.verb == "coverage":
+            return bzl.coverage(
                 self.targets,
                 invocation_flags=self.invocation_flags,
                 allow_analysis_cache_discard=self.allow_analysis_cache_discard,

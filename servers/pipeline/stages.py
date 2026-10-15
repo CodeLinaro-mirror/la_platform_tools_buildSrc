@@ -61,6 +61,22 @@ def _is_env_cross_compile(env: build_environment.BuildEnvironment) -> bool:
     return False
 
 
+def _should_collect_coverage(env: build_environment.BuildEnvironment) -> bool:
+    """Returns True when unit tests should run under `bazel coverage` (native Linux release postsubmit builds)."""
+    if (
+        env.is_presubmit
+        or not env.is_release
+        or env.is_windows()
+        or env.is_macos()
+        or _is_env_cross_compile(env)
+    ):
+        return False
+    res = env.is_linux()
+    if MagicMock is not None and isinstance(res, MagicMock):
+        return env.target_platform.startswith("linux")
+    return bool(res)
+
+
 def _log_host_memory_status(env: build_environment.BuildEnvironment, label: str = ""):
     """Logs host memory and swap metrics for telemetry and diagnostics."""
     host_resources.log_host_memory_status(env, label)
@@ -302,8 +318,10 @@ class UnitTestStage(Stage):
             )
             return
 
+        verb = "coverage" if _should_collect_coverage(ctx.env) else "test"
+
         inv_builder = (
-            BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
+            BazelInvocationBuilder(verb, ctx.env, ctx.startup_options)
             .with_targets(unit_test_targets)
             .with_common_flags(ctx.build_options)
             .with_build_flags(tidy_build_flags)
@@ -332,7 +350,8 @@ class UnitTestStage(Stage):
         self._bzl = bzl
         ctx.active_bzl = bzl
 
-        res = bzl.test(
+        run_fn = bzl.coverage if inv.verb == "coverage" else bzl.test
+        res = run_fn(
             inv.targets,
             invocation_flags=inv.invocation_flags,
             allow_analysis_cache_discard=True,
@@ -353,30 +372,37 @@ class UnitTestStage(Stage):
         if not self._bzl:
             return
         try:
-            if "bazel-testlogs" not in self._bzl.info:
-                return
-            testlogs_dir = pathlib.Path(self._bzl.info["bazel-testlogs"])
-            if not testlogs_dir.is_dir():
-                return
+            testlogs_dirs: list[pathlib.Path] = []
+            if "bazel-testlogs" in self._bzl.info:
+                primary_testlogs = pathlib.Path(self._bzl.info["bazel-testlogs"])
+                if primary_testlogs.is_dir():
+                    testlogs_dirs.append(primary_testlogs)
+            if "output_path" in self._bzl.info:
+                output_path = pathlib.Path(self._bzl.info["output_path"])
+                if output_path.is_dir():
+                    for candidate in sorted(output_path.glob("*/testlogs")):
+                        if candidate.is_dir() and candidate not in testlogs_dirs:
+                            testlogs_dirs.append(candidate)
 
-            for log_val in testlogs_dir.rglob("test.log"):
-                content = log_val.read_text(encoding="utf-8", errors="replace")
-                if (
-                    "Clang-tidy found issues" in content
-                    or "clang-tidy crashed" in content
-                ):
-                    try:
-                        rel_path = log_val.relative_to(testlogs_dir)
-                    except ValueError:
-                        rel_path = log_val
-                    logger.error(
-                        "\n"
-                        + "=" * 80
-                        + f"\n[LINT FAILURE] Report from: {rel_path}\n"
-                        + "=" * 80
-                        + f"\n{content}\n"
-                        + "=" * 80
-                    )
+            for testlogs_dir in testlogs_dirs:
+                for log_val in testlogs_dir.rglob("test.log"):
+                    content = log_val.read_text(encoding="utf-8", errors="replace")
+                    if (
+                        "Clang-tidy found issues" in content
+                        or "clang-tidy crashed" in content
+                    ):
+                        try:
+                            rel_path = log_val.relative_to(testlogs_dir)
+                        except ValueError:
+                            rel_path = log_val
+                        logger.error(
+                            "\n"
+                            + "=" * 80
+                            + f"\n[LINT FAILURE] Report from: {rel_path}\n"
+                            + "=" * 80
+                            + f"\n{content}\n"
+                            + "=" * 80
+                        )
         except Exception as e:  # noqa: BLE001
             # Telemetry extraction must not mask the primary failure
             logger.warning("Failed to extract clang-tidy logs: %s", e)

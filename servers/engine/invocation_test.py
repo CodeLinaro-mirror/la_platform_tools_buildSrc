@@ -217,6 +217,36 @@ class InvocationTest(unittest.TestCase):
         )
 
     @patch("engine.invocation.bazel.BazelCmd")
+    def test_execute_coverage_verb(self, mock_bazel_cmd_cls):
+        mock_bzl = MagicMock()
+        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+
+        inv = BazelInvocation(
+            verb="coverage",
+            targets=["@goldfish//..."],
+            startup_options=["--startup=1"],
+            build_flags=["--build=1"],
+            invocation_flags=["--inv=1"],
+            timeout=1800.0,
+        )
+        inv.execute(self.mock_env)
+
+        mock_bazel_cmd_cls.assert_called_once_with(
+            self.mock_env, startup_options=["--startup=1"]
+        )
+        mock_bazel_cmd_cls.return_value.with_build_flags.assert_called_once_with(
+            ["--build=1"]
+        )
+        mock_bzl.coverage.assert_called_once_with(
+            ["@goldfish//..."],
+            invocation_flags=["--inv=1"],
+            allow_analysis_cache_discard=True,
+            allow_no_test=False,
+            fail_on_test_failure=True,
+            timeout=1800.0,
+        )
+
+    @patch("engine.invocation.bazel.BazelCmd")
     def test_execute_build_verb(self, mock_bazel_cmd_cls):
         mock_bzl = MagicMock()
         mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl

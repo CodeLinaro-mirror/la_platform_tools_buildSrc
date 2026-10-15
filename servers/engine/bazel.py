@@ -258,6 +258,45 @@ class BazelCmd:
             info[key.strip()] = value.strip()
         return types.MappingProxyType(info)
 
+    def _run_test_verb(
+        self,
+        verb: str,
+        targets: Iterable[str],
+        *,
+        invocation_flags: Iterable[str] = (),
+        allow_analysis_cache_discard: bool = False,
+        allow_no_test: bool = False,
+        fail_on_test_failure: bool = True,
+        timeout: float | None = 3600,
+    ) -> subprocess.CompletedProcess:
+        flags = list(invocation_flags)
+        gemini_key = getattr(self._env, "gemini_api_key", None)
+        if isinstance(gemini_key, str) and gemini_key:
+            register_secret(gemini_key)
+            flags.append(f"--test_env=GEMINI_API_KEY={gemini_key}")
+        cmd = self._build_cmd(verb, targets, flags, allow_analysis_cache_discard)
+        result = self._env.run(
+            cmd,
+            capture_output=self._capture_output,
+            throw_on_failure=False,
+            timeout=timeout,
+        )
+        normal_return_codes = [BuildExitCode.SUCCESS]
+        if not fail_on_test_failure:
+            normal_return_codes.append(BuildExitCode.TESTS_FAILED)
+        if allow_no_test:
+            normal_return_codes.append(BuildExitCode.TESTS_NOT_FOUND)
+        if result.returncode not in normal_return_codes:
+            raise build_environment.CommandFailedException(
+                _bazel_error_msg(
+                    cmd,
+                    BuildExitCode.try_convert(result.returncode),
+                    extra_secrets=self._env_secrets(),
+                ),
+                result,
+            )
+        return result
+
     def test(
         self,
         targets: Iterable[str],
@@ -285,33 +324,51 @@ class BazelCmd:
             A ``subprocess.CompletedProcess`` object. When capture_output == False,
             it contains only the commandline and the return code.
         """
-        flags = list(invocation_flags)
-        gemini_key = getattr(self._env, "gemini_api_key", None)
-        if isinstance(gemini_key, str) and gemini_key:
-            register_secret(gemini_key)
-            flags.append(f"--test_env=GEMINI_API_KEY={gemini_key}")
-        cmd = self._build_cmd("test", targets, flags, allow_analysis_cache_discard)
-        result = self._env.run(
-            cmd,
-            capture_output=self._capture_output,
-            throw_on_failure=False,
+        return self._run_test_verb(
+            "test",
+            targets,
+            invocation_flags=invocation_flags,
+            allow_analysis_cache_discard=allow_analysis_cache_discard,
+            allow_no_test=allow_no_test,
+            fail_on_test_failure=fail_on_test_failure,
             timeout=timeout,
         )
-        normal_return_codes = [BuildExitCode.SUCCESS]
-        if not fail_on_test_failure:
-            normal_return_codes.append(BuildExitCode.TESTS_FAILED)
-        if allow_no_test:
-            normal_return_codes.append(BuildExitCode.TESTS_NOT_FOUND)
-        if result.returncode not in normal_return_codes:
-            raise build_environment.CommandFailedException(
-                _bazel_error_msg(
-                    cmd,
-                    BuildExitCode.try_convert(result.returncode),
-                    extra_secrets=self._env_secrets(),
-                ),
-                result,
-            )
-        return result
+
+    def coverage(
+        self,
+        targets: Iterable[str],
+        *,
+        invocation_flags: Iterable[str] = (),
+        allow_analysis_cache_discard: bool = False,
+        allow_no_test: bool = False,
+        fail_on_test_failure: bool = True,
+        timeout: float | None = 3600,
+    ) -> subprocess.CompletedProcess:
+        """Runs ``bazel coverage`` and returns the result.
+
+        Args:
+            targets: The bazel targets to test with coverage collection.
+            invocation_flags: Per-invocation flags.
+            allow_analysis_cache_discard: Do not fail the build if analysis
+                cache is being discarded.
+            allow_no_test: Do not raise exception if bazel reports no tests were
+                run.
+            fail_on_test_failure: Raise exception if bazel reports test failures.
+            timeout: Timeout for the entire process.
+
+        Returns:
+            A ``subprocess.CompletedProcess`` object. When capture_output == False,
+            it contains only the commandline and the return code.
+        """
+        return self._run_test_verb(
+            "coverage",
+            targets,
+            invocation_flags=invocation_flags,
+            allow_analysis_cache_discard=allow_analysis_cache_discard,
+            allow_no_test=allow_no_test,
+            fail_on_test_failure=fail_on_test_failure,
+            timeout=timeout,
+        )
 
     def build(
         self,
