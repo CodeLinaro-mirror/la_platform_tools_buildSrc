@@ -44,3 +44,7 @@ project.tasks
 tasks.named("kotlinSourcesJar").configure {
     it.enabled = false
 }
+
+kotlin {
+    coreLibrariesVersion = libs.kotlin_gradle_plugin.split(':')[2]
+}
