@@ -139,16 +139,20 @@ class BuildScriptTest(unittest.TestCase):
             f"--build_metadata=ab_build_id={self.mock_env.build_id}", flags_passed
         )
 
-        # Must invoke bazel build on @goldfish//emulator:release ONLY
+        # Must invoke bazel build on @goldfish//emulator:release and @goldfish//emulator:sbom
         mock_bzl.build.assert_called_once()
         targets_built = mock_bzl.build.call_args[0][0]
-        self.assertEqual(targets_built, ["@goldfish//emulator:release"])
+        self.assertEqual(
+            targets_built,
+            ["@goldfish//emulator:release", "@goldfish//emulator:sbom"],
+        )
         self.assertTrue(mock_bzl.build.call_args[1].get("allow_analysis_cache_discard"))
         mock_bzl.test.assert_not_called()
 
-        # Must query artifacts for release and copy to dist_dir
+        # Must query artifacts for release and sbom and copy to dist_dir
         mock_bzl.query_artifacts.assert_called_once_with(
-            ["@goldfish//emulator:release"], allow_analysis_cache_discard=True
+            ["@goldfish//emulator:release", "@goldfish//emulator:sbom"],
+            allow_analysis_cache_discard=True,
         )
         mock_copy_all.assert_called_once_with([artifact_zip], self.mock_env.dist_dir)
         mock_copy_logs.assert_called_once()

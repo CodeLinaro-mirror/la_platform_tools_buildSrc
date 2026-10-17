@@ -129,7 +129,7 @@ class AospStage(Stage):
 
         inv = (
             BazelInvocationBuilder("build", ctx.env, ctx.startup_options)
-            .with_targets(["@goldfish//emulator:release"])
+            .with_targets(["@goldfish//emulator:release", "@goldfish//emulator:sbom"])
             .with_common_flags(aosp_build_options)
             .with_profile(ctx.bazel_logs_dir / "aosp_build.profile.gz")
             .build_invocation()
@@ -149,7 +149,8 @@ class AospStage(Stage):
         )
 
         artifacts = bzl.query_artifacts(
-            ["@goldfish//emulator:release"], allow_analysis_cache_discard=True
+            ["@goldfish//emulator:release", "@goldfish//emulator:sbom"],
+            allow_analysis_cache_discard=True,
         )
         ctx.copy_artifacts(artifacts)
         logger.info("AOSP build complete. Artifacts placed in %s", ctx.dist_dir)
@@ -171,7 +172,10 @@ class ReleasePackageStage(Stage):
         )
 
     def execute(self, ctx: BuildContext) -> None:
-        self.release_targets = ["@goldfish//emulator:release"]
+        self.release_targets = [
+            "@goldfish//emulator:release",
+            "@goldfish//emulator:sbom",
+        ]
         if ctx.env.target_platform.startswith("linux"):
             self.release_targets.extend(
                 [

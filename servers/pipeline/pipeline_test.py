@@ -163,7 +163,10 @@ class PipelineTest(unittest.TestCase):
 
         mock_bzl.build.assert_called_once()
         targets = mock_bzl.build.call_args[0][0]
-        self.assertEqual(targets, ["@goldfish//emulator:release"])
+        self.assertEqual(
+            targets,
+            ["@goldfish//emulator:release", "@goldfish//emulator:sbom"],
+        )
         self.ctx.copy_artifacts.assert_called_once_with([artifact_zip])
 
     @patch("pipeline.stages.bazel.BazelCmd")
