@@ -367,12 +367,22 @@ class PipelineTest(unittest.TestCase):
                 any("[LINT FAILURE] Report from:" in line for line in cm.output)
             )
 
-        # Non-Linux builds must skip @gfxstream//:gfxstream_unit_tests
+        # macOS builds must include @gfxstream//:gfxstream_unit_tests
         self.mock_env.is_linux.return_value = False
+        self.mock_env.is_macos.return_value = True
+        self.mock_env.is_windows.return_value = False
         mock_bzl.test.reset_mock()
         stage.execute(self.ctx)
-        non_linux_targets = mock_bzl.test.call_args[0][0]
-        self.assertNotIn("@gfxstream//:gfxstream_unit_tests", non_linux_targets)
+        macos_targets = mock_bzl.test.call_args[0][0]
+        self.assertIn("@gfxstream//:gfxstream_unit_tests", macos_targets)
+
+        # Windows builds must skip @gfxstream//:gfxstream_unit_tests
+        self.mock_env.is_macos.return_value = False
+        self.mock_env.is_windows.return_value = True
+        mock_bzl.test.reset_mock()
+        stage.execute(self.ctx)
+        windows_targets = mock_bzl.test.call_args[0][0]
+        self.assertNotIn("@gfxstream//:gfxstream_unit_tests", windows_targets)
 
     @patch("pipeline.stages.reclaim_and_stabilize_resources")
     @patch("pipeline.stages.bazel.BazelCmd")
