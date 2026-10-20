@@ -31,6 +31,16 @@ except ImportError:
     import build_environment
 
 
+def _is_env_cross_compile(env: build_environment.BuildEnvironment) -> bool:
+    """Checks if the environment is cross-compiling, handling unconfigured mocks safely."""
+    if hasattr(env, "is_cross_compile"):
+        res = env.is_cross_compile()
+        if type(res).__name__ == "MagicMock":
+            return False
+        return bool(res)
+    return False
+
+
 class Symuploader:
     """Uploads Breakpad/Crashpad symbol files (.sym) to symbol servers.
 
@@ -62,19 +72,35 @@ class Symuploader:
         self._bin_lock = threading.Lock()
 
     def _get_sym_upload_binary(self) -> Path:
-        """Resolves and caches the native @breakpad//:sym_upload executable path."""
+        """Resolves and caches the host @breakpad//:sym_upload executable path."""
         if self._sym_upload_bin is None:
             with self._bin_lock:
                 if self._sym_upload_bin is None:
-                    artifacts = self.bzl.query_artifacts([self.SYM_UPLOAD_TARGET])
-                    if not artifacts:
-                        raise FileNotFoundError(
-                            f"Could not resolve executable for {self.SYM_UPLOAD_TARGET}."
+                    if _is_env_cross_compile(self.env):
+                        host_bzl = self.bzl.with_host_platform()
+                        host_bzl.build(
+                            [self.SYM_UPLOAD_TARGET],
+                            allow_analysis_cache_discard=True,
                         )
-                    bin_path = Path(artifacts[0])
-                    if not bin_path.exists():
-                        self.bzl.build([self.SYM_UPLOAD_TARGET])
-                    self._sym_upload_bin = bin_path
+                        artifacts = host_bzl.query_artifacts(
+                            [self.SYM_UPLOAD_TARGET],
+                            allow_analysis_cache_discard=True,
+                        )
+                        if not artifacts:
+                            raise FileNotFoundError(
+                                f"Could not resolve executable for {self.SYM_UPLOAD_TARGET}."
+                            )
+                        self._sym_upload_bin = Path(artifacts[0])
+                    else:
+                        artifacts = self.bzl.query_artifacts([self.SYM_UPLOAD_TARGET])
+                        if not artifacts:
+                            raise FileNotFoundError(
+                                f"Could not resolve executable for {self.SYM_UPLOAD_TARGET}."
+                            )
+                        bin_path = Path(artifacts[0])
+                        if not bin_path.exists():
+                            self.bzl.build([self.SYM_UPLOAD_TARGET])
+                        self._sym_upload_bin = bin_path
         return self._sym_upload_bin
 
     def _resolve_servers(

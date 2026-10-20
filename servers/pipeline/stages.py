@@ -535,7 +535,7 @@ class SymbolUploadStage(Stage):
         ]
         aux_targets = (
             [sym_upload.Symuploader.SYM_UPLOAD_TARGET]
-            if ctx.env.crashpad_symbol_server_key
+            if ctx.env.crashpad_symbol_server_key and not _is_env_cross_compile(ctx.env)
             else []
         )
         targets = list(self.symbol_targets) + aux_targets

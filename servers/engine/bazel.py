@@ -151,6 +151,7 @@ class BazelCmd:
     _startup_options: tuple[str, ...]
     _build_flags: tuple[str, ...]
     _capture_output: bool
+    _target_platform: str
 
     def __init__(
         self,
@@ -158,6 +159,7 @@ class BazelCmd:
         *,
         capture_output: bool = False,
         startup_options: Iterable[str] = (),
+        target_platform: str | None = None,
     ) -> None:
         """Initializes Bazel command.
 
@@ -166,6 +168,8 @@ class BazelCmd:
             capture_output: Whether or not build, test and run commands should capture
                 outputs. Queries always capture output.
             startup_options: Startup options for the bazel command.
+            target_platform: Optional target platform override. Defaults to
+                build_env.target_platform.
         """
         self._env = build_env
         self._startup_options = tuple(startup_options)
@@ -173,6 +177,11 @@ class BazelCmd:
         system = f"{build_env.host_platform}-x86_64"
         self._path = build_env.repo_root / "prebuilts" / "bazel" / system / "bazel"
         self._capture_output = capture_output
+        self._target_platform = (
+            target_platform
+            if target_platform is not None
+            else build_env.target_platform
+        )
 
     def with_build_flags(self, flags: Iterable[str]) -> BazelCmd:
         """Creates a new ``BazelCmd`` instance with build flags attached.
@@ -191,8 +200,36 @@ class BazelCmd:
             self._env,
             capture_output=self._capture_output,
             startup_options=self._startup_options,
+            target_platform=self._target_platform,
         )
         instance._build_flags = tuple(flags)
+        return instance
+
+    def with_host_platform(self) -> BazelCmd:
+        """Creates a new ``BazelCmd`` instance targeting the host platform."""
+        host_platform = getattr(self._env, "host_platform", None)
+        host_target = (
+            build_environment._SYSTEM_TO_TARGET.get(host_platform)
+            if isinstance(host_platform, str)
+            else None
+        )
+        if not host_target:
+            if self._env.is_windows():
+                host_target = "windows_x64"
+            elif self._env.is_macos():
+                host_target = "mac_aarch64"
+            else:
+                host_target = "linux_x64"
+        instance = BazelCmd(
+            self._env,
+            capture_output=self._capture_output,
+            startup_options=self._startup_options,
+            target_platform=host_target,
+        )
+        build_flags = self._build_flags
+        if not host_target.startswith("linux"):
+            build_flags = tuple(f for f in build_flags if f != "--config=lto")
+        instance._build_flags = build_flags
         return instance
 
     @property
@@ -214,10 +251,10 @@ class BazelCmd:
         # Info doesn't seem to have access to other modules
         if verb != "info":
             cmd.append(
-                f"--platforms={_PLATFORM_TARGETS_BY_NAME[self._env.target_platform]}"
+                f"--platforms={_PLATFORM_TARGETS_BY_NAME[self._target_platform]}"
             )
             if (
-                self._env.target_platform.startswith("windows")
+                self._target_platform.startswith("windows")
                 and not self._env.is_windows()
             ):
                 cmd.append(

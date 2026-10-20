@@ -470,6 +470,49 @@ class PipelineTest(unittest.TestCase):
             servers=["https://prod.crashpad", "https://staging.crashpad"],
         )
 
+    @patch("pipeline.stages.sym_upload.Symuploader")
+    @patch("pipeline.stages.bazel.BazelCmd")
+    def test_symbol_upload_stage_postsubmit_cross_compile_omits_target_sym_upload(
+        self, mock_bazel_cmd_cls, mock_uploader_cls
+    ):
+        self.mock_env.is_presubmit = False
+        self.mock_env.is_cross_compile.return_value = True
+        self.mock_env.is_windows.return_value = True
+        self.mock_env.target_platform = "windows_aarch64"
+        self.mock_env.crashpad_server = "https://prod.crashpad"
+        self.mock_env.CRASHPAD_STAGING = "https://staging.crashpad"
+        mock_bzl = MagicMock()
+        mock_bazel_cmd_cls.return_value.with_build_flags.return_value = mock_bzl
+        symbol_artifacts = [
+            Path("C:/out/symbols.zip"),
+            Path("C:/out/native_symbols.zip"),
+        ]
+        mock_bzl.query_artifacts.return_value = symbol_artifacts
+
+        mock_uploader_cls.SYM_UPLOAD_TARGET = "@breakpad//:sym_upload"
+        mock_uploader = MagicMock()
+        mock_uploader_cls.return_value = mock_uploader
+
+        stage = stages.SymbolUploadStage()
+        stage.execute(self.ctx)
+
+        mock_bzl.build.assert_called_once()
+        built_targets = mock_bzl.build.call_args[0][0]
+        self.assertEqual(
+            built_targets,
+            [
+                "@goldfish//emulator:package_goldfish_symbols",
+                "@goldfish//emulator:package_goldfish_native_symbols",
+            ],
+        )
+        self.assertNotIn("@breakpad//:sym_upload", built_targets)
+        mock_uploader_cls.assert_called_once_with(self.mock_env, mock_bzl)
+        mock_uploader.upload_from_zip.assert_called_once_with(
+            Path("C:/out/symbols.zip"),
+            ignore_failures=True,
+            servers=["https://prod.crashpad", "https://staging.crashpad"],
+        )
+
     @patch("pipeline.stages.reclaim_and_stabilize_resources")
     @patch("pipeline.stages.bazel.BazelCmd")
     def test_ets_integration_stage_arbitrary_system_constrained(

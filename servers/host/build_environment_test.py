@@ -313,6 +313,43 @@ class BuildEnvironmentTest(unittest.TestCase):
         )
         self.assertFalse(env_trusty.is_cross_compile())
 
+    @patch("host.build_environment.platform.system")
+    def test_bazel_cmd_with_host_platform(self, mock_system):
+        from engine import bazel
+
+        mock_system.return_value = "Windows"
+        env = build_environment.create_build_environment(
+            argparse.Namespace(
+                dist="/tmp/dist",
+                build_id="12345",
+                target="windows_aarch64",
+                config=["release"],
+            )
+        )
+        env.run = MagicMock(
+            return_value=subprocess.CompletedProcess(args=[], returncode=0)
+        )
+
+        bzl = bazel.BazelCmd(
+            env, startup_options=["--output_base=/tmp/out"]
+        ).with_build_flags(["--config=release"])
+        bzl.build(["@goldfish//emulator:package_goldfish_symbols"])
+        target_cmd = env.run.call_args[0][0]
+        self.assertIn(
+            "--platforms=@goldfish_build//platforms:windows_aarch64", target_cmd
+        )
+
+        env.run.reset_mock()
+        host_bzl = bzl.with_host_platform()
+        host_bzl.build(["@breakpad//:sym_upload"], allow_analysis_cache_discard=True)
+        host_cmd = env.run.call_args[0][0]
+        self.assertIn("--platforms=@goldfish_build//platforms:windows_x64", host_cmd)
+        self.assertNotIn(
+            "--platforms=@goldfish_build//platforms:windows_aarch64", host_cmd
+        )
+        self.assertIn("--config=release", host_cmd)
+        self.assertIn("--output_base=/tmp/out", host_cmd)
+
 
 if __name__ == "__main__":
     unittest.main()
