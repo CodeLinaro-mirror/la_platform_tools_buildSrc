@@ -240,7 +240,7 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("--test_timeout=120,300,600,1200", invocation_flags)
 
     @patch("pipeline.stages.bazel.BazelCmd")
-    def test_unit_test_stage_postsubmit_runs_coverage_on_linux_release(
+    def test_unit_test_stage_postsubmit_runs_coverage_on_linux_and_macos_release(
         self, mock_bazel_cmd_cls
     ):
         mock_bzl = MagicMock()
@@ -260,8 +260,32 @@ class PipelineTest(unittest.TestCase):
         self.assertIn("--nocache_test_results", invocation_flags)
         self.assertIn("--test_tag_filters=-tidy-test", invocation_flags)
 
-        # Debug or non-Linux postsubmits fall back to bazel test
+        # macOS release postsubmit also runs under bazel coverage
+        mock_bzl.coverage.reset_mock()
+        mock_bzl.test.reset_mock()
+        self.mock_env.is_linux.return_value = False
+        self.mock_env.is_macos.return_value = True
+        self.mock_env.target_platform = "mac_aarch64"
+        stage.execute(self.ctx)
+        mock_bzl.coverage.assert_called_once()
+        mock_bzl.test.assert_not_called()
+        mac_targets = mock_bzl.coverage.call_args[0][0]
+        self.assertIn("@goldfish//...", mac_targets)
+        self.assertIn("@goldfish//emulator:external_unit_tests", mac_targets)
+        self.assertNotIn("@gfxstream//:gfxstream_unit_tests", mac_targets)
+
+        # Debug or Windows postsubmits fall back to bazel test
         self.mock_env.is_release = False
+        mock_bzl.coverage.reset_mock()
+        stage.execute(self.ctx)
+        mock_bzl.test.assert_called_once()
+        mock_bzl.coverage.assert_not_called()
+
+        self.mock_env.is_release = True
+        self.mock_env.is_macos.return_value = False
+        self.mock_env.is_windows.return_value = True
+        self.mock_env.target_platform = "windows_x64"
+        mock_bzl.test.reset_mock()
         mock_bzl.coverage.reset_mock()
         stage.execute(self.ctx)
         mock_bzl.test.assert_called_once()
@@ -618,14 +642,14 @@ class PipelineTest(unittest.TestCase):
         self.assertTrue(stage.should_run(self.ctx))
 
         stage.execute(self.ctx)
-        mock_bzl.test.assert_called_once()
-        tested_targets = mock_bzl.test.call_args[0][0]
+        mock_bzl.coverage.assert_called_once()
+        tested_targets = mock_bzl.coverage.call_args[0][0]
         self.assertIn("@goldfish//emulator:external_unit_tests", tested_targets)
 
-        invocation_flags = mock_bzl.test.call_args[1]["invocation_flags"]
+        invocation_flags = mock_bzl.coverage.call_args[1]["invocation_flags"]
         self.assertIn("--nocache_test_results", invocation_flags)
         self.assertNotIn("--jobs=2", invocation_flags)
-        self.assertFalse(mock_bzl.test.call_args[1]["fail_on_test_failure"])
+        self.assertFalse(mock_bzl.coverage.call_args[1]["fail_on_test_failure"])
 
         # Debug postsubmit must exclude external_unit_tests
         self.mock_env.is_release = False

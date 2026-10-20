@@ -62,19 +62,25 @@ def _is_env_cross_compile(env: build_environment.BuildEnvironment) -> bool:
 
 
 def _should_collect_coverage(env: build_environment.BuildEnvironment) -> bool:
-    """Returns True when unit tests should run under `bazel coverage` (native Linux release postsubmit builds)."""
+    """Returns True when unit tests should run under `bazel coverage` (native Linux/macOS release postsubmit builds)."""
     if (
         env.is_presubmit
         or not env.is_release
         or env.is_windows()
-        or env.is_macos()
         or _is_env_cross_compile(env)
     ):
         return False
-    res = env.is_linux()
-    if MagicMock is not None and isinstance(res, MagicMock):
-        return env.target_platform.startswith("linux")
-    return bool(res)
+    for check_fn, prefix in (
+        (env.is_linux, "linux"),
+        (env.is_macos, "mac"),
+    ):
+        res = check_fn()
+        if MagicMock is not None and isinstance(res, MagicMock):
+            if str(getattr(env, "target_platform", "")).startswith(prefix):
+                return True
+        elif bool(res):
+            return True
+    return False
 
 
 def _log_host_memory_status(env: build_environment.BuildEnvironment, label: str = ""):

@@ -512,8 +512,8 @@ class BuildScriptTest(unittest.TestCase):
         self.assertNotIn("--local_resources=memory=HOST_RAM*.3", stage1_flags)
 
         mock_bzl_symbols.build.assert_called_once()
-        mock_bzl_unit_tests.test.assert_called_once()
-        stage3_flags = mock_bzl_unit_tests.test.call_args[1]["invocation_flags"]
+        mock_bzl_unit_tests.coverage.assert_called_once()
+        stage3_flags = mock_bzl_unit_tests.coverage.call_args[1]["invocation_flags"]
         self.assertNotIn("--jobs=2", stage3_flags)
 
         # Stage 4 (EtsIntegrationStage) reclaims resources and throttles to --jobs=2
