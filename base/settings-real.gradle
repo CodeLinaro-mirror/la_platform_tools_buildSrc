@@ -1,5 +1,35 @@
 rootProject.name = 'tools-gradle'
 
+Properties properties = new Properties()
+File versionProperties = new File(settingsDir, "base/common/release_version.bzl")
+versionProperties.withReader { properties.load(it) }
+
+String releaseProperty = providers.gradleProperty("release").getOrElse("false")
+boolean release = releaseProperty.equalsIgnoreCase("true")
+if (!release && !releaseProperty.equalsIgnoreCase("false")) {
+    throw new IllegalStateException("Expected release property to be true or false, but was '$releaseProperty'")
+}
+
+String releaseBaseVersion = properties.getProperty('BASE_VERSION') - '"' - '"'
+String releaseBuildVersion = properties.getProperty('BUILD_VERSION') - '"' - '"'
+
+String dev(String releaseVersion) {
+    releaseVersion.split('-')[0] + '-dev'
+}
+
+String bazelBaseVersion = release ? releaseBaseVersion : dev(releaseBaseVersion)
+String bazelBuildVersion = release ? releaseBuildVersion : dev(releaseBuildVersion)
+
+dependencyResolutionManagement {
+    versionCatalogs {
+        libs {
+            from(files(new File(settingsDir, "buildSrc/base/libs.versions.toml")))
+            version('base', bazelBaseVersion)
+            version('build', bazelBuildVersion)
+        }
+    }
+}
+
 def projects = [
         [projectName: ':base:api-generator', projectPath: 'base/misc/api-generator'],
         [projectName: ':base:bazel:avd', projectPath: ''],

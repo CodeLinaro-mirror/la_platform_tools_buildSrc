@@ -1,0 +1,190 @@
+# Versions of external dependencies used by the gradle plugin.
+# ATTENTION: This file should be in sync with tools/base/bazel/toplevel.WORKSPACE.
+
+[versions]
+# Overridden dynamically by settings-real.gradle
+base = "0.0.0-dev"
+build = "0.0.0-dev"
+
+aether = "1.0.2.v20150114"
+asm = "9.9"
+bouncycastle = "1.86"
+grpc = "1.69.1"
+guava = "33.3.1-jre"
+jaxb = "2.3.2"
+jna = "5.6.0"
+kotlinCoroutines = "1.6.4"
+kotlin = "2.2.10"
+kotlinForAgpBuild = "2.3.20"
+jetifier = "1.0.0-beta10"
+protobuf = "3.25.5"
+protoCompiler = "3.25.5"
+jacoco = "0.8.14"
+googleApiServices = "v1-rev82-1.22.0"
+junitJupiter = "5.9.3"
+junitPlatform = "1.13.3"
+
+[libraries]
+
+
+activation = "com.sun.activation:javax.activation:1.2.0"
+aether-connector = { module = "org.eclipse.aether:aether-connector-basic", version.ref = "aether" }
+aether-transport-file = { module = "org.eclipse.aether:aether-transport-file", version.ref = "aether" }
+aether-transport-http = { module = "org.eclipse.aether:aether-transport-http", version.ref = "aether" }
+antlr3 = "org.antlr:antlr:3.5.2"
+antlr4 = "org.antlr:antlr4:4.5.3"
+antlr-runtime = "org.antlr:antlr-runtime:3.5.2"
+apache-commons-io = "commons-io:commons-io:2.16.1"
+apache-commons-lang = "commons-lang:commons-lang:2.6"
+apache-commons-logging = "commons-logging:commons-logging:1.2"
+apache-compress = "org.apache.commons:commons-compress:1.27.1"
+apache-httpclient = "org.apache.httpcomponents:httpclient:4.5.6"
+apache-httpcore = "org.apache.httpcomponents:httpcore:4.4.10"
+apache-httpmime = "org.apache.httpcomponents:httpmime:4.5.6"
+apache-maven-aether = "org.apache.maven:maven-aether-provider:3.3.9"
+
+asm = { module = "org.ow2.asm:asm", version.ref = "asm" }
+asm-analysis = { module = "org.ow2.asm:asm-analysis", version.ref = "asm" }
+asm-commons = { module = "org.ow2.asm:asm-commons", version.ref = "asm" }
+asm-tree = { module = "org.ow2.asm:asm-tree", version.ref = "asm" }
+asm-util = { module = "org.ow2.asm:asm-util", version.ref = "asm" }
+
+auto-value = "com.google.auto.value:auto-value:1.6.2"
+auto-value-annotations = "com.google.auto.value:auto-value-annotations:1.6.3"
+auto-common = "com.google.auto:auto-common:0.10"
+bouncycastle-pkix = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
+bouncycastle-prov = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+bundle-tool = "com.android.tools.build:bundletool:1.18.3"
+androidx-databinding-databinding-compiler-common = { module = "androidx.databinding:databinding-compiler-common", version.ref = "build" }
+androidx-databinding-databinding-common = { module = "androidx.databinding:databinding-common", version.ref = "build" }
+com-android-databinding-baseLibrary = { module = "com.android.databinding:baseLibrary", version.ref = "build" }
+com-android-signflinger = { module = "com.android:signflinger", version.ref = "build" }
+com-android-tools-annotations = { module = "com.android.tools:annotations", version.ref = "base" }
+com-android-tools-common = { module = "com.android.tools:common", version.ref = "base" }
+com-android-tools-analyticsLibrary-crash = { module = "com.android.tools.analytics-library:crash", version.ref = "base" }
+com-android-tools-analyticsLibrary-protos = { module = "com.android.tools.analytics-library:protos", version.ref = "base" }
+com-android-tools-analyticsLibrary-shared = { module = "com.android.tools.analytics-library:shared", version.ref = "base" }
+com-android-tools-analyticsLibrary-tracker = { module = "com.android.tools.analytics-library:tracker", version.ref = "base" }
+com-android-tools-analyticsLibrary-testing = { module = "com.android.tools.analytics-library:testing", version.ref = "base" }
+com-android-tools-apkparser-binaryResources = { module = "com.android.tools.apkparser:binary-resources", version.ref = "base" }
+com-android-tools-apkparser-apkanalyzer = { module = "com.android.tools.apkparser:apkanalyzer", version.ref = "base" }
+com-android-tools-build-apksig = { module = "com.android.tools.build:apksig", version.ref = "build" }
+com-android-tools-build-apkzlib = { module = "com.android.tools.build:apkzlib", version.ref = "build" }
+com-android-tools-ddms-ddmlib = { module = "com.android.tools.ddms:ddmlib", version.ref = "base" }
+com-android-tools-ddms-ddmlibtest = { module = "com.android.tools.ddms:ddmlib-test", version.ref = "base" }
+com-android-tools-dvlib = { module = "com.android.tools:dvlib", version.ref = "base" }
+com-android-tools-layoutlib-layoutlibApi = { module = "com.android.tools.layoutlib:layoutlib-api", version.ref = "base" }
+com-android-tools-emulator-proto = { module = "com.android.tools.emulator:proto", version.ref = "base" }
+com-android-tools-external-orgJetbrains-uast = { module = "com.android.tools.external.org-jetbrains:uast", version.ref = "base" }
+com-android-tools-external-comIntellij-kotlinCompiler = { module = "com.android.tools.external.com-intellij:kotlin-compiler", version.ref = "base" }
+com-android-tools-external-comIntellij-intellijCore = { module = "com.android.tools.external.com-intellij:intellij-core", version.ref = "base" }
+com-android-tools-fakeadbserver-fakeadbserver = { module = "com.android.tools.fakeadbserver:fakeadbserver", version.ref = "base" }
+com-android-tools-lint-lintTypedefRemover = { module = "com.android.tools.lint:lint-typedef-remover", version.ref = "base" }
+com-android-tools-lint-lint = { module = "com.android.tools.lint:lint", version.ref = "base" }
+com-android-tools-lint-lintTests = { module = "com.android.tools.lint:lint-tests", version.ref = "base" }
+com-android-tools-lint-lintModel = { module = "com.android.tools.lint:lint-model", version.ref = "base" }
+com-android-tools-testutils = { module = "com.android.tools:testutils", version.ref = "base" }
+com-android-tools-compose-composePreviewDetector = { module = "com.android.tools.compose:compose-preview-detector", version.ref = "base" }
+com-android-tools-repository = { module = "com.android.tools:repository", version.ref = "base" }
+com-android-tools-sdklib = { module = "com.android.tools:sdklib", version.ref = "base" }
+com-android-tools-sdkCommon = { module = "com.android.tools:sdk-common", version.ref = "base" }
+com-android-zipflinger = { module = "com.android:zipflinger", version.ref = "build" }
+aapt2-proto = "com.android.tools.build:aapt2-proto:7.0.0-beta04-7396180"
+dokka-core = "org.jetbrains.dokka:dokka-core:2.2.0"
+
+ecj = "org.eclipse.jdt.core.compiler:ecj:4.6.1"
+findbugs-jsr = "com.google.code.findbugs:jsr305:3.0.2"
+flatbuffers = "com.google.flatbuffers:flatbuffers-java:1.12.0"
+groovy = "org.codehaus.groovy:groovy:3.0.10"
+grpc-all-do-not-use = { module = "io.grpc:grpc-all", version.ref = "grpc" }
+grpc-core = { module = "io.grpc:grpc-core", version.ref = "grpc" }
+grpc-inprocess = { module = "io.grpc:grpc-inprocess", version.ref = "grpc" }
+grpc-netty = { module = "io.grpc:grpc-netty", version.ref = "grpc" }
+grpc-protobuf = { module = "io.grpc:grpc-protobuf", version.ref = "grpc" }
+grpc-stub = { module = "io.grpc:grpc-stub", version.ref = "grpc" }
+grpc-testing = { module = "io.grpc:grpc-testing", version.ref = "grpc" }
+gson = "com.google.code.gson:gson:2.11.0"
+guava = { module = "com.google.guava:guava", version.ref = "guava" }
+guava-testlib = { module = "com.google.guava:guava-testlib", version.ref = "guava" }
+intellij-annotations = "org.jetbrains:annotations:13.0"
+javawriter = "com.squareup:javawriter:2.5.0"
+jcommander = "com.beust:jcommander:1.78"
+javapoet = "com.squareup:javapoet:1.13.0"
+jaxb-runtime = { module = "org.glassfish.jaxb:jaxb-runtime", version.ref = "jaxb" }
+javax-annotation = "javax.annotation:javax.annotation-api:1.3.2"
+javax-inject = "javax.inject:javax.inject:1"
+jaxb-xjc = { module = "org.glassfish.jaxb:jaxb-xjc", version.ref = "jaxb" }
+jimfs = "com.google.jimfs:jimfs:1.1"
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
+jopt = "net.sf.jopt-simple:jopt-simple:4.9"
+juniversalchardet = "com.googlecode.juniversalchardet:juniversalchardet:1.0.3"
+gradle-tooling-api = "org.gradle:gradle-tooling-api:9.6.0"
+kotlin-coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "kotlinCoroutines" }
+kotlin-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "kotlinCoroutines" }
+
+# Kotlin dependencies used to compile and build the Android Gradle plugin itself
+kotlin-gradle-plugin-forAgpBuild = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlinForAgpBuild" }
+kotlin-reflect-forAgpBuild = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlinForAgpBuild" }
+
+# Kotlin dependencies bundled with / depended on by the Android Gradle Plugin
+kotlin-gradle-plugin = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin", version.ref = "kotlin" }
+kotlin-gradle-plugin-api = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin-api", version.ref = "kotlin" }
+kotlin-gradle-plugin-idea = { module = "org.jetbrains.kotlin:kotlin-gradle-plugin-idea", version.ref = "kotlin" }
+kotlin-gradle-pluginmarker = { module = "org.jetbrains.kotlin.jvm:org.jetbrains.kotlin.jvm.gradle.plugin", version.ref = "kotlin" }
+kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect", version.ref = "kotlin" }
+kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
+kotlin-test = { module = "org.jetbrains.kotlin:kotlin-test", version.ref = "kotlin" }
+
+# Kotlin dependencies used to compile and run AGP tests -- these are usually updated together with the Kotlin
+# dependencies used to build AGP above
+compose-compiler-gradle-plugin = { module = "org.jetbrains.kotlin:compose-compiler-gradle-plugin", version.ref = "kotlin" }
+ksp-gradle-plugin = "com.google.devtools.ksp:symbol-processing-gradle-plugin:2.2.10-2.0.2"
+
+kxml = "net.sf.kxml:kxml2:2.3.0"
+jetifier-core = { module = "com.android.tools.build.jetifier:jetifier-core", version.ref = "jetifier" }
+jetifier-processor = { module = "com.android.tools.build.jetifier:jetifier-processor", version.ref = "jetifier" }
+
+# Proto runtime version differs to the proto compiler version (tools/base/bazel/proto.bzl)
+# We do not want to unnecessarily update the compiler version as it can cause issues specifically
+# to user who bring in older versions of protoc in parent classloaders of AGP.
+# Important note: We should keep the major versions of the compiler and the runtime same to avoid
+# potential compatibility issues
+protobuf = { module = "com.google.protobuf:protobuf-java", version.ref = "protobuf" }
+protobuf-util = { module = "com.google.protobuf:protobuf-java-util", version.ref = "protobuf" }
+proto-compiler = { module = "com.google.protobuf:protoc", version.ref = "protoCompiler" }
+protobuf-gradle-plugin = "com.google.protobuf:protobuf-gradle-plugin:0.10.0"
+
+tensorflow-lite-metadata = "org.tensorflow:tensorflow-lite-metadata:0.2.0"
+
+#When updating jacoco versions also update JacocoOptions.DEFAULT_VERSION
+jacoco-agent = { module = "org.jacoco:org.jacoco.agent", version.ref = "jacoco" }
+jacoco-core = { module = "org.jacoco:org.jacoco.core", version.ref = "jacoco" }
+jacoco-report = { module = "org.jacoco:org.jacoco.report", version.ref = "jacoco" }
+
+# Include test dependencies here as well, so that we take them into
+# consideration when computing version numbers.
+equalsverifier = "nl.jqno.equalsverifier:equalsverifier:3.15.6"
+google-api-client = "com.google.api-client:google-api-client:1.22.0"
+google-storage-client = { module = "com.google.apis:google-api-services-storage", version.ref = "googleApiServices" }
+google-testing-client = { module = "com.google.apis:google-api-services-testing", version.ref = "googleApiServices" }
+google-toolresults-client = "com.google.apis:google-api-services-toolresults:v1beta3-rev82-1.22.0"
+jsoup = "org.jsoup:jsoup:1.16.1"
+junit = "junit:junit:4.13.2"
+junit-vintage-engine = "org.junit.vintage:junit-vintage-engine:4.12.3"
+junit-jupiter = { module = "org.junit.jupiter:junit-jupiter-api", version.ref = "junitJupiter" }
+junit-jupiter-engine = { module = "org.junit.jupiter:junit-jupiter-engine", version.ref = "junitJupiter" }
+junit-platform-commons = { module = "org.junit.platform:junit-platform-commons", version.ref = "junitPlatform" }
+junit-platform-engine = { module = "org.junit.platform:junit-platform-engine", version.ref = "junitPlatform" }
+junit-platform-launcher = { module = "org.junit.platform:junit-platform-launcher", version.ref = "junitPlatform" }
+junit-platform-reporting = { module = "org.junit.platform:junit-platform-reporting", version.ref = "junitPlatform" }
+mockito-core = "org.mockito:mockito-core:5.20.0"
+mockito-kotlin = "org.mockito.kotlin:mockito-kotlin:5.4.0"
+smali-dexlib = "com.android.tools.smali:smali-dexlib2:3.0.9"
+truth = "com.google.truth:truth:0.44"
+compile-testing = "com.google.testing.compile:compile-testing:0.16"
+tink = "com.google.crypto.tink:tink:1.7.0"
+tomlj = "org.tomlj:tomlj:1.1.0"
+jarjar = "com.googlecode.jarjar:jarjar:1.3"
+android-test-result-proto = { module = "com.android.tools.androidtest:test-result-proto", version.ref = "build" }
+r8 = "com.android.tools:r8:9.6.0-alpha06"
