@@ -88,32 +88,16 @@ task("copyGradleProperty").doLast {
     }
 }
 
+// publishLocal is an alias of publishAndroidGradleLocal.
 def publishLocalTask = tasks.create(name: 'publishLocal')
-// publishLocalPluginTask that publishes just the plugin dependencies, not any of the runtime
-// artifacts like data binding
 def publishLocalPluginTask = tasks.create(name: 'publishAndroidGradleLocal')
-publishLocalPluginTask.description = """Publishes artifacts that are direct dependencies of the
-    plugin without the runtime artifacts (e.g. data binding runtime lib)."""
+publishLocalPluginTask.description = "Publishes artifacts that are direct dependencies of the plugin."
 publishLocalTask.dependsOn publishLocalPluginTask
 
 subprojects { project ->
     project.plugins.withId('maven-publish') {
         project.plugins.withId('signing') {
             rootProject.publishAndroidGradleLocal.dependsOn project.tasks.findByName('publish')
-        }
-    }
-}
-
-if (file("vendor").exists()) {
-    subprojects { project ->
-        if (project.hasProperty("runtimeArtifactTasks")) {
-            project.getProperty("runtimeArtifactTasks").each { runtimeArtifactTask ->
-                rootProject.publishLocal.dependsOn runtimeArtifactTask
-                runtimeArtifactTask.dependsOn publishLocalPluginTask
-                def disableRuntimeArtifact = rootProject.hasProperty("disableRuntimeArtifacts") ||
-                        project.hasProperty("disableRuntimeArtifacts")
-                runtimeArtifactTask.enabled = !disableRuntimeArtifact
-            }
         }
     }
 }
@@ -135,6 +119,6 @@ tasks.register('zipPlugin', Zip) {
     it.from(localRepo)
     it.destinationDirectory = androidHostDist
     it.archiveFileName = "repo.zip"
-    it.dependsOn(publishLocalPluginTask) // TODO include data binding runtime build
+    it.dependsOn(publishLocalPluginTask)
 }
 apply plugin: 'presubmit-runner'
