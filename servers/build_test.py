@@ -55,6 +55,41 @@ class BuildScriptTest(unittest.TestCase):
         args = parser.parse_args(["--dist", "/tmp/dist"])
         self.assertEqual(args.target, build_environment.default_target())
 
+    def test_argument_parser_accepts_all_targets(self):
+        parser = build._create_argument_parser()
+        for target in [
+            "linux-aarch64",
+            "linux_aarch64",
+            "windows-aarch64",
+            "windows_aarch64",
+            "windows_x64",
+        ]:
+            args = parser.parse_args(["--dist", "/tmp/dist", "--target", target])
+            self.assertEqual(args.target, target)
+
+    @patch("build.build_aemu")
+    @patch("build.build_aosp")
+    @patch("build.build_trusty")
+    def test_main_windows_aarch64_normalizes_and_calls_build_aemu(
+        self, mock_trusty, mock_aosp, mock_aemu
+    ):
+        for target in [
+            "windows-aarch64",
+            "windows_aarch64",
+        ]:
+            with self.subTest(target=target):
+                test_args = ["build.py", "--dist", "/tmp/dist", "--target", target]
+                with patch.object(sys, "argv", test_args):
+                    exit_code = build.main()
+                    self.assertEqual(exit_code or 0, 0)
+                mock_aemu.assert_called()
+                call_args = mock_aemu.call_args[0]
+                self.assertEqual(call_args[0].target, "windows_aarch64")
+                self.assertEqual(call_args[1].target_platform, "windows_aarch64")
+                mock_aemu.reset_mock()
+                mock_trusty.assert_not_called()
+                mock_aosp.assert_not_called()
+
     def test_argument_parser_multiple_config_flags(self):
         parser = build._create_argument_parser()
         args_repeated = parser.parse_args(
@@ -104,16 +139,20 @@ class BuildScriptTest(unittest.TestCase):
             f"--build_metadata=ab_build_id={self.mock_env.build_id}", flags_passed
         )
 
-        # Must invoke bazel build on @goldfish//emulator:release ONLY
+        # Must invoke bazel build on @goldfish//emulator:release and @goldfish//emulator:sbom
         mock_bzl.build.assert_called_once()
         targets_built = mock_bzl.build.call_args[0][0]
-        self.assertEqual(targets_built, ["@goldfish//emulator:release"])
+        self.assertEqual(
+            targets_built,
+            ["@goldfish//emulator:release", "@goldfish//emulator:sbom"],
+        )
         self.assertTrue(mock_bzl.build.call_args[1].get("allow_analysis_cache_discard"))
         mock_bzl.test.assert_not_called()
 
-        # Must query artifacts for release and copy to dist_dir
+        # Must query artifacts for release and sbom and copy to dist_dir
         mock_bzl.query_artifacts.assert_called_once_with(
-            ["@goldfish//emulator:release"], allow_analysis_cache_discard=True
+            ["@goldfish//emulator:release", "@goldfish//emulator:sbom"],
+            allow_analysis_cache_discard=True,
         )
         mock_copy_all.assert_called_once_with([artifact_zip], self.mock_env.dist_dir)
         mock_copy_logs.assert_called_once()
@@ -350,8 +389,9 @@ class BuildScriptTest(unittest.TestCase):
             self.assertNotIn("@goldfish_test//ets:presubmit", t)
         mock_copy_all.assert_called_once_with([artifact_zip], self.mock_env.dist_dir)
 
-        # Stage 2: mock_bzl_unit_tests.test called with unit test targets
+        # Stage 2: mock_bzl_unit_tests.test called with unit test targets in presubmit
         mock_bzl_unit_tests.test.assert_called_once()
+        mock_bzl_unit_tests.coverage.assert_not_called()
         stage2_flags = mock_bzl_unit_tests.test.call_args[1]["invocation_flags"]
         self.assertIn("--build_tests_only", stage2_flags)
 
@@ -472,8 +512,8 @@ class BuildScriptTest(unittest.TestCase):
         self.assertNotIn("--local_resources=memory=HOST_RAM*.3", stage1_flags)
 
         mock_bzl_symbols.build.assert_called_once()
-        mock_bzl_unit_tests.test.assert_called_once()
-        stage3_flags = mock_bzl_unit_tests.test.call_args[1]["invocation_flags"]
+        mock_bzl_unit_tests.coverage.assert_called_once()
+        stage3_flags = mock_bzl_unit_tests.coverage.call_args[1]["invocation_flags"]
         self.assertNotIn("--jobs=2", stage3_flags)
 
         # Stage 4 (EtsIntegrationStage) reclaims resources and throttles to --jobs=2
@@ -513,7 +553,7 @@ class BuildScriptTest(unittest.TestCase):
         mock_bzl_symbols.query_artifacts.return_value = symbol_zips
         mock_bzl_release.test.return_value = MagicMock(returncode=0)
         mock_bzl_symbols.build.return_value = MagicMock(returncode=0)
-        mock_bzl_unit_tests.test.return_value = MagicMock(returncode=0)
+        mock_bzl_unit_tests.coverage.return_value = MagicMock(returncode=0)
         mock_bzl_ets.test.return_value = MagicMock(returncode=0)
 
         self.mock_env.is_presubmit = False
@@ -541,11 +581,67 @@ class BuildScriptTest(unittest.TestCase):
         mock_reclaim.assert_not_called()
         mock_bzl_release.test.assert_called_once()
         mock_bzl_symbols.build.assert_called_once()
-        mock_bzl_unit_tests.test.assert_called_once()
+        mock_bzl_unit_tests.coverage.assert_called_once()
         mock_bzl_ets.test.assert_called_once()
         ets_flags = mock_bzl_ets.test.call_args[1]["invocation_flags"]
         self.assertNotIn("--jobs=2", ets_flags)
         self.assertNotIn("--local_resources=memory=HOST_RAM*.3", ets_flags)
+
+    @patch("pipeline.stages.bazel.BazelCmd")
+    @patch("pipeline.context.copy_all")
+    @patch("pipeline.context.BuildContext.copy_bazel_logs")
+    def test_build_aemu_cross_compile_builds_without_running_tests(
+        self, mock_copy_logs, mock_copy_all, mock_bazel_cmd_cls
+    ):
+        mock_bzl_release = MagicMock()
+        mock_bzl_unit_tests = MagicMock()
+
+        mock_bazel_cmd_cls.side_effect = [
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_release)),
+            MagicMock(with_build_flags=MagicMock(return_value=mock_bzl_unit_tests)),
+        ]
+
+        artifact_zip = Path("/out/sdk-repo-linux_aarch64-P123456.zip")
+        mock_bzl_release.query_artifacts.return_value = [artifact_zip]
+
+        self.mock_env.target_platform = "linux_aarch64"
+        self.mock_env.is_cross_compile.return_value = True
+        self.mock_env.is_windows.return_value = False
+        self.mock_env.is_linux.return_value = True
+        self.mock_env.is_macos.return_value = False
+        self.mock_env.is_release = True
+
+        args = argparse.Namespace(
+            aosp=False,
+            dist="/tmp/dist",
+            build_id="P123456",
+            target="linux_aarch64",
+            change_info=None,
+        )
+
+        build.build_aemu(
+            args,
+            self.mock_env,
+            startup_options=[],
+            build_options=["--config=release"],
+        )
+
+        # Stage 1 (ReleasePackageStage) uses bzl.build on release_targets only (not bzl.test)
+        mock_bzl_release.build.assert_called_once()
+        mock_bzl_release.test.assert_not_called()
+        stage1_targets = mock_bzl_release.build.call_args[0][0]
+        self.assertIn("@goldfish//emulator:release", stage1_targets)
+        self.assertNotIn("@goldfish//emulator/launcher:boot_tests", stage1_targets)
+        mock_copy_all.assert_called_once_with([artifact_zip], self.mock_env.dist_dir)
+
+        # Stage 2 (UnitTestStage) uses bzl.build to compile unit test targets without executing them
+        mock_bzl_unit_tests.build.assert_called_once()
+        mock_bzl_unit_tests.test.assert_not_called()
+        stage2_targets = mock_bzl_unit_tests.build.call_args[0][0]
+        self.assertIn("@goldfish//...", stage2_targets)
+
+        # Stage 3 (EtsIntegrationStage) is skipped when cross-compiling (only 2 BazelCmd instances created)
+        self.assertEqual(mock_bazel_cmd_cls.call_count, 2)
 
 
 if __name__ == "__main__":

@@ -40,6 +40,8 @@ from services.log_handler import config_logging
 
 _reclaim_and_stabilize_resources = reclaim_and_stabilize_resources
 
+_UNIMPLEMENTED_TARGETS: set[str] = set()
+
 _DEFAULT_CONFIG_BY_OS = {
     "linux": ["release", "debug_symbols", "ci", "dynamic"],
     "darwin": ["release", "debug_symbols", "ci"],
@@ -64,13 +66,38 @@ def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
 
         copy_all(logs, logs_dir_bazel, not_found_ok=True)
 
+        testlogs_dirs: list[Path] = []
         if "bazel-testlogs" in bzl.info:
-            testlogs_dir = Path(bzl.info["bazel-testlogs"])
-            if testlogs_dir.is_dir():
-                testlogs_dest = logs_dir / "testlogs"
-                testlogs_dest.mkdir(parents=True, exist_ok=True)
-                copied_testlogs = 0
-                for ext in ("*.log", "*.xml"):
+            primary_testlogs = Path(bzl.info["bazel-testlogs"])
+            if primary_testlogs.is_dir():
+                testlogs_dirs.append(primary_testlogs)
+
+        if "output_path" in bzl.info:
+            output_path = Path(bzl.info["output_path"])
+            if output_path.is_dir():
+                for candidate in sorted(output_path.glob("*/testlogs")):
+                    if candidate.is_dir() and candidate not in testlogs_dirs:
+                        testlogs_dirs.append(candidate)
+                coverage_report = output_path / "_coverage" / "_coverage_report.dat"
+                if coverage_report.is_file():
+                    dist_dir = logs_dir.parent
+                    dist_dir.mkdir(parents=True, exist_ok=True)
+                    dest_report = safe_copy_file(
+                        coverage_report,
+                        dist_dir / "coverage_report.dat",
+                    )
+                    logger.info(
+                        "Copied combined coverage report '%s' to '%s'",
+                        coverage_report,
+                        dest_report,
+                    )
+
+        if testlogs_dirs:
+            testlogs_dest = logs_dir / "testlogs"
+            testlogs_dest.mkdir(parents=True, exist_ok=True)
+            copied_testlogs = 0
+            for testlogs_dir in testlogs_dirs:
+                for ext in ("*.log", "*.xml", "coverage.dat"):
                     for f in testlogs_dir.rglob(ext):
                         rel = f.relative_to(testlogs_dir)
                         dest = testlogs_dest / rel
@@ -87,12 +114,12 @@ def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
                                 dest,
                                 file_err,
                             )
-                if copied_testlogs > 0:
-                    logger.info(
-                        "Copied %d test log/XML file(s) to '%s'",
-                        copied_testlogs,
-                        testlogs_dest,
-                    )
+            if copied_testlogs > 0:
+                logger.info(
+                    "Copied %d test log/XML/coverage file(s) to '%s'",
+                    copied_testlogs,
+                    testlogs_dest,
+                )
     except (OSError, shutil.Error, KeyError) as e:
         logger.warning("Failed to copy bazel logs: %s", e)
 
@@ -230,13 +257,17 @@ def _create_argument_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--target",
         type=str,
-        choices=["trusty_x64"] + list(bazel._PLATFORM_TARGETS_BY_NAME.keys()),
+        choices=["trusty_x64"]
+        + list(bazel._PLATFORM_TARGETS_BY_NAME.keys())
+        + sorted(_UNIMPLEMENTED_TARGETS),
         default=build_environment.default_target(),
         help=f"""The build target
         Must be one of:
         'trusty_x64' - Stock qemu, used by security team
         Or one of the following emulator releases:
-        {", ".join([f"'{key}'" for key in bazel._PLATFORM_TARGETS_BY_NAME])}
+        {", ".join([f"'{key}'" for key in bazel._PLATFORM_TARGETS_BY_NAME])},
+        or pending targets:
+        {", ".join([f"'{key}'" for key in sorted(_UNIMPLEMENTED_TARGETS)])}
         """,
     )
     parser.add_argument(
@@ -288,7 +319,30 @@ def main():
                 f"--install_base={env.tmp_dir / 'install'}",
             ]
 
-        build_options = [f"--config={c}" for c in args.config]
+        if args.target in _UNIMPLEMENTED_TARGETS:
+            logger.info("Target %s is not yet implemented", args.target)
+            return 0
+
+        if args.target == "linux-aarch64":
+            args.target = "linux_aarch64"
+            env.target_platform = "linux_aarch64"
+
+        if args.target == "windows-aarch64":
+            args.target = "windows_aarch64"
+            env.target_platform = "windows_aarch64"
+
+        configs = list(args.config)
+        if env.target_platform.startswith("windows") and not env.is_windows():
+            # Cross-compiling for Windows from a non-Windows host:
+            # Remote execution is required (Windows actions must run on Windows RBE workers),
+            # and local dynamic execution must be disabled since the host cannot run Windows PE binaries.
+            configs = [c if c != "dynamic" else "remote" for c in configs]
+            if "remote" not in configs:
+                configs.append("remote")
+            if "debug_symbols" in configs:
+                configs.remove("debug_symbols")
+
+        build_options = [f"--config={c}" for c in configs]
         if not env.is_presubmit:
             build_options.append("--bes_keywords=ab-postsubmit")
 
@@ -303,7 +357,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        main()
+        sys.exit(main() or 0)
     except Exception as e:  # noqa: BLE001
         # Top-level CLI entry point exception containment
         if not getattr(e, "_logged_by_pipeline", False):

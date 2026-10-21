@@ -255,6 +255,15 @@ class BazelEnvironment:
     def is_linux(self):
         return not self.is_macos() and not self.is_windows()
 
+    def is_cross_compile(self) -> bool:
+        """Determines whether the target platform is cross-compiled from the host."""
+        native_target = _SYSTEM_TO_TARGET.get(self.host_platform)
+        return bool(
+            native_target
+            and self.target_platform != native_target
+            and "trusty" not in self.target_platform
+        )
+
     def get_host_memory_metrics(self):
         """Returns host memory and swap metrics."""
         return host_resources.get_host_memory_metrics(self)
@@ -333,7 +342,11 @@ class BazelEnvironment:
                 try:
                     proc.terminate()
                     await asyncio.wait_for(proc.wait(), timeout=10)
-                except (asyncio.TimeoutError, asyncio.CancelledError, Exception):  # noqa: BLE001
+                except (
+                    asyncio.TimeoutError,
+                    asyncio.CancelledError,
+                    Exception,
+                ):  # noqa: BLE001
                     logger.error("Command did not terminate after 10s, killing.")
                     proc.kill()
                     try:
@@ -472,7 +485,9 @@ class BuildEnvironment(BazelEnvironment):
             self.gemini_api_key = creds.get("api_key")
             if isinstance(self.gemini_api_key, str):
                 register_secret(self.gemini_api_key)
-        except Exception as e:  # noqa: BLE001  # Fallback gracefully if Gemini credentials cannot be resolved
+        except (
+            Exception
+        ) as e:  # noqa: BLE001  # Fallback gracefully if Gemini credentials cannot be resolved
             logger.warning(
                 "Could not obtain Gemini API key: %s", redact_secrets(str(e))
             )

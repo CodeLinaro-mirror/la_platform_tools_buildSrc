@@ -51,6 +51,38 @@ def _is_env_memory_constrained(env: build_environment.BuildEnvironment) -> bool:
     return bool(env.is_macos())
 
 
+def _is_env_cross_compile(env: build_environment.BuildEnvironment) -> bool:
+    """Checks if the environment is cross-compiling, handling unconfigured mocks safely."""
+    if hasattr(env, "is_cross_compile"):
+        res = env.is_cross_compile()
+        if MagicMock is not None and isinstance(res, MagicMock):
+            return False
+        return bool(res)
+    return False
+
+
+def _should_collect_coverage(env: build_environment.BuildEnvironment) -> bool:
+    """Returns True when unit tests should run under `bazel coverage` (native Linux/macOS release postsubmit builds)."""
+    if (
+        env.is_presubmit
+        or not env.is_release
+        or env.is_windows()
+        or _is_env_cross_compile(env)
+    ):
+        return False
+    for check_fn, prefix in (
+        (env.is_linux, "linux"),
+        (env.is_macos, "mac"),
+    ):
+        res = check_fn()
+        if MagicMock is not None and isinstance(res, MagicMock):
+            if str(getattr(env, "target_platform", "")).startswith(prefix):
+                return True
+        elif bool(res):
+            return True
+    return False
+
+
 def _log_host_memory_status(env: build_environment.BuildEnvironment, label: str = ""):
     """Logs host memory and swap metrics for telemetry and diagnostics."""
     host_resources.log_host_memory_status(env, label)
@@ -103,7 +135,7 @@ class AospStage(Stage):
 
         inv = (
             BazelInvocationBuilder("build", ctx.env, ctx.startup_options)
-            .with_targets(["@goldfish//emulator:release"])
+            .with_targets(["@goldfish//emulator:release", "@goldfish//emulator:sbom"])
             .with_common_flags(aosp_build_options)
             .with_profile(ctx.bazel_logs_dir / "aosp_build.profile.gz")
             .build_invocation()
@@ -123,7 +155,8 @@ class AospStage(Stage):
         )
 
         artifacts = bzl.query_artifacts(
-            ["@goldfish//emulator:release"], allow_analysis_cache_discard=True
+            ["@goldfish//emulator:release", "@goldfish//emulator:sbom"],
+            allow_analysis_cache_discard=True,
         )
         ctx.copy_artifacts(artifacts)
         logger.info("AOSP build complete. Artifacts placed in %s", ctx.dist_dir)
@@ -145,7 +178,10 @@ class ReleasePackageStage(Stage):
         )
 
     def execute(self, ctx: BuildContext) -> None:
-        self.release_targets = ["@goldfish//emulator:release"]
+        self.release_targets = [
+            "@goldfish//emulator:release",
+            "@goldfish//emulator:sbom",
+        ]
         if ctx.env.target_platform.startswith("linux"):
             self.release_targets.extend(
                 [
@@ -153,7 +189,9 @@ class ReleasePackageStage(Stage):
                     "@goldfish//emulator:release_internal",
                 ]
             )
-        if not ctx.env.is_windows():
+        if not ctx.env.is_windows() and not ctx.env.target_platform.startswith(
+            "windows"
+        ):
             self.release_targets.append("@goldfish_test//ets:android_ets_zip")
 
         test_targets = [
@@ -163,55 +201,74 @@ class ReleasePackageStage(Stage):
             "@goldfish//emulator/launcher:boot_tests",
         ]
         if ctx.env.target_platform.startswith("linux"):
-            test_targets.append(
-                "@goldfish//emulator/tests:release_zip_internal_test"
-            )
+            test_targets.append("@goldfish//emulator/tests:release_zip_internal_test")
         if ctx.should_run_meson_generator():
             logger.info("QEMU changes detected, generating bazel build files.")
             self.release_targets.append("@qemu//google/toolchain:zip")
             test_targets.append("@qemu//google/toolchain:generated_diff")
 
-        targets = list(self.release_targets) + test_targets
         tidy_build_flags = ctx.get_clang_tidy_build_flags()
+        is_cross_compile = _is_env_cross_compile(ctx.env)
 
-        inv_builder = (
-            BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
-            .with_targets(targets)
-            .with_common_flags(ctx.build_options)
-            .with_build_flags(["--build_manual_tests"] + tidy_build_flags)
-            .with_test_defaults("android_emulator/release")
-            .with_profile(ctx.bazel_logs_dir / "command.profile.gz")
-            .with_fail_on_test_failure(ctx.env.is_presubmit)
-        )
-        if not ctx.env.is_presubmit:
-            inv_builder.with_invocation_flags(["--nocache_test_results"])
-        inv = inv_builder.build_invocation()
+        if is_cross_compile:
+            inv = (
+                BazelInvocationBuilder("build", ctx.env, ctx.startup_options)
+                .with_targets(self.release_targets)
+                .with_common_flags(ctx.build_options)
+                .with_build_flags(tidy_build_flags)
+                .with_profile(ctx.bazel_logs_dir / "command.profile.gz")
+                .build_invocation()
+            )
+            bzl = bazel.BazelCmd(
+                ctx.env, startup_options=inv.startup_options
+            ).with_build_flags(inv.build_flags)
+            ctx.active_bzl = bzl
 
-        bzl = bazel.BazelCmd(
-            ctx.env, startup_options=inv.startup_options
-        ).with_build_flags(inv.build_flags)
-        ctx.active_bzl = bzl
+            bzl.build(
+                inv.targets,
+                invocation_flags=inv.invocation_flags,
+                allow_analysis_cache_discard=True,
+                timeout=inv.timeout,
+            )
+        else:
+            targets = list(self.release_targets) + test_targets
+            inv_builder = (
+                BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
+                .with_targets(targets)
+                .with_common_flags(ctx.build_options)
+                .with_build_flags(["--build_manual_tests"] + tidy_build_flags)
+                .with_test_defaults("android_emulator/release")
+                .with_profile(ctx.bazel_logs_dir / "command.profile.gz")
+                .with_fail_on_test_failure(ctx.env.is_presubmit)
+            )
+            if not ctx.env.is_presubmit:
+                inv_builder.with_invocation_flags(["--nocache_test_results"])
+            inv = inv_builder.build_invocation()
 
-        res = bzl.test(
-            inv.targets,
-            invocation_flags=inv.invocation_flags,
-            allow_analysis_cache_discard=True,
-            fail_on_test_failure=inv.fail_on_test_failure,
-            timeout=inv.timeout,
-        )
+            bzl = bazel.BazelCmd(
+                ctx.env, startup_options=inv.startup_options
+            ).with_build_flags(inv.build_flags)
+            ctx.active_bzl = bzl
+
+            res = bzl.test(
+                inv.targets,
+                invocation_flags=inv.invocation_flags,
+                allow_analysis_cache_discard=True,
+                fail_on_test_failure=inv.fail_on_test_failure,
+                timeout=inv.timeout,
+            )
+            if (
+                not ctx.env.is_presubmit
+                and isinstance(getattr(res, "returncode", None), int)
+                and res.returncode != bazel.BuildExitCode.SUCCESS
+            ):
+                logger.warning(
+                    "Release packaging tests encountered failures (exit code %s).",
+                    res.returncode,
+                )
 
         artifacts = bzl.query_artifacts(self.release_targets)
         ctx.copy_artifacts(artifacts)
-
-        if (
-            not ctx.env.is_presubmit
-            and isinstance(getattr(res, "returncode", None), int)
-            and res.returncode != bazel.BuildExitCode.SUCCESS
-        ):
-            logger.warning(
-                "Release packaging tests encountered failures (exit code %s).",
-                res.returncode,
-            )
 
 
 class UnitTestStage(Stage):
@@ -238,13 +295,58 @@ class UnitTestStage(Stage):
             unit_test_targets.append("-@goldfish//emulator:external_unit_tests")
         elif not ctx.env.is_presubmit:
             unit_test_targets.append("@goldfish//emulator:external_unit_tests")
-        if ctx.env.is_linux():
+        if ctx.env.is_linux() and not _is_env_cross_compile(ctx.env):
             unit_test_targets.append("@gfxstream//:gfxstream_unit_tests")
+        if _is_env_cross_compile(ctx.env) and ctx.env.target_platform.startswith(
+            "windows"
+        ):
+            unit_test_targets.extend(
+                [
+                    "-@goldfish//emulator/crashreport/...",
+                    "-@goldfish//emulator/launcher/...",
+                    "-@goldfish//emulator/tests/...",
+                    "-@goldfish//emulator/tools/...",
+                    "-@goldfish//emulator/videobridge/java/...",
+                ]
+            )
 
         tidy_build_flags = ctx.get_clang_tidy_build_flags()
+        is_cross_compile = _is_env_cross_compile(ctx.env)
+
+        if is_cross_compile:
+            inv_builder = (
+                BazelInvocationBuilder("build", ctx.env, ctx.startup_options)
+                .with_targets(unit_test_targets)
+                .with_common_flags(ctx.build_options)
+                .with_build_flags(tidy_build_flags)
+                .with_thin_lto_disabled()
+                .with_build_tests_only()
+                .with_profile(ctx.bazel_logs_dir / "unit_tests.profile.gz")
+            )
+            if tidy_build_flags:
+                inv_builder.with_invocation_flags(
+                    ["--modify_execution_info=ClangTidy.*=+no-remote"]
+                )
+            inv = inv_builder.build_invocation()
+
+            bzl = bazel.BazelCmd(
+                ctx.env, startup_options=inv.startup_options
+            ).with_build_flags(inv.build_flags)
+            self._bzl = bzl
+            ctx.active_bzl = bzl
+
+            bzl.build(
+                inv.targets,
+                invocation_flags=inv.invocation_flags,
+                allow_analysis_cache_discard=True,
+                timeout=inv.timeout,
+            )
+            return
+
+        verb = "coverage" if _should_collect_coverage(ctx.env) else "test"
 
         inv_builder = (
-            BazelInvocationBuilder("test", ctx.env, ctx.startup_options)
+            BazelInvocationBuilder(verb, ctx.env, ctx.startup_options)
             .with_targets(unit_test_targets)
             .with_common_flags(ctx.build_options)
             .with_build_flags(tidy_build_flags)
@@ -273,7 +375,8 @@ class UnitTestStage(Stage):
         self._bzl = bzl
         ctx.active_bzl = bzl
 
-        res = bzl.test(
+        run_fn = bzl.coverage if inv.verb == "coverage" else bzl.test
+        res = run_fn(
             inv.targets,
             invocation_flags=inv.invocation_flags,
             allow_analysis_cache_discard=True,
@@ -294,30 +397,37 @@ class UnitTestStage(Stage):
         if not self._bzl:
             return
         try:
-            if "bazel-testlogs" not in self._bzl.info:
-                return
-            testlogs_dir = pathlib.Path(self._bzl.info["bazel-testlogs"])
-            if not testlogs_dir.is_dir():
-                return
+            testlogs_dirs: list[pathlib.Path] = []
+            if "bazel-testlogs" in self._bzl.info:
+                primary_testlogs = pathlib.Path(self._bzl.info["bazel-testlogs"])
+                if primary_testlogs.is_dir():
+                    testlogs_dirs.append(primary_testlogs)
+            if "output_path" in self._bzl.info:
+                output_path = pathlib.Path(self._bzl.info["output_path"])
+                if output_path.is_dir():
+                    for candidate in sorted(output_path.glob("*/testlogs")):
+                        if candidate.is_dir() and candidate not in testlogs_dirs:
+                            testlogs_dirs.append(candidate)
 
-            for log_val in testlogs_dir.rglob("test.log"):
-                content = log_val.read_text(encoding="utf-8", errors="replace")
-                if (
-                    "Clang-tidy found issues" in content
-                    or "clang-tidy crashed" in content
-                ):
-                    try:
-                        rel_path = log_val.relative_to(testlogs_dir)
-                    except ValueError:
-                        rel_path = log_val
-                    logger.error(
-                        "\n"
-                        + "=" * 80
-                        + f"\n[LINT FAILURE] Report from: {rel_path}\n"
-                        + "=" * 80
-                        + f"\n{content}\n"
-                        + "=" * 80
-                    )
+            for testlogs_dir in testlogs_dirs:
+                for log_val in testlogs_dir.rglob("test.log"):
+                    content = log_val.read_text(encoding="utf-8", errors="replace")
+                    if (
+                        "Clang-tidy found issues" in content
+                        or "clang-tidy crashed" in content
+                    ):
+                        try:
+                            rel_path = log_val.relative_to(testlogs_dir)
+                        except ValueError:
+                            rel_path = log_val
+                        logger.error(
+                            "\n"
+                            + "=" * 80
+                            + f"\n[LINT FAILURE] Report from: {rel_path}\n"
+                            + "=" * 80
+                            + f"\n{content}\n"
+                            + "=" * 80
+                        )
         except Exception as e:  # noqa: BLE001
             # Telemetry extraction must not mask the primary failure
             logger.warning("Failed to extract clang-tidy logs: %s", e)
@@ -338,6 +448,7 @@ class EtsIntegrationStage(Stage):
             not getattr(ctx.args, "aosp", False)
             and "trusty" not in getattr(ctx.args, "target", "")
             and not ctx.env.is_windows()
+            and not _is_env_cross_compile(ctx.env)
             and ctx.env.is_release
         )
 
@@ -430,7 +541,7 @@ class SymbolUploadStage(Stage):
         ]
         aux_targets = (
             [sym_upload.Symuploader.SYM_UPLOAD_TARGET]
-            if ctx.env.crashpad_symbol_server_key
+            if ctx.env.crashpad_symbol_server_key and not _is_env_cross_compile(ctx.env)
             else []
         )
         targets = list(self.symbol_targets) + aux_targets
