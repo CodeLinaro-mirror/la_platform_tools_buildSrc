@@ -46,5 +46,5 @@ tasks.named("kotlinSourcesJar").configure {
 }
 
 kotlin {
-    coreLibrariesVersion = libs.kotlin_gradle_plugin.split(':')[2]
+    coreLibrariesVersion = libs.versions.kotlin.get()
 }

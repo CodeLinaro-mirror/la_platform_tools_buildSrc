@@ -1,10 +1,11 @@
-exports_files(["dependencies.properties"])
+exports_files(["libs.versions.toml"])
 
 filegroup(
     name = "agp_gradle_build_files",
     srcs = glob([
         "*.gradle",
         "*.properties",
+        "*.toml",
     ]),
     visibility = [
         "//tools/base/build-system:__pkg__",

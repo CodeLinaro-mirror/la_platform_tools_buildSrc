@@ -26,13 +26,13 @@ dependencies {
     implementation localGroovy()
 
     implementation libs.jarjar
-    implementation libs.apache_commons_io
+    implementation libs.apache.commons.io
     implementation libs.guava
     implementation libs.gson
-    implementation libs.protobuf_gradle_plugin
-    implementation libs.apache_commons_lang
+    implementation libs.protobuf.gradle.plugin
+    implementation libs.apache.commons.lang
     implementation libs.jsoup
-    implementation libs.kotlin_gradle_plugin_for_agp_build
+    implementation libs.kotlin.gradle.plugin.forAgpBuild
 
     testImplementation libs.junit
 }
