@@ -311,7 +311,7 @@ class PipelineTest(unittest.TestCase):
         rel_build_flags = list(
             mock_bazel_cmd_cls.return_value.with_build_flags.call_args[0][0]
         )
-        self.assertIn("--@goldfish_build//:clang_tidy_enabled=true", rel_build_flags)
+        self.assertIn("--@aemu//tools/clang_tidy:clang_tidy_enabled=true", rel_build_flags)
 
         mock_bzl.test.reset_mock()
         mock_bzl.coverage.reset_mock()
@@ -321,13 +321,13 @@ class PipelineTest(unittest.TestCase):
         unit_build_flags = list(
             mock_bazel_cmd_cls.return_value.with_build_flags.call_args[0][0]
         )
-        self.assertIn("--@goldfish_build//:clang_tidy_enabled=true", unit_build_flags)
+        self.assertIn("--@aemu//tools/clang_tidy:clang_tidy_enabled=true", unit_build_flags)
         self.assertIn(
-            f"--@goldfish_build//:clang_tidy_line_filter={tidy_json}",
+            f"--@aemu//tools/clang_tidy:clang_tidy_line_filter={tidy_json}",
             unit_build_flags,
         )
         self.assertIn(
-            "--@goldfish_build//:clang_tidy_check_files=emulator/base/foo.cc",
+            "--@aemu//tools/clang_tidy:clang_tidy_check_files=emulator/base/foo.cc",
             unit_build_flags,
         )
         # get_clang_tidy_line_filter_json_by_project is cached across stages
