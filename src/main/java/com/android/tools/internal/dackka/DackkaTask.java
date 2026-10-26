@@ -163,6 +163,9 @@ public abstract class DackkaTask extends DefaultTask {
                                 "docRootPath", "reference/" + getDevsiteTenant().get(),
                                 "kotlinDocsPath", "",
                                 "projectPath", "",
+                                // Java refdocs are not generated for AGP; exclude all packages for
+                                // Java so Dackka does not emit language switcher links to 404 paths.
+                                "excludedPackagesForJava", List.of(".*"),
                                 "annotationsNotToDisplay", hiddenAnnotations,
                                 "annotationsNotToDisplayJava", hiddenAnnotationsJava,
                                 "annotationsNotToDisplayKotlin", hiddenAnnotationsKotlin,

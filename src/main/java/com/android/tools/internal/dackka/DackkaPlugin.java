@@ -93,7 +93,7 @@ public class DackkaPlugin implements Plugin<Project> {
         TaskProvider<DackkaTask> dackkaTask = project.getTasks().register("dackkaDocs", DackkaTask.class, task -> {
             task.getDevsiteTenant().set(devsitePrefix);
             task.getDestinationDirectory().set(project.getLayout().getBuildDirectory().dir("dackka"));
-            task.getDackkaClasspath().from(project.getRootProject().file("../prebuilts/tools/common/dackka/dackka-1.3.6.jar"));
+            task.getDackkaClasspath().from(project.getRootProject().file("../prebuilts/tools/common/dackka/dackka-1.10.5.jar"));
             task.getDependenciesClasspath().from(compileClasspath);
             task.getSources().from(sources);
             task.getExtractedSources().set(project.getLayout().getBuildDirectory().dir("intermediates/extracted_sources"));
