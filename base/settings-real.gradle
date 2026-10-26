@@ -51,7 +51,6 @@ def projects = [
         [projectName: ':base:build-analyzer:common', projectPath: ''],
         [projectName: ':base:build-system:gradle-core', projectPath: ''],
         [projectName: ':base:build-system:gradle-kotlin', projectPath: ''],
-        [projectName: ':base:build-system:gradle-dcl-ecosystem', projectPath: ''],
         [projectName: ':base:build-system:gradle-settings', projectPath: ''],
         [projectName: ':base:build-system:gradle-settings-api', projectPath: ''],
         [projectName: ':base:build-system:gradle-common-api', projectPath: ''],
