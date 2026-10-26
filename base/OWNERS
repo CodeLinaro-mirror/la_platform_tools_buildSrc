@@ -1,0 +1,2 @@
+# R8 Team members for updating the R8 version.
+per-file r8.versions.toml = troels@google.com, sgjesse@google.com, christofferqa@google.com, jobay@google.com, clementbera@google.com, jonathanlist@google.com

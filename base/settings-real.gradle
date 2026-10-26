@@ -27,6 +27,9 @@ dependencyResolutionManagement {
             version('base', bazelBaseVersion)
             version('build', bazelBuildVersion)
         }
+        r8 {
+            from(files(new File(settingsDir, "buildSrc/base/r8.versions.toml")))
+        }
     }
 }
 

@@ -1,0 +1,4 @@
+# Version of R8 used by the gradle plugin.
+
+[libraries]
+r8 = "com.android.tools:r8:9.6.0-alpha08"
