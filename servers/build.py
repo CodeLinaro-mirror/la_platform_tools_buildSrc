@@ -19,7 +19,7 @@ import logging
 import platform
 import shutil
 import sys
-from pathlib import Path
+from pathlib import Path, PurePath
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +48,13 @@ _DEFAULT_CONFIG_BY_OS = {
     # Windows uses a different feature for PDBs and is always on.
     "windows": ["release", "ci"],
 }
+
+# The Android buildbot sets TMPDIR to tempfile.mkdtemp(dir=<buildbot root>/tmp),
+# i.e. "tmp" followed by 8 random characters.
+_BUILDBOT_TMPDIR_PREFIX = "tmp"
+# Replaces _BUILDBOT_TMPDIR_PREFIX in the name of the Windows output base. It must
+# not start with "__": the buildbot's tmp cleanup skips those entries.
+_WINDOWS_OUTPUT_BASE_PREFIX = "b"
 
 
 def copy_bazel_logs(bzl: bazel.BazelCmd, logs_dir: Path):
@@ -146,6 +153,36 @@ def get_common_build_flags(
     ):
         flags.append("--config=lto")
     return flags
+
+
+def _bazel_output_base(tmp_dir: PurePath, is_windows: bool) -> PurePath:
+    r"""Returns the Bazel output base to use for a build with the given TMPDIR.
+
+    On Windows, every path in a test's runfiles tree starts with the output
+    base, and a DLL whose path is longer than MAX_PATH (260 characters) fails to
+    load with "The filename or extension is too long" (e.g. psutil's
+    _psutil_windows.pyd). So instead of TMPDIR/output, Windows uses a short
+    sibling of the buildbot's per-build TMPDIR:
+    c:\buildbot\tmp\tmp0ytbe5l2 -> c:\buildbot\tmp\b0ytbe5l2 (25 instead of 34
+    characters). The name is unique per build because the TMPDIR name is, and
+    the directory stays under c:\buildbot\tmp, which the buildbot cleans up.
+
+    Args:
+        tmp_dir: The TMPDIR of the build.
+        is_windows: Whether the build runs on a Windows host.
+
+    Returns:
+        The path to pass to bazel --output_base.
+    """
+    name = tmp_dir.name
+    if (
+        is_windows
+        and name.startswith(_BUILDBOT_TMPDIR_PREFIX)
+        and len(name) > len(_BUILDBOT_TMPDIR_PREFIX)
+    ):
+        suffix = name.removeprefix(_BUILDBOT_TMPDIR_PREFIX)
+        return tmp_dir.with_name(_WINDOWS_OUTPUT_BASE_PREFIX + suffix)
+    return tmp_dir / "output"
 
 
 def build_trusty(args, env):
@@ -314,8 +351,9 @@ def main():
         explainer.env = env
         startup_options = []
         if env.tmp_dir:
+            output_base = _bazel_output_base(env.tmp_dir, env.is_windows())
             startup_options += [
-                f"--output_base={env.tmp_dir / 'output'}",
+                f"--output_base={output_base}",
                 f"--install_base={env.tmp_dir / 'install'}",
             ]
 
