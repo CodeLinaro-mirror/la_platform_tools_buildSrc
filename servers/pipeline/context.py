@@ -179,12 +179,38 @@ class BuildContext:
 
             copy_all(logs, self.bazel_logs_dir, not_found_ok=True)
 
+            testlogs_dirs: list[pathlib.Path] = []
             if "bazel-testlogs" in target_bzl.info:
-                testlogs_dir = pathlib.Path(target_bzl.info["bazel-testlogs"])
-                if testlogs_dir.is_dir():
-                    self.testlogs_dest_dir.mkdir(parents=True, exist_ok=True)
-                    copied_testlogs = 0
-                    for ext in ("*.log", "*.xml"):
+                primary_testlogs = pathlib.Path(target_bzl.info["bazel-testlogs"])
+                if primary_testlogs.is_dir():
+                    testlogs_dirs.append(primary_testlogs)
+
+            if "output_path" in target_bzl.info:
+                output_path = pathlib.Path(target_bzl.info["output_path"])
+                if output_path.is_dir():
+                    for candidate in sorted(output_path.glob("*/testlogs")):
+                        if candidate.is_dir() and candidate not in testlogs_dirs:
+                            testlogs_dirs.append(candidate)
+                    coverage_report = (
+                        output_path / "_coverage" / "_coverage_report.dat"
+                    )
+                    if coverage_report.is_file():
+                        self.dist_dir.mkdir(parents=True, exist_ok=True)
+                        dest_report = safe_copy_file(
+                            coverage_report,
+                            self.dist_dir / "coverage_report.dat",
+                        )
+                        logger.info(
+                            "Copied combined coverage report '%s' to '%s'",
+                            coverage_report,
+                            dest_report,
+                        )
+
+            if testlogs_dirs:
+                self.testlogs_dest_dir.mkdir(parents=True, exist_ok=True)
+                copied_testlogs = 0
+                for testlogs_dir in testlogs_dirs:
+                    for ext in ("*.log", "*.xml", "coverage.dat"):
                         for f in testlogs_dir.rglob(ext):
                             rel = f.relative_to(testlogs_dir)
                             dest = self.testlogs_dest_dir / rel
@@ -201,12 +227,12 @@ class BuildContext:
                                     dest,
                                     file_err,
                                 )
-                    if copied_testlogs > 0:
-                        logger.info(
-                            "Copied %d test log/XML file(s) to '%s'",
-                            copied_testlogs,
-                            self.testlogs_dest_dir,
-                        )
+                if copied_testlogs > 0:
+                    logger.info(
+                        "Copied %d test log/XML/coverage file(s) to '%s'",
+                        copied_testlogs,
+                        self.testlogs_dest_dir,
+                    )
         except (OSError, shutil.Error, KeyError) as e:
             logger.warning("Failed to copy bazel logs: %s", e)
 

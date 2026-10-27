@@ -239,6 +239,39 @@ class SymUploadTest(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             self.uploader.upload_artifact(Path("/tmp/emulator.sym"))
 
+    def test_upload_artifact_cross_compile_uses_host_sym_upload(self):
+        self.mock_env.is_cross_compile.return_value = True
+        self.mock_env.is_windows.return_value = True
+        host_bzl = MagicMock()
+        host_sym_upload_bin = Path(self.temp_dir.name) / "host_sym_upload.exe"
+        host_sym_upload_bin.write_text("MZ")
+        host_bzl.query_artifacts.return_value = [host_sym_upload_bin]
+        self.mock_bzl.with_host_platform.return_value = host_bzl
+
+        sym_file = Path("C:/tmp/qemu-system-aarch64.pdb.sym")
+        self.uploader.upload_artifact(sym_file)
+
+        self.mock_bzl.with_host_platform.assert_called_once_with()
+        host_bzl.build.assert_called_once_with(
+            ["@breakpad//:sym_upload"],
+            allow_analysis_cache_discard=True,
+        )
+        host_bzl.query_artifacts.assert_called_once_with(
+            ["@breakpad//:sym_upload"],
+            allow_analysis_cache_discard=True,
+        )
+        self.mock_bzl.build.assert_not_called()
+        self.mock_bzl.query_artifacts.assert_not_called()
+        self.mock_env.run.assert_called_once_with(
+            [
+                str(host_sym_upload_bin),
+                "-p",
+                str(sym_file),
+                "https://prod-crashsymbolcollector-pa.googleapis.com",
+                "test_key_123",
+            ]
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

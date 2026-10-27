@@ -38,9 +38,13 @@ except ImportError:
     from log_handler import mask_command, redact_secrets, register_secret
 
 _PLATFORM_TARGETS_BY_NAME = {
+    "linux-aarch64": "@goldfish_build//platforms:linux_aarch64",
+    "linux_aarch64": "@goldfish_build//platforms:linux_aarch64",
     "linux_x64": "@goldfish_build//platforms:linux_x64",
     "mac_aarch64": "@goldfish_build//platforms:macos_aarch64",
     "mac_x64": "@goldfish_build//platforms:macos_x64",
+    "windows-aarch64": "@goldfish_build//platforms:windows_aarch64",
+    "windows_aarch64": "@goldfish_build//platforms:windows_aarch64",
     "windows_x64": "@goldfish_build//platforms:windows_x64",
 }
 
@@ -147,6 +151,7 @@ class BazelCmd:
     _startup_options: tuple[str, ...]
     _build_flags: tuple[str, ...]
     _capture_output: bool
+    _target_platform: str
 
     def __init__(
         self,
@@ -154,6 +159,7 @@ class BazelCmd:
         *,
         capture_output: bool = False,
         startup_options: Iterable[str] = (),
+        target_platform: str | None = None,
     ) -> None:
         """Initializes Bazel command.
 
@@ -162,6 +168,8 @@ class BazelCmd:
             capture_output: Whether or not build, test and run commands should capture
                 outputs. Queries always capture output.
             startup_options: Startup options for the bazel command.
+            target_platform: Optional target platform override. Defaults to
+                build_env.target_platform.
         """
         self._env = build_env
         self._startup_options = tuple(startup_options)
@@ -169,6 +177,11 @@ class BazelCmd:
         system = f"{build_env.host_platform}-x86_64"
         self._path = build_env.repo_root / "prebuilts" / "bazel" / system / "bazel"
         self._capture_output = capture_output
+        self._target_platform = (
+            target_platform
+            if target_platform is not None
+            else build_env.target_platform
+        )
 
     def with_build_flags(self, flags: Iterable[str]) -> BazelCmd:
         """Creates a new ``BazelCmd`` instance with build flags attached.
@@ -187,8 +200,36 @@ class BazelCmd:
             self._env,
             capture_output=self._capture_output,
             startup_options=self._startup_options,
+            target_platform=self._target_platform,
         )
         instance._build_flags = tuple(flags)
+        return instance
+
+    def with_host_platform(self) -> BazelCmd:
+        """Creates a new ``BazelCmd`` instance targeting the host platform."""
+        host_platform = getattr(self._env, "host_platform", None)
+        host_target = (
+            build_environment._SYSTEM_TO_TARGET.get(host_platform)
+            if isinstance(host_platform, str)
+            else None
+        )
+        if not host_target:
+            if self._env.is_windows():
+                host_target = "windows_x64"
+            elif self._env.is_macos():
+                host_target = "mac_aarch64"
+            else:
+                host_target = "linux_x64"
+        instance = BazelCmd(
+            self._env,
+            capture_output=self._capture_output,
+            startup_options=self._startup_options,
+            target_platform=host_target,
+        )
+        build_flags = self._build_flags
+        if not host_target.startswith("linux"):
+            build_flags = tuple(f for f in build_flags if f != "--config=lto")
+        instance._build_flags = build_flags
         return instance
 
     @property
@@ -210,8 +251,16 @@ class BazelCmd:
         # Info doesn't seem to have access to other modules
         if verb != "info":
             cmd.append(
-                f"--platforms={_PLATFORM_TARGETS_BY_NAME[self._env.target_platform]}"
+                f"--platforms={_PLATFORM_TARGETS_BY_NAME[self._target_platform]}"
             )
+            if (
+                self._target_platform.startswith("windows")
+                and not self._env.is_windows()
+            ):
+                cmd.append(
+                    "--extra_execution_platforms=@goldfish_build//platforms:windows_x64"
+                )
+                cmd.append("--remote_local_fallback=false")
         cmd.extend(extra_flags)
         if not allow_analysis_cache_discard:
             cmd.append("--noallow_analysis_cache_discard")
@@ -256,6 +305,45 @@ class BazelCmd:
             info[key.strip()] = value.strip()
         return types.MappingProxyType(info)
 
+    def _run_test_verb(
+        self,
+        verb: str,
+        targets: Iterable[str],
+        *,
+        invocation_flags: Iterable[str] = (),
+        allow_analysis_cache_discard: bool = False,
+        allow_no_test: bool = False,
+        fail_on_test_failure: bool = True,
+        timeout: float | None = 3600,
+    ) -> subprocess.CompletedProcess:
+        flags = list(invocation_flags)
+        gemini_key = getattr(self._env, "gemini_api_key", None)
+        if isinstance(gemini_key, str) and gemini_key:
+            register_secret(gemini_key)
+            flags.append(f"--test_env=GEMINI_API_KEY={gemini_key}")
+        cmd = self._build_cmd(verb, targets, flags, allow_analysis_cache_discard)
+        result = self._env.run(
+            cmd,
+            capture_output=self._capture_output,
+            throw_on_failure=False,
+            timeout=timeout,
+        )
+        normal_return_codes = [BuildExitCode.SUCCESS]
+        if not fail_on_test_failure:
+            normal_return_codes.append(BuildExitCode.TESTS_FAILED)
+        if allow_no_test:
+            normal_return_codes.append(BuildExitCode.TESTS_NOT_FOUND)
+        if result.returncode not in normal_return_codes:
+            raise build_environment.CommandFailedException(
+                _bazel_error_msg(
+                    cmd,
+                    BuildExitCode.try_convert(result.returncode),
+                    extra_secrets=self._env_secrets(),
+                ),
+                result,
+            )
+        return result
+
     def test(
         self,
         targets: Iterable[str],
@@ -283,33 +371,51 @@ class BazelCmd:
             A ``subprocess.CompletedProcess`` object. When capture_output == False,
             it contains only the commandline and the return code.
         """
-        flags = list(invocation_flags)
-        gemini_key = getattr(self._env, "gemini_api_key", None)
-        if isinstance(gemini_key, str) and gemini_key:
-            register_secret(gemini_key)
-            flags.append(f"--test_env=GEMINI_API_KEY={gemini_key}")
-        cmd = self._build_cmd("test", targets, flags, allow_analysis_cache_discard)
-        result = self._env.run(
-            cmd,
-            capture_output=self._capture_output,
-            throw_on_failure=False,
+        return self._run_test_verb(
+            "test",
+            targets,
+            invocation_flags=invocation_flags,
+            allow_analysis_cache_discard=allow_analysis_cache_discard,
+            allow_no_test=allow_no_test,
+            fail_on_test_failure=fail_on_test_failure,
             timeout=timeout,
         )
-        normal_return_codes = [BuildExitCode.SUCCESS]
-        if not fail_on_test_failure:
-            normal_return_codes.append(BuildExitCode.TESTS_FAILED)
-        if allow_no_test:
-            normal_return_codes.append(BuildExitCode.TESTS_NOT_FOUND)
-        if result.returncode not in normal_return_codes:
-            raise build_environment.CommandFailedException(
-                _bazel_error_msg(
-                    cmd,
-                    BuildExitCode.try_convert(result.returncode),
-                    extra_secrets=self._env_secrets(),
-                ),
-                result,
-            )
-        return result
+
+    def coverage(
+        self,
+        targets: Iterable[str],
+        *,
+        invocation_flags: Iterable[str] = (),
+        allow_analysis_cache_discard: bool = False,
+        allow_no_test: bool = False,
+        fail_on_test_failure: bool = True,
+        timeout: float | None = 3600,
+    ) -> subprocess.CompletedProcess:
+        """Runs ``bazel coverage`` and returns the result.
+
+        Args:
+            targets: The bazel targets to test with coverage collection.
+            invocation_flags: Per-invocation flags.
+            allow_analysis_cache_discard: Do not fail the build if analysis
+                cache is being discarded.
+            allow_no_test: Do not raise exception if bazel reports no tests were
+                run.
+            fail_on_test_failure: Raise exception if bazel reports test failures.
+            timeout: Timeout for the entire process.
+
+        Returns:
+            A ``subprocess.CompletedProcess`` object. When capture_output == False,
+            it contains only the commandline and the return code.
+        """
+        return self._run_test_verb(
+            "coverage",
+            targets,
+            invocation_flags=invocation_flags,
+            allow_analysis_cache_discard=allow_analysis_cache_discard,
+            allow_no_test=allow_no_test,
+            fail_on_test_failure=fail_on_test_failure,
+            timeout=timeout,
+        )
 
     def build(
         self,
@@ -387,9 +493,7 @@ class BazelCmd:
         )
         return result
 
-    def shutdown(
-        self, timeout: float | None = 120
-    ) -> subprocess.CompletedProcess:
+    def shutdown(self, timeout: float | None = 120) -> subprocess.CompletedProcess:
         """Runs ``bazel shutdown`` to stop the server and release resident memory."""
         cmd = [str(self._path)]
         cmd.extend(self._startup_options)
