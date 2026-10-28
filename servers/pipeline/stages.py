@@ -295,7 +295,9 @@ class UnitTestStage(Stage):
             unit_test_targets.append("-@goldfish//emulator:external_unit_tests")
         elif not ctx.env.is_presubmit:
             unit_test_targets.append("@goldfish//emulator:external_unit_tests")
-        if ctx.env.is_linux() and not _is_env_cross_compile(ctx.env):
+        if (
+            ctx.env.is_linux() or ctx.env.is_macos()
+        ) and not _is_env_cross_compile(ctx.env):
             unit_test_targets.append("@gfxstream//:gfxstream_unit_tests")
         if _is_env_cross_compile(ctx.env) and ctx.env.target_platform.startswith(
             "windows"

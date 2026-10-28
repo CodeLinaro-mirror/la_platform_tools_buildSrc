@@ -146,9 +146,9 @@ python3 tools/buildSrc/servers/build.py \
   at full concurrency.
 - When `change_info.json` specifies modified C/C++ files under
   `hardware/generic/goldfish` on Linux/macOS release builds, enables
-  `--@goldfish_build//:clang_tidy_enabled=true` and scopes analysis via
-  `--@goldfish_build//:clang_tidy_line_filter` and
-  `--@goldfish_build//:clang_tidy_check_files` without discarding the warm
+  `--@aemu//tools/clang_tidy:clang_tidy_enabled=true` and scopes analysis via
+  `--@aemu//tools/clang_tidy:clang_tidy_line_filter` and
+  `--@aemu//tools/clang_tidy:clang_tidy_check_files` without discarding the warm
   Skyframe analysis cache; otherwise skips `:tidy` targets via
   `--test_tag_filters=-tidy-test`.
 
