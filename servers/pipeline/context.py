@@ -139,15 +139,15 @@ class BuildContext:
             logger.info("Enabling clang-tidy targets for modified C/C++ lines")
             flags.extend(
                 [
-                    "--@goldfish_build//:clang_tidy_enabled=true",
-                    f"--@goldfish_build//:clang_tidy_line_filter={tidy_filters}",
+                    "--@aemu//tools/clang_tidy:clang_tidy_enabled=true",
+                    f"--@aemu//tools/clang_tidy:clang_tidy_line_filter={tidy_filters}",
                 ]
             )
             try:
                 for filter_obj in json.loads(tidy_filters):
                     if "name" in filter_obj:
                         flags.append(
-                            f"--@goldfish_build//:clang_tidy_check_files={filter_obj['name']}"
+                            f"--@aemu//tools/clang_tidy:clang_tidy_check_files={filter_obj['name']}"
                         )
             except (json.JSONDecodeError, ValueError) as e:
                 logger.warning("Could not parse clang-tidy filters: %s", e)

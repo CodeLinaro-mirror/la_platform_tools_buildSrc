@@ -15,7 +15,7 @@
 import argparse
 import sys
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from unittest.mock import MagicMock, call, patch
 
 # Ensure servers directory is in sys.path
@@ -265,6 +265,62 @@ class BuildScriptTest(unittest.TestCase):
         mock_trusty.assert_called_once()
         mock_aosp.assert_not_called()
         mock_aemu.assert_not_called()
+
+    def test_bazel_output_base_windows_uses_short_tmpdir_sibling(self):
+        output_base = build._bazel_output_base(
+            PureWindowsPath(r"c:\buildbot\tmp\tmp0ytbe5l2"), is_windows=True
+        )
+
+        self.assertEqual(output_base, PureWindowsPath(r"c:\buildbot\tmp\b0ytbe5l2"))
+
+    def test_bazel_output_base_windows_other_tmpdir_uses_output_subdir(self):
+        for tmp_dir in (
+            PureWindowsPath(r"C:\Users\user\AppData\Local\Temp"),
+            PureWindowsPath(r"C:\tmp"),
+        ):
+            with self.subTest(tmp_dir=tmp_dir):
+                self.assertEqual(
+                    build._bazel_output_base(tmp_dir, is_windows=True),
+                    tmp_dir / "output",
+                )
+
+    def test_bazel_output_base_non_windows_uses_output_subdir(self):
+        output_base = build._bazel_output_base(
+            PurePosixPath("/buildbot/tmp/tmp0ytbe5l2"), is_windows=False
+        )
+
+        self.assertEqual(output_base, PurePosixPath("/buildbot/tmp/tmp0ytbe5l2/output"))
+
+    @patch("build.build_aosp")
+    @patch("build.build_aemu")
+    @patch("build.build_trusty")
+    @patch("build.build_environment.create_build_environment")
+    @patch("build.GeminiExplainer")
+    def test_main_passes_output_and_install_base_from_tmpdir(
+        self, mock_explainer, mock_create_env, mock_trusty, mock_aemu, mock_aosp
+    ):
+        tmp_dir = Path("/buildbot/tmp/tmp0ytbe5l2")
+        self.mock_env.tmp_dir = tmp_dir
+        mock_create_env.return_value.__enter__.return_value = self.mock_env
+        mock_explainer.return_value.__enter__.return_value = MagicMock()
+
+        for is_windows, output_base in (
+            (True, tmp_dir.with_name("b0ytbe5l2")),
+            (False, tmp_dir / "output"),
+        ):
+            with self.subTest(is_windows=is_windows):
+                self.mock_env.is_windows.return_value = is_windows
+                with patch.object(sys, "argv", ["build.py", "--dist", "/tmp/dist"]):
+                    build.main()
+
+                startup_options = mock_aemu.call_args[0][2]
+                self.assertEqual(
+                    startup_options,
+                    [
+                        f"--output_base={output_base}",
+                        f"--install_base={tmp_dir / 'install'}",
+                    ],
+                )
 
     def test_bazel_cmd_shutdown(self):
         bzl = build.bazel.BazelCmd(
