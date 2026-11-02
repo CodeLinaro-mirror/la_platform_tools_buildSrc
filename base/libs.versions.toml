@@ -123,7 +123,7 @@ google-api-client = "com.google.api-client:google-api-client:1.22.0"
 google-storage-client = { module = "com.google.apis:google-api-services-storage", version.ref = "googleApiServices" }
 google-testing-client = { module = "com.google.apis:google-api-services-testing", version.ref = "googleApiServices" }
 google-toolresults-client = "com.google.apis:google-api-services-toolresults:v1beta3-rev82-1.22.0"
-jsoup = "org.jsoup:jsoup:1.16.1"
+jsoup = "org.jsoup:jsoup:1.23.2"
 junit = "junit:junit:4.13.2"
 junit-platform-commons = { module = "org.junit.platform:junit-platform-commons", version.ref = "junitPlatform" }
 junit-platform-engine = { module = "org.junit.platform:junit-platform-engine", version.ref = "junitPlatform" }
