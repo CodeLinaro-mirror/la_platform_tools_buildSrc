@@ -119,10 +119,10 @@ jacoco-report = { module = "org.jacoco:org.jacoco.report", version.ref = "jacoco
 # Include test dependencies here as well, so that we take them into
 # consideration when computing version numbers.
 equalsverifier = "nl.jqno.equalsverifier:equalsverifier:3.15.6"
-google-api-client = "com.google.api-client:google-api-client:1.22.0"
-google-storage-client = { module = "com.google.apis:google-api-services-storage", version.ref = "googleApiServices" }
-google-testing-client = { module = "com.google.apis:google-api-services-testing", version.ref = "googleApiServices" }
-google-toolresults-client = "com.google.apis:google-api-services-toolresults:v1beta3-rev82-1.22.0"
+google-api-client = "com.google.api-client:google-api-client:1.35.2"
+google-storage-client = "com.google.apis:google-api-services-storage:v1-rev20230301-2.0.0"
+google-testing-client = "com.google.apis:google-api-services-testing:v1-rev20250327-2.0.0"
+google-toolresults-client = "com.google.apis:google-api-services-toolresults:v1beta3-rev20230410-2.0.0"
 jsoup = "org.jsoup:jsoup:1.23.2"
 junit = "junit:junit:4.13.2"
 junit-platform-commons = { module = "org.junit.platform:junit-platform-commons", version.ref = "junitPlatform" }
