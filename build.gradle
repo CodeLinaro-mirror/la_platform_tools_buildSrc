@@ -30,7 +30,6 @@ dependencies {
     implementation libs.guava
     implementation libs.gson
     implementation libs.protobuf.gradle.plugin
-    implementation libs.apache.commons.lang
     implementation libs.kotlin.gradle.plugin.forAgpBuild
 
     testImplementation libs.junit

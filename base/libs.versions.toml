@@ -25,7 +25,7 @@ junitPlatform = "1.13.3"
 
 antlr4 = "org.antlr:antlr4:4.5.3"
 apache-commons-io = "commons-io:commons-io:2.16.1"
-apache-commons-lang = "commons-lang:commons-lang:2.6"
+apache-commons-lang = "org.apache.commons:commons-lang3:3.21.0"
 apache-compress = "org.apache.commons:commons-compress:1.27.1"
 apache-httpmime = "org.apache.httpcomponents:httpmime:4.5.6"
 
