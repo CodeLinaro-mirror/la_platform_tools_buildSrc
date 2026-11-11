@@ -106,7 +106,7 @@ public abstract class GenerateOldApisTask extends DefaultTask {
                     "DeprecationMismatch",
                     "--source-path",
                     TaskUtils.asArg(getSources(getProject(), sourceJar, sourcesJarFileName)),
-                    "--format=v4",
+                    "--format=4.0",
                     "--warnings-as-errors",
                     "--jdk-home",
                     TaskUtils.asArg(getJdkHome()),
@@ -122,7 +122,6 @@ public abstract class GenerateOldApisTask extends DefaultTask {
                     params -> {
                         params.getArgs().set(args);
                         params.getMetalavaClasspath().set(getMetalavaClasspath());
-                        params.getK2UastEnabled().set(true);
                     }
             );
         });

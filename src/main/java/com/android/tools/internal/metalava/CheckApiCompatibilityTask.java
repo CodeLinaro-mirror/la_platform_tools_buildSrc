@@ -139,7 +139,6 @@ public abstract class CheckApiCompatibilityTask extends DefaultTask {
                 params -> {
                     params.getArgs().set(args);
                     params.getMetalavaClasspath().set(getMetalavaClasspath());
-                    params.getK2UastEnabled().set(true);
                 }
         );
     }

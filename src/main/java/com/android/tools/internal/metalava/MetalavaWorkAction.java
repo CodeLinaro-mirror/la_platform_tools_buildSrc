@@ -18,7 +18,6 @@ package com.android.tools.internal.metalava;
 
 import com.google.common.collect.ImmutableList;
 import org.gradle.api.provider.ListProperty;
-import org.gradle.api.provider.Property;
 import org.gradle.api.provider.SetProperty;
 import org.gradle.process.ExecOperations;
 import org.gradle.workers.WorkAction;
@@ -39,7 +38,6 @@ public abstract class MetalavaWorkAction implements WorkAction<MetalavaWorkActio
     interface MetalavaParams extends WorkParameters {
         ListProperty<String> getArgs();
         SetProperty<File> getMetalavaClasspath();
-        Property<Boolean> getK2UastEnabled();
     }
 
     @Inject
@@ -49,9 +47,6 @@ public abstract class MetalavaWorkAction implements WorkAction<MetalavaWorkActio
     public void execute() {
         ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
         List<String> args = new ArrayList<>(getParameters().getArgs().get());
-        if (getParameters().getK2UastEnabled().get()) {
-            args.add("--Xuse-k2-uast");
-        }
         try {
             getExecOperations().javaexec(spec -> {
                 // Intellij core reflects into java.util.ResourceBundle

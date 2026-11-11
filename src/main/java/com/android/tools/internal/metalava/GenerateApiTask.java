@@ -82,7 +82,7 @@ public abstract class GenerateApiTask extends DefaultTask {
                 "--delete-empty-removed-signatures",
                 "--source-path",
                 TaskUtils.asArg(getSourcePaths()),
-                "--format=v4",
+                "--format=4.0",
                 "--warnings-as-errors",
                 "--jdk-home",
                 TaskUtils.asArg(getJdkHome()),
@@ -104,7 +104,6 @@ public abstract class GenerateApiTask extends DefaultTask {
                 params -> {
                     params.getArgs().set(args);
                     params.getMetalavaClasspath().set(getMetalavaClasspath());
-                    params.getK2UastEnabled().set(true);
                 }
         );
     }
